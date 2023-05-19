@@ -56,11 +56,11 @@ class TestUnreachable(TestCase):
 
         assert definition in proj.state._unreachable
 
-        # assert not proj.state.is_reachable(definition)
-        # assert not proj.state.is_reachable(assign)
+        assert not proj.state.is_reachable(definition)
+        assert not proj.state.is_reachable(assign)
         
-        # for n in ast.walk(assign):
-        #     assert not proj.state.is_reachable(n)
+        for n in ast.walk(assign):
+            assert not proj.state.is_reachable(n)
 
     def test_simple_version_info_imports(self):
         code = '''
