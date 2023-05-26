@@ -1,4 +1,4 @@
-import gast as ast
+import ast
 from typing import Callable, Tuple
 
 from libstatic.astutils import node2dottedname
@@ -33,6 +33,7 @@ class Transform(ast.NodeTransformer):
     - Transform supported __all__ operations into assignments
     - Support 'assert False' statements as a control flow jump
     """
+    # TODO: unstring annotations
 
     def __init__(self):
         super().__init__()

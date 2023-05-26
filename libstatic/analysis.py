@@ -6,11 +6,11 @@ import time
 from typing import (Any, Callable, Collection, Dict, Iterable, List, Mapping, NoReturn, Optional, Set, Tuple, Type, Union, 
                     TypeAlias,)
 
-import gast as ast
+import ast
+import gast
 import attr
 
-from beniget.beniget import DefUseChains, Def, Ancestors
-from beniget.beniget import ordered_set
+from beniget.beniget import DefUseChains, ordered_set, Def as BenigetDef
 
 from typeshed_client import get_stub_file
 from typeshed_client.finder import parse_stub_file
@@ -18,16 +18,16 @@ from typeshed_client.finder import parse_stub_file
 from ast2json import ast2json
 from json2ast import json2ast
 
-import diskcache
-import appdirs
+# import diskcache
+# import appdirs
 
-from libstatic.astutils import get_context, Context, node2dottedname, op2func, iterassignfull, ast_repr
+from libstatic.astutils import (Ancestors, Context, get_context, node2dottedname, 
+                                op2func, iterassignfull, ast_repr, ast_node_name, ast_to_gast)
 from libstatic.transform import Transform
 
 # TODOs:
 # - proper logging system. 
 # - custom exceptions instead of ValueError.
-# - integrate transformations when add_module() if called.
 #
 # 
 
@@ -38,7 +38,7 @@ def _load_typeshed_mod_spec(modname:str) -> Tuple[str, ast.Module, bool]:
     if not path:
         raise ValueError(f'module {modname} not found')
     is_package = path.stem == '__init__'
-    return modname, ast.ast_to_gast(parse_stub_file(path)), is_package
+    return modname, parse_stub_file(path), is_package
 
 class AbstractNodeVisitor:
     def generic_visit(self, node: ast.AST, *args:Any, **kwargs:Any) -> Any:
@@ -94,7 +94,7 @@ class State:
         Mapping from module names to Mod instances.
         """
 
-        self._unreachable: Set[ast.stmt] = set()
+        self._unreachable: Set[ast.AST] = set()
         """
         Set of unreachable nodes.
         """
@@ -130,7 +130,7 @@ class State:
         """
     
         
-    def get_def(self, node:'ast.AST') -> Union[Def, 'Mod']:
+    def get_def(self, node:'ast.AST') -> Union['Def', 'Mod']:
         """
         Def-Use chains accessor.
         """
@@ -148,13 +148,13 @@ class State:
         except KeyError as e:
             raise ValueError(f'{ast_repr(node)} is not present in the imported names') from e
     
-    def goto_def(self, node:ast.AST) -> Def:
+    def goto_def(self, node:ast.AST) -> 'Def':
         """
         Use-Def chains accessor that returns only one def, or raise ValueError.
         """
         return self.goto_defs(node)[0]
     
-    def goto_defs(self, node:ast.AST, noraise:bool=False) -> List[Def]:
+    def goto_defs(self, node:ast.AST, noraise:bool=False) -> List['Def']:
         """
         Use-Def chains accessor. It does not work for builtins at the moment.
         """
@@ -183,19 +183,19 @@ class State:
             mod = self.get_def(mod)
         return self._modules.get(get_mod_name(mod.name())+(name,))
 
-    def get_locals(self, node:Union['Mod', Def, ast.AST]) -> Mapping[str, List[Def]]:
+    def get_locals(self, node:Union['Mod', 'Def', ast.AST]) -> Mapping[str, List['Def']]:
         if isinstance(node, Def):
             node = node.node
         return self._locals[node]
 
-    def get_local(self, node: Union['Mod', Def, ast.AST], name:str) -> List[Def]:
+    def get_local(self, node: Union['Mod', 'Def', ast.AST], name:str) -> List['Def']:
         try:
             return self.get_locals(node)[name]
         except KeyError:
             return []
         
-    def get_attribute(self, namespace: Union['Mod', Def, ast.AST], name:str, *, 
-                    ignore_locals:bool=False) -> List[Union['Mod', Def]]:
+    def get_attribute(self, namespace: Union['Mod', 'Def', ast.AST], name:str, *, 
+                    ignore_locals:bool=False) -> List[Union['Mod', 'Def']]:
         """
         Get local attributes definitions matching the name from this scope.
         It calls both `get_local()` and `get_sub_module()`.
@@ -255,6 +255,7 @@ class State:
         return self._ancestors[node]
 
     def get_parent_instance(self, node:ast.AST, cls:'Type[ast.AST]|Tuple[Type[ast.AST],...]') -> ast.AST:
+        # TODO: Use TypeGard annotation
         for n in reversed(self._ancestors[node]):
             if isinstance(n, cls):
                 return n
@@ -268,7 +269,7 @@ class State:
             return {
                 'is_package':_m.is_package,
                 'modname':_m.name(),
-                'node':ast2json(ast.gast_to_ast(_m.node))
+                'node':ast2json(_m.node)
             }
         return [_dump_mod(m) for m in self._modules.values()]
 
@@ -316,40 +317,40 @@ class StateModifiers:
 
     # use-def-use structure
     
-    def _add_usedef(self, use:Def, definition:Def) -> None:
+    def _add_usedef(self, use:'Def', definition:'Def') -> None:
         self._state._use_def_chains.setdefault(use.node, []).append(definition)
     
-    def add_definition(self, definition:Def) -> None:
+    def add_definition(self, definition:'Def') -> None:
         assert definition.node not in self._state._def_use_chains
         self._state._def_use_chains[definition.node] = definition
         for u in definition.users():
             self._add_usedef(u, definition)
 
-    def add_user(self, definition:Def, use:Def) -> None:
+    def add_user(self, definition:'Def', use:'Def') -> None:
         definition.add_user(use)
         self._add_usedef(use, definition)
 
-    def remove_user(self, definition:Def, use:Def) -> None:
+    def remove_user(self, definition:'Def', use:'Def') -> None:
         definition._users.discard(use)
         self._state._use_def_chains[use.node].remove(definition)
     
-    def remove_definition(self, definition:Def) -> None:
+    def remove_definition(self, definition:'Def') -> None:
         del self._state._def_use_chains[definition.node]
         for use in definition.users():
             self.remove_user(definition, use)
     
     # first pass updates
 
-    def _update_defuse(self, defuse:Dict[ast.AST, Def]) -> None:
+    def _update_defuse(self, defuse:Dict[ast.AST, 'Def']) -> None:
         self._state._def_use_chains.update(defuse)
     
-    def _update_locals(self, locals:Dict[ast.AST, Def]) -> None:
+    def _update_locals(self, locals:Dict[ast.AST, 'Def']) -> None:
         self._state._locals.update(locals)
 
     def _update_ancestors(self, ancestors:Dict[ast.AST, List[ast.AST]]) -> None:
         self._state._ancestors.update(ancestors)
     
-    def _update_usedef(self, usedef:Dict[ast.AST, List[Def]]) -> None:
+    def _update_usedef(self, usedef:Dict[ast.AST, List['Def']]) -> None:
         self._state._use_def_chains.update(usedef)
     
     def _update_imports(self, imports:Mapping[ast.alias, 'ImportedName']) -> None:
@@ -359,7 +360,7 @@ class StateModifiers:
         self._state._unreachable.update(unreachable)
 
     def store_anaysis(self, *, defuse:'Dict[ast.AST, Def]|None'=None,
-                      locals:'Dict[ast.AST, Def]|None'=None,
+                      locals:'Dict[ast.AST, Dict[str, List[Def|None]]]|None'=None,
                       ancestors:'Dict[ast.AST, List[ast.AST]]|None'=None,
                       usedef:'Dict[ast.AST, List[Def]]|None'=None,
                       imports:'Mapping[ast.alias, ImportedName]|None'=None, 
@@ -376,7 +377,7 @@ class StateModifiers:
     def load(self, data:'list[dict[str, Any]]') -> None:
         for mod_spec in data:
             assert all(k in mod_spec for k in ['node', 'modname', 'is_package'])
-            self.add_module(ast.ast_to_gast(json2ast(mod_spec['node'])), 
+            self.add_module(json2ast(mod_spec['node']), 
                            mod_spec['modname'], 
                            is_package=mod_spec['is_package'])   
 
@@ -396,7 +397,7 @@ class Analyzer:
         # - compute ancestors
         ancestors_vis = Ancestors()
         ancestors_vis.visit(module_node)
-        ancestors = ancestors_vis._parents
+        ancestors = ancestors_vis.parents
 
         usedef = UseDefChains(defuse)
         
@@ -502,11 +503,69 @@ class Project:
     def add_module(self, node: ast.Module, name:str, *, is_package:bool=False) -> 'Mod':
         return StateModifiers(self.state).add_module(node, name, is_package=is_package)
 
+class Def:
+    """
+    Model a definition, either named or unnamed, and its users.
+    """
+
+    __slots__ = "node", "_users"
+
+    def __init__(self, node):
+        self.node = node
+        self._users = ordered_set()
+
+    def add_user(self, node):
+        assert isinstance(node, Def)
+        self._users.add(node)
+
+    def name(self):
+        """
+        If the node associated to this Def has a name, returns this name.
+        Otherwise returns its type.
+        """
+        name = ast_node_name(self.node)
+        if name:
+            return name
+        elif isinstance(self.node, tuple):
+            return self.node[1]
+        else:
+            return type(self.node).__name__
+
+    def users(self):
+        """
+        The list of ast entity that holds a reference to this node.
+        """
+        return self._users
+
+    def __repr__(self):
+        return self._repr({})
+
+    def _repr(self, nodes):
+        if self in nodes:
+            return "(#{})".format(nodes[self])
+        else:
+            nodes[self] = len(nodes)
+            return "{} -> ({})".format(
+                self.node, ", ".join(u._repr(nodes.copy())
+                                     for u in self._users)
+            )
+
+    def __str__(self):
+        return self._str({})
+
+    def _str(self, nodes):
+        if self in nodes:
+            return "(#{})".format(nodes[self])
+        else:
+            nodes[self] = len(nodes)
+            return "{} -> ({})".format(
+                self.name(), ", ".join(u._str(nodes.copy())
+                                       for u in self._users)
+            )
+
 class Mod(Def):
     """
-    Model a python module.
-    Interface is designed to be as minimalistic as possible as well as integrated into the
-    wider use-def chains.
+    Model a module.
     """
 
     __slots__ = "node", "_users", "_modname", "is_package"
@@ -519,6 +578,26 @@ class Mod(Def):
     
     def name(self) -> str:
         return self._modname
+
+class Cls(Def):
+    """
+    Model a class.
+    """
+
+class Func(Def):
+    """
+    Model a function.
+    """
+
+class Var(Def):
+    """
+    Model a variable.
+    """
+
+class Imp(Def):
+    """
+    Model an imported name.
+    """
 
 # several names can be imported from the same import statement, 
 # and different priority might be added depeding on the name of the import.
@@ -563,20 +642,60 @@ class wildcard_imported_name(ast.alias):
         super().__init__(name=name, asname=None, lineno=lineno, col_offset=col_offset)
         self.module = module
 
-def DefUseChainsAndLocals(node:ast.Module, filename:Any=None,) -> Tuple[Dict[ast.AST, Def], 
-                                                                        Dict[ast.AST, Dict[str, List[Def]]]]:
+def _def_factory(node:'ast.AST|None') -> 'Def|None':
+    if isinstance(node, ast.ClassDef):
+        return Cls(node)
+    elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        return Func(node)
+    elif isinstance(node, (ast.Name, ast.ExceptHandler)):
+        return Var(node)
+    elif isinstance(node, ast.alias):
+        return Imp(node)
+    elif isinstance(node, ast.Module):
+        assert False
+    else:
+        return Def(node)
+
+def _convert_beniget_def(definition:BenigetDef, 
+                         converted:Dict[BenigetDef, 'Def|None'], 
+                         mapping:Mapping[gast.AST, ast.AST]) -> 'Def|None':
+    if definition in converted:
+        return converted[definition]
+    new_definition = _def_factory(mapping.get(definition.node))
+    converted[definition] = new_definition
+    if new_definition:
+        for user in definition.users():
+            new_definition.add_user(_convert_beniget_def(user, converted, mapping))
+    return new_definition
+
+def _def_use_chains_to_stdlib(chains:Dict[gast.AST, BenigetDef], 
+                              mapping:Mapping[gast.AST, ast.AST]) -> Tuple[Dict[ast.AST, Def],
+                                                                           Dict[BenigetDef, 'Def|None']]:
+    new_chains:Dict[ast.AST, Def] = {}
+    converted:Dict[BenigetDef, 'Def|None'] = {}
+    for definition in chains.values():
+        new_def = _convert_beniget_def(definition, converted, mapping)
+        if new_def:
+            new_chains[new_def.node] = new_def
+    return new_chains, converted
+
+def DefUseChainsAndLocals(node:ast.Module,
+                          filename:Any=None,) -> Tuple[Dict[ast.AST, Def], 
+                                                       Dict[ast.AST, Dict[str, List['Def|None']]]]:
     
+    gast_node, mapping = ast_to_gast(node)
     # - compute local def-use chains
     defuse = DefUseChains(filename=filename)
     assert hasattr(defuse, 'future_annotations')
     defuse.future_annotations = True
-    defuse.visit(node)
-    locals_as_dict: Dict[ast.AST, Dict[str, List[Def]]] = {}
+    defuse.visit(gast_node)
+    chains, converted = _def_use_chains_to_stdlib(defuse.chains, mapping)
+    locals_as_dict: Dict[ast.AST, Dict[str, List['Def|None']]] = {}
     for namespace,loc_list in defuse.locals.items():
-        d = locals_as_dict.setdefault(namespace, {})
+        d = locals_as_dict.setdefault(mapping[namespace], {})
         for loc in loc_list:
-            d.setdefault(loc.name(), []).append(loc)
-    return defuse.chains, locals_as_dict
+            d.setdefault(loc.name(), []).append(converted[loc])
+    return chains, locals_as_dict
 
 def UseDefChains(def_use_chains: Dict[ast.AST, Def]) -> Dict[ast.AST, List[Def]]:
     """
@@ -800,12 +919,11 @@ def GetStoredValue(node: ast.AST, assign:'ast.Assign|ast.AnnAssign') -> Optional
     
     # There is no augmented assignments
     value = assign.value
-    is_sequence = isinstance(value, (ast.List, ast.Tuple))
     for _, target in iterassignfull(assign):
         if target is node:
             return value
         elif isinstance(target, (ast.List, ast.Tuple)):
-            if is_sequence and len(target.elts)==len(value.elts):
+            if isinstance(value, (ast.List, ast.Tuple)) and len(target.elts)==len(value.elts):
                 try:
                     index = target.elts.index(node)
                 except IndexError:
@@ -971,7 +1089,7 @@ class _ASTEval(NodeVisitor):
         # fails on unknown nodes
         AbstractNodeVisitor.generic_visit(self, node, *args, **kwargs)
     
-    def _returns(self, ob:ast.stmt, path:List[ast.AST]) -> Def:
+    def _returns(self, ob:ast.stmt, path:List[ast.AST]) -> Any:
         return ob
     
     visit_Module = \

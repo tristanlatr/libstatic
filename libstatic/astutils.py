@@ -1,4 +1,6 @@
 import ast
+import gast
+from gast.ast3 import Ast3ToGAst
 import enum
 from functools import lru_cache
 import inspect
@@ -341,7 +343,8 @@ def op2func(oper) -> Callable[[Any, Any], Any]:
 def ast_node_name(n:ast.AST, modname:str='') -> 'str|None':
     if isinstance(n, (ast.ClassDef,
                                   ast.FunctionDef,
-                                  ast.AsyncFunctionDef)):
+                                  ast.AsyncFunctionDef,
+                                  ast.ExceptHandler)):
         return n.name
     elif isinstance(n, ast.Name):
         return n.id
@@ -362,4 +365,40 @@ def ast_repr(n:ast.AST, modname:str='') -> str:
         node_name = ast_node_name(n, modname)
         name = f':{node_name}' if node_name else ''
         return f"{n.__class__.__name__}{name} at {modname or '<unknown>'}:{lineno}:{col_offset}"
-    
+
+class Ancestors(ast.NodeVisitor):
+    """
+    Build the ancestor tree, that associates a node to the list of node visited
+    from the root node (the Module) to the current node
+    """
+
+    def __init__(self):
+        self.parents = dict()
+        self._current = list()
+
+    def generic_visit(self, node):
+        self.parents[node] = list(self._current)
+        self._current.append(node)
+        super(Ancestors, self).generic_visit(node)
+        self._current.pop()
+
+class _AstToGAst(Ast3ToGAst):
+    def __init__(self) -> None:
+        self.mapping = {}
+    def visit(self, node):
+        newnode = super().visit(node)
+        if not isinstance(node, ast.expr_context):
+            self.mapping[newnode] = node
+        return newnode
+
+def ast_to_gast(node:ast.Module) -> Tuple[gast.Module, Mapping[gast.AST, ast.AST]]:
+    """
+    This function returns a tuple which first element is the ``gast`` module and the second element is a 
+    mapping from gast nodes to standard library nodes. It should be used with caution
+    since not all nodes have a corespondance. Namely, ``expr_context`` nodes and the store ``Name`` of 
+    ``ExceptHandler``s are not present in the mapping.
+    """
+    # returns a tuple: (gast node, mapping from gast node to ast node)
+    _vis = _AstToGAst()
+    newnode = _vis.visit(node)
+    return newnode, _vis.mapping

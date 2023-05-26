@@ -1,4 +1,4 @@
-import gast as ast
+import ast
 from unittest import TestCase
 from textwrap import dedent, indent
 

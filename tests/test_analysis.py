@@ -1,12 +1,11 @@
 from contextlib import redirect_stdout
 from io import StringIO
-import gast as ast
+import ast
 from unittest import TestCase
 from textwrap import dedent
 
-from beniget.beniget import Ancestors, Def
-from libstatic.astutils import ast_repr
-from libstatic.analysis import (GetStoredValue, Project, LiteralEval, ImportParser, 
+from libstatic.astutils import ast_repr, Ancestors
+from libstatic.analysis import (Def, GetStoredValue, Project, LiteralEval, ImportParser, 
                                 ImportedName, OrderedBuilder, GotoDefinition, 
                                 DeferredModuleException, ParseImportedNames, StateModifiers)
 
@@ -83,7 +82,7 @@ class TestUnreachable(TestCase):
         definition2 = stmt2.names[0]
 
         assert ast_repr(stmt2)=='Import at <unknown>:6:4'
-        assert ast_repr(definition2)=='alias at <unknown>:6:11'
+        assert ast_repr(definition2)=='alias:importlib_resources at <unknown>:6:11'
 
         assert not proj.state.is_reachable(definition2)
         assert not proj.state.is_reachable(stmt2)
@@ -712,14 +711,9 @@ def process_imports(proj:Project, build:OrderedBuilder, astmod:ast.Module):
     ancestors = Ancestors()
     ancestors.visit(astmod)
     for imp in imports.values():
-        try:
-
-            # if this import is inside a class or function, ignore it.
-            # could be tweaked depending on the builder iteration.
-            ancestors.parentInstance(imp.node, (ast.FunctionDef, 
-                                                ast.AsyncFunctionDef, 
-                                                ast.ClassDef))
-        except ValueError:
+        if any(isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) for node in ancestors.parents[imp.node]):
+            pass
+        else:
             if not build.is_processed(build.get_processed_module(imp.orgmodule)):
                 raise DeferredModuleException(imp.orgmodule)
 
