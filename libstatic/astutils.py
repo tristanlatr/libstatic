@@ -270,31 +270,6 @@ def get_context(node: _AssignmentTargetExpr) -> Context:
     except KeyError as e:
         raise ValueError(f"Can't get the context of {node!r}") from e
 
-# Credits to astroid project
-def locate_child(
-    self: "ast.AST", child: "ast.AST"
-) -> "tuple[str, ast.AST|list[ast.AST]]":
-    """Find the field of this node that **directly** contains the given child.
-
-    :param child: The child node to search fields for.
-    :type child: ASTNode
-    :returns: A tuple of the name of the field that contains the child,
-        and the sequence or node that contains the child node.
-    :rtype: tuple(str, iterable(ASTNode) or ASTNode)
-    :raises ValueError: If no field could be found that contains
-        the given child.
-    """
-    for field in self._fields:
-        node_or_sequence = getattr(self, field)
-        # /!\ compiler.ast Nodes have an __iter__ walking over child nodes
-        if child is node_or_sequence:
-            return field, child
-        if isinstance(node_or_sequence, (tuple, list)) and child in node_or_sequence:
-            return field, node_or_sequence
-
-    msg = "Could not find %s in %s's children"
-    raise ValueError(msg % (repr(child), repr(self)))
-
 # Safe versions of functions to prevent denial of service issues
 MAX_EXPONENT = 10000
 MAX_STR_LEN = 2 << 17  # 256KiB
