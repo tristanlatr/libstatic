@@ -336,7 +336,8 @@ class StateModifiers:
     
     def remove_definition(self, definition:'Def') -> None:
         del self._state._def_use_chains[definition.node]
-        for use in definition.users():
+        # avoiding RuntimeError: OrderedDict mutated during iteration.
+        for use in tuple(definition.users()):
             self.remove_user(definition, use)
     
     # first pass updates
@@ -771,7 +772,6 @@ class ImportParser(NodeVisitor):
     One instance of ImportParser can be used to parse all imports in a given module.
     """
     
-    # refactor: to arguments modname:str and is_package:bool
     def __init__(self, modname:'ModuleName|str', *, is_package:bool) -> None:
         self._modname = get_mod_name(modname)
         self._is_package = is_package
