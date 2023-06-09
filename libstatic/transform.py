@@ -1,13 +1,8 @@
 import ast
-from typing import Callable, Tuple
+from typing import Callable, Tuple, Union
 
 from libstatic.astutils import node2dottedname
 
-def dottedname(expr:ast.expr) -> str:
-    names = node2dottedname(expr)
-    if not names:
-        raise ValueError()
-    return '.'.join(names)
 
 def fix_ast_location(new_node, old_node):
     return ast.fix_missing_locations(ast.copy_location(new_node, old_node))
@@ -29,11 +24,9 @@ class Transform(ast.NodeTransformer):
     to understand for static analyzers.
 
     - Removes dead code
-    - Transform augmented assignments into regular ones
-    - Transform supported __all__ operations into assignments
-    - Support 'assert False' statements as a control flow jump
+    - Transform supported __all__ operations into regular assignments
     """
-    # TODO: unstring annotations
+    # TODO: unstring annotations?
 
     def __init__(self):
         super().__init__()
@@ -144,19 +137,26 @@ class Transform(ast.NodeTransformer):
 
     visit_Raise = visit_Return = visit_Break = visit_Continue = visit_Assert = visit_jump
 
-    def visit_AugAssign(self, node: ast.AugAssign) -> ast.Assign:
+    def visit_AugAssign(self, node: ast.AugAssign) -> Union[ast.AugAssign, ast.Assign]:
         node = self.generic_visit(node)
         if node is None:
             return None
-
-        return fix_ast_location(
-            ast.Assign(
-                targets=[node.target],
-                value=ast.BinOp(left=node.target, op=node.op, right=node.value),
-                type_comment=None,
-            ),
-            node,
-        )
+        # Only transform top-level __all__ augmentd assignments into regular assignments
+        if node2dottedname(node.target) == ['__all__'] and not any(
+            isinstance(n, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
+            for n in self._node_stack
+        ):
+            return fix_ast_location(
+                ast.Assign(
+                    targets=[ast.Name(id='__all__', ctx=ast.Store())],
+                    value=ast.BinOp(left=ast.Name(id='__all__', ctx=ast.Load()), 
+                                    op=node.op, right=node.value),
+                    type_comment=None,
+                ),
+                node,
+            )
+        else:
+            return node
 
     # Transform statement level __all__.extend() and __all__.append()
     # into assignments
@@ -183,18 +183,13 @@ class Transform(ast.NodeTransformer):
 
         # We can safely apply this transformation because
         # we know __all__ should be a list or tuple.
-        if isinstance(o, ast.Name) and o.id == "__all__":
+        if node2dottedname(o) == ["__all__"]:
             aug = None
             if a == "extend":
                 aug = ast.Assign(
-                    targets=[
-                        ast.Name(
-                            o.id, ast.Store(), annotation=None, type_comment=None)
-                    ],
+                    targets=[ast.Name("__all__", ast.Store())],
                     value=ast.BinOp(
-                        left=ast.Name(
-                            o.id, ast.Load(), annotation=None, type_comment=None
-                        ),
+                        left=ast.Name("__all__", ast.Load()),
                         op=ast.Add(),
                         right=v.args[0],
                     ),
@@ -202,14 +197,9 @@ class Transform(ast.NodeTransformer):
                 )
             elif a == "append":
                 aug = ast.Assign(
-                    targets=[
-                        ast.Name(
-                            o.id, ast.Store(), annotation=None, type_comment=None)
-                    ],
+                    targets=[ast.Name("__all__", ast.Store())],
                     value=ast.BinOp(
-                        left=ast.Name(
-                            o.id, ast.Load(), annotation=None, type_comment=None
-                        ),
+                        left=ast.Name("__all__", ast.Load()),
                         op=ast.Add(),
                         right=ast.List(elts=[v.args[0]]),
                     ),

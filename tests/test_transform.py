@@ -16,32 +16,35 @@ class TestPrepare(TestCase):
         def check(code, ref, expect_success):
             node = ast.parse(code)
             Transform().transform(node)
+            unparsed = '\n'.join(line for line in ast.unparse(node).strip().splitlines() if line)
+            ref = '\n'.join(line for line in ref.strip().splitlines() if line)
             if expect_success:
-                self.assertEqual(ast.unparse(node).strip(), ref.strip())
+                self.assertEqual(unparsed, ref)
             else:
-                self.assertNotEqual(ast.unparse(node).strip(), ref.strip())
+                self.assertNotEqual(unparsed, ref)
 
         check(code, ref, expect_success=module)
 
         check(
-            "def f():" + indent(code, prefix="    "),
-            "def f():" + indent(ref, prefix="    "),
+            "def f():\n" + indent(code, prefix="    "),
+            "def f():\n" + indent(ref, prefix="    "),
             expect_success=function,
         )
 
         check(
-            "class S:" + indent(code, prefix="    "),
-            "class S:" + indent(ref, prefix="    "),
+            "class S:\n" + indent(code, prefix="    "),
+            "class S:\n" + indent(ref, prefix="    "),
             expect_success=klass,
         )
 
         check(
-            "class S:\n\n    def f(self):" + indent(code, prefix="        "),
-            "class S:\n\n    def f(self):" + indent(ref, prefix="        "),
+            "class S:\n\n    def f(self):\n" + indent(code, prefix="        "),
+            "class S:\n\n    def f(self):\n" + indent(ref, prefix="        "),
             expect_success=method,
         )
 
     def test_IfBanchDead(self):
+        # dead code is removed when it's directly after a control flow jump.
         code = """
         if sys.version_info.major == 2:
             raise RuntimeError()
@@ -59,6 +62,7 @@ class TestPrepare(TestCase):
         )
 
     def test_BothIfElseBranchesDead(self):
+        # dead code is removed when both branches of a if/else branch are dead.
         code = """
         if sys.version_info.major == 2:
             raise RuntimeError()
@@ -80,6 +84,7 @@ class TestPrepare(TestCase):
         )
 
     def test_IfElseInvalidJump(self):
+        # bogus control flow jumps are not considered.
         code = """
         if sys.version_info.major == 2:
             raise RuntimeError()
@@ -105,6 +110,7 @@ class TestPrepare(TestCase):
         )
 
     def test_WhileIfJump(self):
+        # nothing is removed when there is nothing to remove
         code = """
         while True:
             line = fp.readline()
@@ -124,6 +130,8 @@ class TestPrepare(TestCase):
         )
 
     def test_DeadYield(self):
+        # a dead yield is not removed since it's semantically important to make a 
+        # function into a generator.
         code = """
         raise NotImplemented()
         yield
@@ -140,6 +148,7 @@ class TestPrepare(TestCase):
         )
 
     def test_AugAssign(self):
+        # regular augmented assignments are not transformed.
         code = """
         a = 1
         a += 1
@@ -147,11 +156,54 @@ class TestPrepare(TestCase):
 
         transformed = """
         a = 1
-        a = a + 1
+        a += 1
+        """
+        self.checkTransforms(code, transformed)
+    
+    def test_AugAssignDunderAll(self):
+        # augmented assignments of module level variable __all__ are transformed into regular assignments.
+        code = """
+        __all__ = 1
+        __all__ += 1
+        """
+
+        transformed = """
+        __all__ = 1
+        __all__ = __all__ + 1
+        """
+        self.checkTransforms(code, transformed,
+                             function=False, klass=False, method=False)
+    
+    def test_AugAssignDunderAllInScope(self):
+        # augmented assignments of variable __all__ inside classes or functions are not transformed.
+        code = """
+        def f():
+            __all__ = 1
+            __all__ += 1
+        """
+
+        transformed = """
+        def f():
+            __all__ = 1
+            __all__ += 1
+        """
+        self.checkTransforms(code, transformed)
+
+        code = """
+        class C:
+            __all__ = 1
+            __all__ += 1
+        """
+
+        transformed = """
+        class C:
+            __all__ = 1
+            __all__ += 1
         """
         self.checkTransforms(code, transformed)
 
     def test_DunderAllTransform(self):
+        # list modifications of module level variable __all__ are transformed into regumar assignments.
         code = """
         __all__ = []
         __all__.append('2')
@@ -165,7 +217,42 @@ class TestPrepare(TestCase):
         """
         self.checkTransforms(code, transformed, function=False, klass=False, method=False)
     
+    def test_DunderAllTransformInScope(self):
+        # list modifications of variable __all__ inside classes or functions are not transformed.
+        code = """
+        def f():
+            __all__ = []
+            __all__.append('2')
+            __all__.extend(['2'])
+        """
+
+        transformed = """
+        def f():
+            __all__ = []
+            __all__.append('2')
+            __all__.extend(['2'])
+        """
+
+        self.checkTransforms(code, transformed)
+
+        code = """
+        class C:
+            __all__ = []
+            __all__.append('2')
+            __all__.extend(['2'])
+        """
+
+        transformed = """
+        class C:
+            __all__ = []
+            __all__.append('2')
+            __all__.extend(['2'])
+        """
+
+        self.checkTransforms(code, transformed)
+    
     def test_ReguluarList(self):
+        # regular list modifications are not transformed.
         code = """
         a = []
         a.append('2')
