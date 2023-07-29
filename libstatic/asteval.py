@@ -1,6 +1,7 @@
 import ast
 import numbers
 import sys
+import types
 from typing import (
     Any,
     Callable,
@@ -40,7 +41,7 @@ _AST_SEQUENCE_TO_TYPE: ( # type:ignore[type-arg]
 LiteralValue: "TypeAlias" = (
     "list[LiteralValue]|set[LiteralValue]|tuple[LiteralValue,...]|"
     "dict[LiteralValue, LiteralValue]|"
-    "str|numbers.Number|bool|bytes|None|slice"
+    "str|numbers.Number|bool|bytes|None|slice|types.EllipsisType"
 )
 ASTOrLiteralValue = Union[LiteralValue, ast.AST]
 
@@ -360,9 +361,10 @@ class _LiteralEval(_ASTEval):
             return self._known_values[fullname]
         return super().visit_Attribute_Load(node, path)
 
-    def visit_Constant(self, node: Union[ast.Constant, ast.Num, ast.Str, ast.Bytes], path: List[ast.AST]) -> LiteralValue:
+    def visit_Constant(self, node: ast.Constant, path: List[ast.AST]) -> LiteralValue:
         v = node.value
-        if not isinstance(v, (str, numbers.Number, bool, bytes, type(None))):
+        if not isinstance(v, (str, numbers.Number, bool, bytes, 
+                              types.NoneType, types.EllipsisType)):
             raise StaticTypeError(node.value, "literal")
         return v
 
@@ -483,10 +485,28 @@ class _LiteralEval(_ASTEval):
             else None
         )
         return slice(lower, upper, step)
-    
+
     if sys.version_info < (3,8):
-        visit_Num = visit_Str = visit_Bytes = visit_Constant
-    
+        def visit_NameConstant(self, node:ast.NameConstant, path:Any) -> LiteralValue:
+            return self.visit_Constant(node, path)
+        
+        def visit_Ellipsis(self, node:ast.Ellipsis) -> LiteralValue:
+            return ...
+
+        def visit_Num(self, node:ast.Num, path:Any) -> LiteralValue:
+            v = node.n
+            if not isinstance(v, numbers.Number):
+                raise StaticTypeError(v, "literal")
+            return v
+        
+        def visit_Str(self, node:Union[ast.Str, ast.Bytes], path:Any) -> LiteralValue:
+            v = node.s
+            if not isinstance(v, (str, bytes)):
+                raise StaticTypeError(v, "literal")
+            return v
+        
+        visit_Bytes = visit_Str
+
     if sys.version_info < (3,9):
 
         def visit_Index(self, node: ast.Index, path: List[ast.AST]) -> LiteralValue:

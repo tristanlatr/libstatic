@@ -35,6 +35,7 @@ class TestLiteralEval(TestCase):
                  ('v = [1,2,3][1]', 2),
                  ('v = [1,2,3][-1]', 3),
                  ('v = +1+1-(+1-(-1))', 0),
+                 ('v = ...', ...)
                  ]
         for code, expected in cases:
             with self.subTest(code):
