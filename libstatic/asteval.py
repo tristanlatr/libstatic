@@ -490,7 +490,7 @@ class _LiteralEval(_ASTEval):
         def visit_NameConstant(self, node:ast.NameConstant, path:Any) -> LiteralValue:
             return self.visit_Constant(node, path)
         
-        def visit_Ellipsis(self, node:ast.Ellipsis) -> LiteralValue:
+        def visit_Ellipsis(self, node:ast.Ellipsis, path:Any) -> LiteralValue:
             return ...
 
         def visit_Num(self, node:ast.Num, path:Any) -> LiteralValue:
