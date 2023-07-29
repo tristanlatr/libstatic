@@ -3,7 +3,7 @@ from unittest import TestCase
 from textwrap import dedent
 
 from libstatic.shared import ast_node_name
-from libstatic.imp import ImportParser
+from libstatic.imports import ImportParser
 
 class TestImportParser(TestCase):
 
