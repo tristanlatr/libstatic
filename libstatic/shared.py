@@ -1,5 +1,11 @@
 import ast
 from typing import Optional, List, overload, Any, Union
+import sys
+
+if sys.version_info >= (3,9):
+    from ast import unparse as to_source
+else:
+    from astor import to_source
 
 def node2dottedname(node: Optional[ast.AST]) -> Optional[List[str]]:
     """
@@ -33,3 +39,9 @@ def ast_node_name(n:Any) -> 'str|None':
         base = n.name.split(".", 1)[0]
         return n.asname or base
     return None
+
+def unparse(node:ast.AST) -> str:
+    try:
+        return to_source(node)
+    except Exception:
+        return '??'

@@ -4,6 +4,7 @@ from textwrap import dedent, indent
 
 
 from libstatic.transform import Transform
+from libstatic.shared import unparse
 
 
 class TestPrepare(TestCase):
@@ -16,7 +17,7 @@ class TestPrepare(TestCase):
         def check(code, ref, expect_success) -> None:
             node = ast.parse(code)
             Transform().transform(node)
-            unparsed = '\n'.join(line for line in ast.unparse(node).strip().splitlines() if line)
+            unparsed = '\n'.join(line for line in unparse(node).strip().splitlines() if line)
             ref = '\n'.join(line for line in ref.strip().splitlines() if line)
             if expect_success:
                 self.assertEqual(unparsed, ref)
