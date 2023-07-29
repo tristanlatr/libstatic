@@ -9,7 +9,6 @@ import time
 from typing import (
     TYPE_CHECKING,
     Iterator,
-    Protocol,
     Any,
     Collection,
     Dict,
@@ -46,7 +45,9 @@ from .exceptions import (
 )
 
 if TYPE_CHECKING:
-    from typing import Literal, NoReturn
+    from typing import Literal, NoReturn, Protocol
+else:
+    Protocol = object
 
 T = TypeVar("T", bound=ast.AST)
 
