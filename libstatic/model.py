@@ -212,7 +212,7 @@ class Imp(NameDef):
 
     node: ast.alias
     def __init__(self, 
-                 node: ast.Module, 
+                 node: ast.alias, 
                  orgmodule: str, 
                  orgname: Optional[str] = None) -> None:
         super().__init__(node)
