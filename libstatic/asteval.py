@@ -40,7 +40,7 @@ _AST_SEQUENCE_TO_TYPE: ( # type:ignore[type-arg]
 LiteralValue: "TypeAlias" = (
     "list[LiteralValue]|set[LiteralValue]|tuple[LiteralValue,...]|"
     "dict[LiteralValue, LiteralValue]|"
-    "str|int|float|complex|bool|bytes|None|slice"
+    "str|numbers.Number|bool|bytes|None|slice"
 )
 ASTOrLiteralValue = Union[LiteralValue, ast.AST]
 
@@ -360,9 +360,9 @@ class _LiteralEval(_ASTEval):
             return self._known_values[fullname]
         return super().visit_Attribute_Load(node, path)
 
-    def visit_Constant(self, node: ast.Constant, path: List[ast.AST]) -> LiteralValue:
+    def visit_Constant(self, node: Union[ast.Constant, ast.Num, ast.Str, ast.Bytes], path: List[ast.AST]) -> LiteralValue:
         v = node.value
-        if not isinstance(v, (str, int, float, complex, bool, bytes, type(None))):
+        if not isinstance(v, (str, numbers.Number, bool, bytes, type(None))):
             raise StaticTypeError(node.value, "literal")
         return v
 
@@ -483,6 +483,9 @@ class _LiteralEval(_ASTEval):
             else None
         )
         return slice(lower, upper, step)
+    
+    if sys.version_info < (3,8):
+        visit_Num = visit_Str = visit_Bytes = visit_Constant
     
     if sys.version_info < (3,9):
 
