@@ -3,6 +3,7 @@ Technically, this is part of the L{analyzer}.
 """
 
 import ast
+from collections import OrderedDict
 from typing import Any, Dict, Mapping, Optional, Collection, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -53,7 +54,7 @@ class _VisitWildcardImports(ast.NodeVisitor):
     ) -> None:
         self._state = state
         self._builder = builder
-        self._result: Dict[ast.alias, Optional["Collection[str]"]] = {}
+        self._result: Dict[ast.alias, Optional["Collection[str]"]] = OrderedDict()
 
     def visit_Module(
         self, node: ast.Module
