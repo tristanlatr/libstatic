@@ -364,7 +364,7 @@ class _LiteralEval(_ASTEval):
     def visit_Constant(self, node: ast.Constant, path: List[ast.AST]) -> LiteralValue:
         v = node.value
         if not isinstance(v, (str, numbers.Number, bool, bytes, 
-                              types.NoneType, types.EllipsisType)):
+                              type(None), types.EllipsisType)):
             raise StaticTypeError(node.value, "literal")
         return v
 
