@@ -19,7 +19,7 @@ class _ProcessingState(enum.Enum):
 class Processor(abc.ABC, Generic[ModType, BuildType]):
     """
     Base class for processing modules in order. Decoupled from the concrete types
-    so it can be re-used for L{System.process} as well as for other inter-modules analysis.
+    so it can be re-used for several inter-modules analysis.
     """
 
     def __init__(

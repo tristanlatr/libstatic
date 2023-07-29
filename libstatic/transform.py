@@ -30,8 +30,8 @@ class Transform(ast.NodeTransformer):
     """
     Transform the ast such that the code is more easy to understand.
 
-    - Removes dead code
-    - Transform supported __all__ operations into regular assignments
+        - Removes dead code
+        - Transform supported __all__ operations into regular assignments
     """
 
     # TODO: unstring annotations?

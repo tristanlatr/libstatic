@@ -421,7 +421,7 @@ class State:
         self, node: Union["Mod", "Def", ast.AST]
     ) -> Mapping[str, List[Optional["NameDef"]]]:
         """
-        Get the mapping of locals under the given L{node}.
+        Get the mapping of locals under the given C{node}.
         """
         if isinstance(node, Def):
             node = node.node
