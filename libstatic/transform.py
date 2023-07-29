@@ -1,11 +1,16 @@
 import ast
-from typing import Callable, Tuple, Union
+from typing import Callable, Tuple, Union, TypeVar
 
-from libstatic.astutils import node2dottedname
+from .shared import node2dottedname
+
+T = TypeVar(
+    "T", bound=Union[ast.FunctionDef, ast.AsyncFunctionDef, ast.Module, ast.ClassDef]
+)
 
 
 def fix_ast_location(new_node, old_node):
     return ast.fix_missing_locations(ast.copy_location(new_node, old_node))
+
 
 def is_assert_False(node):
     return (
@@ -14,18 +19,21 @@ def is_assert_False(node):
         and bool(node.test.value) is False
     )
 
+
 def is_Yield(stmt):
-    return (isinstance(stmt, ast.Expr)
-        and isinstance(stmt.value, (ast.Yield, ast.YieldFrom)))
+    return isinstance(stmt, ast.Expr) and isinstance(
+        stmt.value, (ast.Yield, ast.YieldFrom)
+    )
+
 
 class Transform(ast.NodeTransformer):
     """
-    Transform the ast such that the code is more easy
-    to understand for static analyzers.
+    Transform the ast such that the code is more easy to understand.
 
     - Removes dead code
     - Transform supported __all__ operations into regular assignments
     """
+
     # TODO: unstring annotations?
 
     def __init__(self):
@@ -49,21 +57,21 @@ class Transform(ast.NodeTransformer):
         self._node_stack.pop()
         return node
 
-    def transform(self, node):
-        # type: (ast.stmt) -> ast.stmt
+    def transform(self, node: T) -> T:
         assert not self._node_stack
 
         self._node_stack.append(node)
         if isinstance(node, (ast.Module, ast.ClassDef)):
             self._control_flow_jumps.append(
-                lambda n: type(n).__name__ in {"Raise"} or is_assert_False(n))
+                lambda n: type(n).__name__ in {"Raise"} or is_assert_False(n)
+            )
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             # must be a function
             self._control_flow_jumps.append(
                 lambda n: type(n).__name__ in {"Return", "Raise"} or is_assert_False(n)
             )
         else:
-            raise ValueError()
+            raise RuntimeError(f"unexpected {type(node)}")
 
         # does not call self.generic_visit() since we don't want to
         # remove whole function or classes, also it raises an IndexError
@@ -78,7 +86,7 @@ class Transform(ast.NodeTransformer):
     def current(self):
         return self._node_stack[-1]
 
-    def current_block(self, node:ast.AST) -> Tuple[ast.AST, str]:
+    def current_block(self, node: ast.AST) -> Tuple[ast.AST, str]:
         # tell in wich block the given node lives in.
         # the given node must be part of the direct children
         # of the current node
@@ -87,7 +95,7 @@ class Transform(ast.NodeTransformer):
             if value is node or (isinstance(value, (list, tuple)) and node in value):
                 break
         else:
-            raise RuntimeError(f'node {node} not found in {current}')
+            raise RuntimeError(f"node {node} not found in {current}")
         return current, fieldname
 
     def visit_Module(self, node):
@@ -98,10 +106,7 @@ class Transform(ast.NodeTransformer):
 
     visit_AsyncFunctionDef = visit_FunctionDef = visit_Classdef
 
-    # blind spot: we need to account whether the names 
-    # used in the if test are not redefined within the 
-    # the body or the orelse clause of the if branch.
-    def visit_If(self, node:ast.stmt):
+    def visit_If(self, node: ast.stmt):
         node = self.generic_visit(node)
         if node is None:
             return None
@@ -121,13 +126,13 @@ class Transform(ast.NodeTransformer):
 
     visit_For = visit_AsyncFor = visit_While = visit_loop
 
-    def visit_jump(self, node:ast.stmt):
+    def visit_jump(self, node: ast.stmt):
         # Union[ast.Break, ast.Continue, ast.Return, ast.Raise]
         node = self.generic_visit(node)
         if node is None:
             # already in a dead block
             return None
-        
+
         for exits in reversed(self._control_flow_jumps):
             if exits(node):
                 self._dead_blocks.add(self.current_block(node))
@@ -135,22 +140,27 @@ class Transform(ast.NodeTransformer):
 
         return node
 
-    visit_Raise = visit_Return = visit_Break = visit_Continue = visit_Assert = visit_jump
+    visit_Raise = (
+        visit_Return
+    ) = visit_Break = visit_Continue = visit_Assert = visit_jump
 
     def visit_AugAssign(self, node: ast.AugAssign) -> Union[ast.AugAssign, ast.Assign]:
         node = self.generic_visit(node)
         if node is None:
             return None
         # Only transform top-level __all__ augmentd assignments into regular assignments
-        if node2dottedname(node.target) == ['__all__'] and not any(
+        if node2dottedname(node.target) == ["__all__"] and not any(
             isinstance(n, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
             for n in self._node_stack
         ):
             return fix_ast_location(
                 ast.Assign(
-                    targets=[ast.Name(id='__all__', ctx=ast.Store())],
-                    value=ast.BinOp(left=ast.Name(id='__all__', ctx=ast.Load()), 
-                                    op=node.op, right=node.value),
+                    targets=[ast.Name(id="__all__", ctx=ast.Store())],
+                    value=ast.BinOp(
+                        left=ast.Name(id="__all__", ctx=ast.Load()),
+                        op=node.op,
+                        right=node.value,
+                    ),
                     type_comment=None,
                 ),
                 node,
@@ -186,22 +196,26 @@ class Transform(ast.NodeTransformer):
         if node2dottedname(o) == ["__all__"]:
             aug = None
             if a == "extend":
+                # 'o' must be a list, but maybe v.args[0] is just an iterable
+                # we use ast.Starred instead.
                 aug = ast.Assign(
                     targets=[ast.Name("__all__", ast.Store())],
-                    value=ast.BinOp(
-                        left=ast.Name("__all__", ast.Load()),
-                        op=ast.Add(),
-                        right=v.args[0],
+                    value=ast.List(
+                        elts=[
+                            ast.Starred(ast.Name("__all__", ast.Load()), ast.Load()),
+                            ast.Starred(v.args[0], ast.Load()),
+                        ]
                     ),
                     type_comment=None,
                 )
             elif a == "append":
                 aug = ast.Assign(
                     targets=[ast.Name("__all__", ast.Store())],
-                    value=ast.BinOp(
-                        left=ast.Name("__all__", ast.Load()),
-                        op=ast.Add(),
-                        right=ast.List(elts=[v.args[0]]),
+                    value=ast.List(
+                        elts=[
+                            ast.Starred(ast.Name("__all__", ast.Load()), ast.Load()),
+                            v.args[0],
+                        ]
                     ),
                     type_comment=None,
                 )

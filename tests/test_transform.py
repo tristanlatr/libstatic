@@ -9,11 +9,11 @@ from libstatic.transform import Transform
 class TestPrepare(TestCase):
     def checkTransforms(
         self, code, ref, module=True, function=True, klass=True, method=True
-    ):
+    ) -> None:
         code = dedent(code)
         ref = dedent(ref)
 
-        def check(code, ref, expect_success):
+        def check(code, ref, expect_success) -> None:
             node = ast.parse(code)
             Transform().transform(node)
             unparsed = '\n'.join(line for line in ast.unparse(node).strip().splitlines() if line)
@@ -43,7 +43,7 @@ class TestPrepare(TestCase):
             expect_success=method,
         )
 
-    def test_IfBanchDead(self):
+    def test_IfBanchDead(self) -> None:
         # dead code is removed when it's directly after a control flow jump.
         code = """
         if sys.version_info.major == 2:
@@ -61,7 +61,7 @@ class TestPrepare(TestCase):
             transformed.replace("raise RuntimeError()", "assert False")
         )
 
-    def test_BothIfElseBranchesDead(self):
+    def test_BothIfElseBranchesDead(self) -> None:
         # dead code is removed when both branches of a if/else branch are dead.
         code = """
         if sys.version_info.major == 2:
@@ -83,7 +83,7 @@ class TestPrepare(TestCase):
             transformed.replace("raise RuntimeError()", "assert False")
         )
 
-    def test_IfElseInvalidJump(self):
+    def test_IfElseInvalidJump(self) -> None:
         # bogus control flow jumps are not considered.
         code = """
         if sys.version_info.major == 2:
@@ -109,7 +109,7 @@ class TestPrepare(TestCase):
             transformed.replace("raise RuntimeError()", "assert False")
         )
 
-    def test_WhileIfJump(self):
+    def test_WhileIfJump(self) -> None:
         # nothing is removed when there is nothing to remove
         code = """
         while True:
@@ -129,7 +129,7 @@ class TestPrepare(TestCase):
             code.replace("beak", "continue"), transformed.replace("beak", "continue")
         )
 
-    def test_DeadYield(self):
+    def test_DeadYield(self) -> None:
         # a dead yield is not removed since it's semantically important to make a 
         # function into a generator.
         code = """
@@ -147,7 +147,7 @@ class TestPrepare(TestCase):
             transformed.replace("yield", "yield from ()"),
         )
 
-    def test_AugAssign(self):
+    def test_AugAssign(self) -> None:
         # regular augmented assignments are not transformed.
         code = """
         a = 1
@@ -160,7 +160,7 @@ class TestPrepare(TestCase):
         """
         self.checkTransforms(code, transformed)
     
-    def test_AugAssignDunderAll(self):
+    def test_AugAssignDunderAll(self) -> None:
         # augmented assignments of module level variable __all__ are transformed into regular assignments.
         code = """
         __all__ = 1
@@ -174,7 +174,7 @@ class TestPrepare(TestCase):
         self.checkTransforms(code, transformed,
                              function=False, klass=False, method=False)
     
-    def test_AugAssignDunderAllInScope(self):
+    def test_AugAssignDunderAllInScope(self) -> None:
         # augmented assignments of variable __all__ inside classes or functions are not transformed.
         code = """
         def f():
@@ -202,7 +202,7 @@ class TestPrepare(TestCase):
         """
         self.checkTransforms(code, transformed)
 
-    def test_DunderAllTransform(self):
+    def test_DunderAllTransform(self) -> None:
         # list modifications of module level variable __all__ are transformed into regumar assignments.
         code = """
         __all__ = []
@@ -212,12 +212,12 @@ class TestPrepare(TestCase):
 
         transformed = """
         __all__ = []
-        __all__ = __all__ + ['2']
-        __all__ = __all__ + ['2']
+        __all__ = [*__all__, '2']
+        __all__ = [*__all__, *['2']]
         """
         self.checkTransforms(code, transformed, function=False, klass=False, method=False)
     
-    def test_DunderAllTransformInScope(self):
+    def test_DunderAllTransformInScope(self) -> None:
         # list modifications of variable __all__ inside classes or functions are not transformed.
         code = """
         def f():
@@ -251,7 +251,7 @@ class TestPrepare(TestCase):
 
         self.checkTransforms(code, transformed)
     
-    def test_ReguluarList(self):
+    def test_ReguluarList(self) -> None:
         # regular list modifications are not transformed.
         code = """
         a = []

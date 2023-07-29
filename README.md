@@ -1,14 +1,8 @@
 # libstatic
-Lightweight static analysis library.
 
-The purpose of this module is to provide a simple and easy to use library that help with understanding python code. Especially helps to answer questions like: 
-- Is this variable has only one possible value? 
-- What is the value of `__all__` variable?
-- Is a name defined?
+Static analysis library based on [beginet](https://github.com/serge-sans-paille/beniget/).
 
-- What is the type of an unnatotated variable?
-- Has a name been deleted?
-- What constraints are applicable to this statement?
+The purpose of this package is to provide a simple and easy to 
+use library that help with analyzing a collection of python modules.
 
-## Core principles
-- Python is highly dymanmic language, so this library WILL make mistakes (for instance when a module level list is modified inside a function), but it will get the right values in 90% of the cases, which is more than sufficient
+See ``Project`` and ``State`` classes for reference.
