@@ -13,4 +13,5 @@ setup(
         'typing_extensions',
         'astor',
         ],
+    python_requires='>=3.7',
     )
