@@ -11,5 +11,6 @@ setup(
         'typeshed_client',
         'beniget',
         'typing_extensions',
+        'astor',
         ],
     )
