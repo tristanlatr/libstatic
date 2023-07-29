@@ -512,7 +512,7 @@ class _LiteralEval(_ASTEval):
         def visit_Index(self, node: ast.Index, path: List[ast.AST]) -> LiteralValue:
             return ensure_literal(self.visit(node.value, path))
     
-    if sys.version_info >= (3,9):
+    if sys.version_info >= (3,8):
 
         def visit_NamedExpr(self, node: ast.NamedExpr, path: List[ast.AST]) -> LiteralValue:
             return ensure_literal(self.visit(node.value, path))
