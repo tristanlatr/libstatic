@@ -486,7 +486,7 @@ class _LiteralEval(_ASTEval):
     
     if sys.version_info < (3,9):
 
-        def visit_Index(self, node: ast.Index, path: List[AST]) -> LiteralValue:
+        def visit_Index(self, node: ast.Index, path: List[ast.AST]) -> LiteralValue:
             return ensure_literal(self.visit(node.value, path))
     
     if sys.version_info >= (3,9):
