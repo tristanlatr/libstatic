@@ -12,7 +12,7 @@ from beniget.beniget import ( # type:ignore
 )  
 
 from .model import Cls, Func, Var, Imp, Def, Arg, AnonymousScope, NameDef
-from .imp import ParseImportedNames, ImportInfo
+from .imports import ParseImportedNames, ImportInfo
 from .exceptions import StaticTypeError
 
 # beniget integration here:

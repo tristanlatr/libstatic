@@ -13,7 +13,7 @@ class TestGetStoredValue(TestCase):
         ancestors.visit(node)
         
         name = next((n for n in ast.walk(node) if isinstance(n, ast.Name)))
-        constant = next((n for n in ast.walk(node) if isinstance(n, ast.Constant)))
+        constant = next((n for n in ast.walk(node) if isinstance(n, (ast.Constant, ast.Num))))
         assignment = next((n for n in ast.walk(node) if isinstance(n, ast.Assign)))
         
         assert get_stored_value(name, assignment) is constant
@@ -38,13 +38,13 @@ class TestGetStoredValue(TestCase):
         ancestors.visit(node)
         
         name = [n for n in ast.walk(node) if isinstance(n, ast.Name)][0]
-        constant = [n for n in ast.walk(node) if isinstance(n, ast.Constant)][0]
+        constant = [n for n in ast.walk(node) if isinstance(n, (ast.Constant, ast.Num))][0]
         assignment = next((n for n in ast.walk(node) if isinstance(n, ast.Assign)))
 
         assert get_stored_value(name, assignment) is constant
 
         name = [n for n in ast.walk(node) if isinstance(n, ast.Name)][1]
-        constant = [n for n in ast.walk(node) if isinstance(n, ast.Constant)][1]
+        constant = [n for n in ast.walk(node) if isinstance(n, (ast.Constant, ast.Num))][1]
         assert get_stored_value(name, assignment) is constant
 
         tuple_ltarget = [n for n in ast.walk(node) if isinstance(n, ast.Tuple)][0]
@@ -78,8 +78,8 @@ class TestGetStoredValue(TestCase):
         e = [n for n in ast.walk(node) if isinstance(n, ast.Name)][1]
         assignment = next((n for n in ast.walk(node) if isinstance(n, ast.Assign)))
 
-        assert get_stored_value(d, assignment).__class__.__name__ == 'Constant'
-        assert get_stored_value(e, assignment).__class__.__name__ == 'Constant'
+        assert get_stored_value(d, assignment).__class__.__name__ in ('Constant', 'Num')
+        assert get_stored_value(e, assignment).__class__.__name__ in ('Constant', 'Num')
 
         f = [n for n in ast.walk(node) if isinstance(n, ast.Name)][2]
         g = [n for n in ast.walk(node) if isinstance(n, ast.Name)][3]

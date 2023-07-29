@@ -3,6 +3,7 @@ Technically, this is part of the L{analyzer}.
 """
 
 import ast
+from collections import OrderedDict
 from typing import Any, Dict, Mapping, Optional, Collection, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -12,21 +13,6 @@ from .process import Processor
 from .model import MutableState, Def, State, Mod, Imp, Var
 from .assignment import get_stored_value
 from .exceptions import StaticException
-
-
-class wildcard_imported_name(ast.alias):
-    """
-    A fictional ast node to represent a particular name wildcard imports are binding.
-    The fact that it subclasses `ast.alias` is important because instances of `wildcard_imported_name`
-    can be used anytime `ast.alias` is expected.
-    """
-
-    __name__ = "alias"  # this is important for visitors
-
-    def __init__(self, name: str, module: str, *, lineno: int, col_offset: int):
-        super().__init__(name=name, asname=None, lineno=lineno, col_offset=col_offset)
-        self.module = module
-
 
 class _VisitDunderAllAssignment(ast.NodeVisitor):
     """
@@ -68,7 +54,7 @@ class _VisitWildcardImports(ast.NodeVisitor):
     ) -> None:
         self._state = state
         self._builder = builder
-        self._result: Dict[ast.alias, Optional["Collection[str]"]] = {}
+        self._result: Dict[ast.alias, Optional["Collection[str]"]] = OrderedDict()
 
     def visit_Module(
         self, node: ast.Module
@@ -127,12 +113,11 @@ class _ComputeWildcards(ast.NodeVisitor):
             # for each bounded names, replaces it's usages by
             # a special Def that represent a specific name.
             for name in bnames:
-                new_node = wildcard_imported_name(
+                # A fictional ast node to represent a particular name wildcard imports are binding.
+                new_node = ast.copy_location(ast.alias(
                     name,
-                    old_def.orgmodule,
-                    lineno=alias.lineno,
-                    col_offset=alias.col_offset,
-                )
+                    asname=None
+                ), alias)
                 resolved_def = Imp(new_node, orgmodule=old_def.orgmodule, orgname=name)
                 self._state.add_definition(resolved_def)
                 # We should use the modifiers for the following line:

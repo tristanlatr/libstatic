@@ -15,7 +15,7 @@ def fix_ast_location(new_node, old_node):
 def is_assert_False(node):
     return (
         isinstance(node, ast.Assert)
-        and isinstance(node.test, ast.Constant)
+        and isinstance(node.test, (ast.Constant, ast.NameConstant))
         and bool(node.test.value) is False
     )
 
@@ -30,8 +30,8 @@ class Transform(ast.NodeTransformer):
     """
     Transform the ast such that the code is more easy to understand.
 
-    - Removes dead code
-    - Transform supported __all__ operations into regular assignments
+        - Removes dead code
+        - Transform supported __all__ operations into regular assignments
     """
 
     # TODO: unstring annotations?

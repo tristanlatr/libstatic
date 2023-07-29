@@ -9,7 +9,6 @@ import time
 from typing import (
     TYPE_CHECKING,
     Iterator,
-    Protocol,
     Any,
     Collection,
     Dict,
@@ -46,7 +45,9 @@ from .exceptions import (
 )
 
 if TYPE_CHECKING:
-    from typing import Literal, NoReturn
+    from typing import Literal, NoReturn, Protocol
+else:
+    Protocol = object
 
 T = TypeVar("T", bound=ast.AST)
 
@@ -211,7 +212,7 @@ class Imp(NameDef):
 
     node: ast.alias
     def __init__(self, 
-                 node: ast.Module, 
+                 node: ast.alias, 
                  orgmodule: str, 
                  orgname: Optional[str] = None) -> None:
         super().__init__(node)
@@ -421,7 +422,7 @@ class State:
         self, node: Union["Mod", "Def", ast.AST]
     ) -> Mapping[str, List[Optional["NameDef"]]]:
         """
-        Get the mapping of locals under the given L{node}.
+        Get the mapping of locals under the given C{node}.
         """
         if isinstance(node, Def):
             node = node.node

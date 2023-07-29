@@ -1,4 +1,5 @@
 import ast
+import sys
 from unittest import TestCase
 
 from libstatic.model import Project
@@ -11,7 +12,6 @@ class TestLiteralEval(TestCase):
     def test_literal_eval(self):
         cases = [('v = 1.25', 1.25),
                  ('v = 3+4', 7), 
-                 ('v = (x:=3+4)', 7), 
                  ('v = []', []),
                  ('v = [1,2,3]+["4",]', [1,2,3,"4"]),
                  ('x = [1,2,3]; v = [1,2,3, *x]', [1,2,3,1,2,3]),
@@ -35,7 +35,13 @@ class TestLiteralEval(TestCase):
                  ('v = [1,2,3][1]', 2),
                  ('v = [1,2,3][-1]', 3),
                  ('v = +1+1-(+1-(-1))', 0),
+                 ('v = ...', ...)
                  ]
+        
+        if sys.version_info >= (3,8):
+            # simple warlus operator
+            cases += [('v = (x:=3+4)', 7),]
+
         for code, expected in cases:
             with self.subTest(code):
                 proj = Project()
