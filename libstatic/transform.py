@@ -204,7 +204,7 @@ class Transform(ast.NodeTransformer):
                         elts=[
                             ast.Starred(ast.Name("__all__", ast.Load()), ast.Load()),
                             ast.Starred(v.args[0], ast.Load()),
-                        ]
+                        ], ctx=ast.Load()
                     ),
                     type_comment=None,
                 )
@@ -215,7 +215,7 @@ class Transform(ast.NodeTransformer):
                         elts=[
                             ast.Starred(ast.Name("__all__", ast.Load()), ast.Load()),
                             v.args[0],
-                        ]
+                        ], ctx=ast.Load()
                     ),
                     type_comment=None,
                 )
