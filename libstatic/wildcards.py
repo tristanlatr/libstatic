@@ -66,15 +66,19 @@ class _VisitWildcardImports(ast.NodeVisitor):
         if node.name == "*":
             imp = self._state.get_def(node)
             mod = self._builder.getProcessedModule(imp.orgmodule)
-            if mod:
-                dunder_all = self._builder.result.get(mod)
+            if mod is not None:
+                dunder_all = self._builder.result.get(mod, _missing)
                 if dunder_all is not None:
                     expanded_wildcard = dunder_all
+                elif dunder_all is _missing:
+                    self._state.msg(f"failed to resolve wildcard import", ctx=node)
+                    expanded_wildcard = None
                 else:
                     expanded_wildcard = self._state.get_public_names(mod)
                 self._result[node] = expanded_wildcard
             else:
                 # not in the system
+                self._state.msg(f"wildcard import from unknown module {imp.orgmodule!r}", ctx=node)
                 self._result[node] = None
 
     def _returns(self, ob: ast.stmt) -> None:
@@ -82,6 +86,7 @@ class _VisitWildcardImports(ast.NodeVisitor):
 
     visit_ClassDef = visit_FunctionDef = visit_AsyncFunctionDef = visit_Lambda = _returns  # type: ignore
 
+_missing = object()
 
 class _ComputeWildcards(ast.NodeVisitor):
     def __init__(
@@ -93,20 +98,25 @@ class _ComputeWildcards(ast.NodeVisitor):
     def _process_wildcard_imports(self, node: ast.Module) -> None:
         visitor = _VisitWildcardImports(self._state, self._builder)
         alias2bnames = visitor.visit_Module(node)
+        
         if alias2bnames:
+            # logging
+            total = len(alias2bnames)
+            succesed = len([None for names in alias2bnames.values() if names is not None])
+            failed = total - succesed
             self._state.msg(
-                f"collected {len(alias2bnames)} wildcards "
-                f"from module {self._state.get_def(node).name()}",
+                f"collected {total} wildcards "
+                + ("" if not failed else f"({failed} failed) ")
+                + f"from module {self._state.get_def(node).name()}",
                 thresh=1,
             )
-
         # Create Defs for each bounded names,
         # adding new defs that replaces the wildcard,
         # this is a in-place modification to our model.
 
         for alias, bnames in reversed(alias2bnames.items()):
-            if not bnames:
-                self._state.msg(f"wildcard could not be resolved.", ctx=alias)
+            if bnames is None:
+                # no need to report failed wildcards here.
                 continue
             old_def = self._state.get_def(alias)
             self._state.remove_definition(old_def)
@@ -182,7 +192,7 @@ class _ComputeWildcards(ast.NodeVisitor):
                 )
             except StaticException as e:
                 self._state.msg(
-                    f"cannot compute value of __all__: {e}", ctx=dunder_all_def.node
+                    f"cannot evaluate value of __all__: {e}", ctx=dunder_all_def.node
                 )
             else:
 

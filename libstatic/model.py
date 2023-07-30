@@ -331,27 +331,27 @@ class State:
                 return None
             self._raise_node_not_in_chains(e, node)
 
-    @overload
-    def goto_def(self, node: "ast.alias", noraise: "Literal[False]" = False) -> NameDef:
-        ...
+    # @overload
+    # def goto_def(self, node: "ast.alias", noraise: "Literal[False]" = False) -> NameDef:
+    #     ...
 
-    @overload
-    def goto_def(
-        self, node: "ast.alias", noraise: "Literal[True]"
-    ) -> Optional[NameDef]:
-        ...
+    # @overload
+    # def goto_def(
+    #     self, node: "ast.alias", noraise: "Literal[True]"
+    # ) -> Optional[NameDef]:
+    #     ...
 
-    @overload
-    def goto_def(self, node: "ast.Name", noraise: "Literal[False]" = False) -> NameDef:
-        ...
+    # @overload
+    # def goto_def(self, node: "ast.Name", noraise: "Literal[False]" = False) -> NameDef:
+    #     ...
 
-    @overload
-    def goto_def(self, node: "ast.Name", noraise: "Literal[True]") -> Optional[NameDef]:
-        ...
+    # @overload
+    # def goto_def(self, node: "ast.Name", noraise: "Literal[True]") -> Optional[NameDef]:
+    #     ...
 
-    @overload
-    def goto_def(self, node: "ast.AST", noraise: "Literal[False]" = False) -> Def:
-        ...
+    # @overload
+    # def goto_def(self, node: "ast.AST", noraise: "Literal[False]" = False) -> Def:
+    #     ...
 
     @overload
     def goto_def(self, node: "ast.AST", noraise: "Literal[True]") -> Optional[Def]:
@@ -382,8 +382,8 @@ class State:
             defs = self._use_def_chains[node]
             if len(defs) == 0:
                 if isinstance(node, ast.alias):
-                    raise StaticImportError(node)
-                raise StaticNameError(node)
+                    raise StaticImportError(node, self.get_filename(node))
+                raise StaticNameError(node, self.get_filename(node))
             return defs
         except StaticException as e:
             if noraise:
@@ -473,7 +473,7 @@ class State:
                 return [sub]
         if values:
             return values
-        raise StaticAttributeError(namespace, name)
+        raise StaticAttributeError(namespace, name, None)
 
     def get_dunder_all(self, mod: "Mod") -> "Collection[str]|None":
         """
@@ -699,7 +699,7 @@ class State:
             if defs:
                 return defs
             elif len(scopes)==0:
-                raise StaticNameError(name)
+                raise StaticNameError(name, self.get_filename(scope.node))
             return _lookup()
 
         scopes = _get_lookup_scopes()
@@ -841,7 +841,7 @@ class MutableState(State):
         return self.add_module(modast, modname, is_package=is_pack)
 
     def add_module(
-        self, node: ast.Module, name: str, *, is_package: bool = False
+        self, node: ast.Module, name: str, *, is_package: bool, filename: Optional[str]=None
     ) -> "Mod":
         """
         Adds a module to the project.
@@ -852,7 +852,9 @@ class MutableState(State):
         """
         if name in self._modules:
             raise StaticValueError(node, f"duplicate module {name!r}")
-        mod = Mod(Transform().transform(node), name, is_package=is_package)
+        # TODO: find an extensible way to transform the tree
+        Transform().transform(node)
+        mod = Mod(node, name, is_package=is_package, filename=filename)
         self._modules[name] = mod
         # add module to the chains
         self._def_use_chains[node] = mod
@@ -965,13 +967,15 @@ class Project:
         self.msg(f"analysis took {t1-t0} seconds", thresh=1)
 
     def add_module(
-        self, node: ast.Module, name: str, *, is_package: bool = False
+        self, node: ast.Module, name: str, *, 
+        is_package: bool = False, 
+        filename: Optional[str]=None
     ) -> "Mod":
         """
         Add a module to the project, all module should be added before calling L{analyze_project}.
         """
         return cast(MutableState, self.state).add_module(
-            node, name, is_package=is_package
+            node, name, is_package=is_package, filename=filename
         )
 
     # TODO: introduce a generic reporter object used by System.msg, Documentable.report and here.

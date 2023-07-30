@@ -63,7 +63,8 @@ class _ASTEval:
         try:
             visitor = getattr(self, method)
         except AttributeError:
-            raise StaticCodeUnsupported(type(node), "node type")
+            raise StaticCodeUnsupported(node, "node type", 
+                                        self._state.get_filename(node))
         else:
             return visitor(node, path) # type: ignore
 
@@ -76,7 +77,8 @@ class _ASTEval:
         try:
             visitor = getattr(self, method)
         except AttributeError:
-            raise StaticCodeUnsupported(type(ctx), "node ctx")
+            raise StaticCodeUnsupported(node, f"node ctx {ctxname}", 
+                                        self._state.get_filename(node))
         else:
             return visitor(node, path) # type: ignore
 
@@ -90,9 +92,11 @@ class _ASTEval:
 
     def visit(self, node: Any, path: List[ast.AST]) -> ASTOrLiteralValue:
         if node in path:
-            raise StaticValueError(node, "node has cyclic definition")
+            raise StaticValueError(node, "node has cyclic definition", 
+                                   self._state.get_filename(node))
         if len(path) > self._MAX_JUMPS:
-            raise StaticCodeUnsupported(node, "expression is too complex")
+            raise StaticCodeUnsupported(node, "expression is too complex", 
+                                        self._state.get_filename(node))
         # fork path
         path = path.copy()
         path.append(node)
@@ -110,7 +114,8 @@ class _ASTEval:
                 )
             return self.visit(attribs[-1].node, path)
         else:
-            raise StaticTypeError(namespace, "Module or ClassDef")
+            raise StaticTypeError(namespace, "Module or ClassDef", 
+                                  self._state.get_filename(node))
 
     def visit_Name_Load(self, node: ast.Name, path: List[ast.AST]) -> ASTOrLiteralValue:
         # TODO: integrate with reachability analysis
@@ -128,7 +133,8 @@ class _ASTEval:
             node, (ast.Assign, ast.AnnAssign, ast.AugAssign)
         )
         if isinstance(assign, ast.AugAssign):
-            raise StaticCodeUnsupported(assign, "augmented assignments")
+            raise StaticCodeUnsupported(assign, "augmented assignments", 
+                                        self._state.get_filename(node))
         value = get_stored_value(node, assign=assign)
         if value is not None:
             return self.visit(value, path)
@@ -154,7 +160,8 @@ class _GotoDefinition(_ASTEval):
     def visit(self, node: Any, path: List[ast.AST]) -> ast.AST:
         v = super().visit(node, path)
         if not isinstance(v, ast.AST):
-            raise StaticTypeError(v, "definition")
+            raise StaticTypeError(v, "definition", 
+                                  self._state.get_filename(path[-1]))
         return v
 
     def visit_alias(
@@ -181,7 +188,7 @@ class _GotoDefinition(_ASTEval):
         try:
             assign = self._state.get_parent_instance(node, (ast.Assign, ast.AnnAssign))
         except:
-            raise StaticCodeUnsupported(node, "name")
+            raise StaticCodeUnsupported(node, "name", self._state.get_filename(node))
         value = get_stored_value(node, assign=assign)
         if node2dottedname(value) is not None:
             # it's an alias, so follow-it
@@ -365,7 +372,8 @@ class _LiteralEval(_ASTEval):
         v = node.value
         if not isinstance(v, (str, numbers.Number, bool, bytes, 
                               type(None), type(...))):
-            raise StaticTypeError(node.value, "literal")
+            raise StaticTypeError(node.value, "literal", 
+                                  self._state.get_filename(node))
         return v
 
     def visit_List(
@@ -373,7 +381,7 @@ class _LiteralEval(_ASTEval):
     ) -> LiteralValue:
         ctx = getattr(node, "ctx", ast.Load())
         if not isinstance(ctx, ast.Load):
-            raise StaticTypeError(ctx, "Load")
+            raise StaticTypeError(ctx, "Load", self._state.get_filename(node))
         # evaluate the list elements
         values: List[LiteralValue] = []
         for idx, elt in enumerate(node.elts):
@@ -381,7 +389,8 @@ class _LiteralEval(_ASTEval):
                 if isinstance(elt, ast.Starred):
                     v = ensure_literal(self.visit(elt.value, path))
                     if not isinstance(v, (list, tuple, set, dict, str, bytes)):
-                        raise StaticTypeError(v, "starred value iterable")
+                        raise StaticTypeError(v, "starred value iterable", 
+                                              self._state.get_filename(node))
                     else:
                         values.extend(v)
                 else:
@@ -413,7 +422,7 @@ class _LiteralEval(_ASTEval):
             )
         except Exception as e:
             raise StaticEvaluationError(
-                node, f"{e.__class__.__name__} in binary operation"
+                node, f"{e.__class__.__name__} in binary operation: {e}"
             ) from e
 
     def visit_BoolOp(self, node: ast.BoolOp, path: List[ast.AST]) -> LiteralValue:

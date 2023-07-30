@@ -7,7 +7,7 @@ from .chains import defuse_chains_and_locals, usedef_chains
 from .ancestors import Ancestors
 from .reachability import get_unreachable
 from .wildcards import compute_wildcards
-from .exceptions import StaticException
+from .exceptions import StaticException, StaticCodeUnsupported
 
 
 class ChainDefUseOfImports(ast.NodeVisitor):
@@ -61,6 +61,14 @@ class Analyzer:
 
     def _analyze_module_pass1(self, mod: "Mod") -> None:
         module_node = mod.node
+
+        # - compute ancestors
+        ancestors_vis = Ancestors()
+        ancestors_vis.visit(module_node)
+        ancestors = ancestors_vis.parents
+
+        self._state.store_anaysis(ancestors=ancestors)
+
         # : Accumulate static analysis infos from beniget
         # - compute local def-use chains
         # - parsing imports
@@ -70,12 +78,8 @@ class Analyzer:
             modname=mod.name(),
             is_package=mod.is_package,
         )
-        # - compute ancestors
-        ancestors_vis = Ancestors()
-        ancestors_vis.visit(module_node)
-        ancestors = ancestors_vis.parents
 
-        self._state.store_anaysis(defuse=defuse, locals=locals, ancestors=ancestors)
+        self._state.store_anaysis(defuse=defuse, locals=locals)
 
         usedef = usedef_chains(defuse)
 
@@ -122,7 +126,11 @@ class Analyzer:
         """
         Initiate the project state.
         """
-        self._analyzer_pass1()
+        try:
+            self._analyzer_pass1()
+        except StaticCodeUnsupported as e:
+            raise StaticCodeUnsupported(e.node, e.msg, self._state.get_filename(e.node))
+        
         # : Imports analysis: complement def-use chains with import chains
         # must be done after all modules have been added
         for mod in self._state.get_all_modules():
