@@ -25,12 +25,23 @@ class _Unreachable(ast.NodeVisitor):
         self._known_values: Mapping[str, Any] = known_values
         self._unreachable_nodes: Set[ast.AST] = set()
 
+    def visit_stmt(self, node):
+        pass
+
+    visit_Assign = visit_AugAssign = visit_AnnAssign = visit_Expr = visit_stmt
+    visit_Return = visit_Print = visit_Raise = visit_Assert = visit_stmt
+    visit_Pass = visit_Break = visit_Continue = visit_Delete = visit_stmt
+    visit_Global = visit_Nonlocal = visit_Exec = visit_stmt
+    visit_FunctionDef = visit_AsyncFunctionDef = visit_stmt
+
     def visit_If(self, node: ast.If) -> None:
         try:
             testval = self._state.literal_eval(
-                node.test, known_values=self._known_values
+                node.test, 
+                known_values=self._known_values, 
+                raise_on_ambiguity=True
             )
-        except Exception as e:
+        except Exception:
             self.generic_visit(node)
         else:
             unreachable = node.orelse if testval else node.body
@@ -41,9 +52,35 @@ class _Unreachable(ast.NodeVisitor):
                 mark_unreachable.visit(n)
             for n in reachable:
                 self.generic_visit(n)
+    
+    def visit_body(self, node):
+        for stmt in node.body:
+            self.visit(stmt)
+
+    visit_ClassDef = visit_body
+    visit_With = visit_AsyncWith = visit_body
+
+    def visit_orelse(self, node):
+        for stmt in node.body:
+            self.visit(stmt)
+        for stmt in node.orelse:
+            self.visit(stmt)
+
+    visit_For = visit_While = visit_AsyncFor = visit_orelse
+
+    def visit_Try(self, node:ast.Try):
+        for stmt in node.body:
+            self.visit(stmt)
+        for stmt in node.orelse:
+            self.visit(stmt)
+        for stmt in node.finalbody:
+            self.visit(stmt)
+        # TODO: mark node in handlers as "exceptionally reachable"
+        for stmt in node.handlers:
+            self.visit_body(stmt)
 
     def visit_Module(self, node: ast.Module) -> Set[ast.AST]:
-        self.generic_visit(node)
+        self.visit_body(node)
         return self._unreachable_nodes
 
 
