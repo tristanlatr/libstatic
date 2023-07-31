@@ -60,6 +60,7 @@ class Analyzer:
         self._state = state
 
     def _analyze_module_pass1(self, mod: "Mod") -> None:
+        self._state.msg(f'analyzing {mod.name()}...', thresh=1)
         module_node = mod.node
 
         # - compute ancestors
@@ -92,17 +93,20 @@ class Analyzer:
 
     def _analyzer_pass1(self) -> None:
         processed_modules = set()
+        not_found = set()
         to_process = [mod.name() for mod in self._state.get_all_modules()]
         iteration = 0
 
         while to_process:
             for name in list(to_process):
+                to_process.remove(name)
                 if name not in processed_modules:
                     # load dependency modules if nested_dependencies is not zero
-                    mod = self._state.get_module(
-                        name
-                    ) or self._state.add_typeshed_module(name)
-                    if not mod:
+                    mod = self._state.get_module(name)
+                    if mod is None and name not in not_found:
+                        mod = self._state.add_typeshed_module(name)
+                    if mod is None:
+                        not_found.add(name)
                         continue
 
                     self._analyze_module_pass1(mod)
@@ -117,8 +121,6 @@ class Analyzer:
                                 if isinstance(n, ast.alias)
                             )
                         )
-
-                to_process.remove(name)
                 processed_modules.add(name)
             iteration += 1
 
