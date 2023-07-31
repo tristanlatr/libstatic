@@ -5,6 +5,7 @@ if TYPE_CHECKING:
 else:
     Protocol = object
 
+from ..exceptions import StaticException
 from ..model import State, Options
 from .shared import LocalStmtVisitor
 
@@ -40,7 +41,7 @@ class _Unreachable(LocalStmtVisitor):
                 known_values=self._known_values, 
                 raise_on_ambiguity=True
             )
-        except Exception:
+        except StaticException:
             self.generic_visit(node)
         else:
             unreachable = node.orelse if testval else node.body
