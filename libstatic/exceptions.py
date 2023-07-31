@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Optional
 if TYPE_CHECKING:
     from .model import Scope
 
-from .shared import ast_node_name
+from ._lib.shared import ast_node_name
 
 @attrs.s(auto_attribs=True)
 class StaticException(Exception, abc.ABC):

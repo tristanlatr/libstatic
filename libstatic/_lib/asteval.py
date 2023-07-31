@@ -16,11 +16,11 @@ from typing import (
 
 if TYPE_CHECKING:
     from typing import TypeAlias
-    from .model import State, Def
+    from ..model import State, Def
 
 from .shared import node2dottedname
 from .assignment import get_stored_value
-from .exceptions import (
+from ..exceptions import (
     StaticValueError,
     StaticCodeUnsupported,
     StaticException,

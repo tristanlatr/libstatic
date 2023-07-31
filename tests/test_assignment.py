@@ -1,8 +1,8 @@
 import ast
 from unittest import TestCase
 
-from libstatic.assignment import get_stored_value
-from libstatic.ancestors import Ancestors
+from libstatic._lib.assignment import get_stored_value
+from libstatic._lib.ancestors import Ancestors
 from libstatic.exceptions import StaticCodeUnsupported
 
 class TestGetStoredValue(TestCase):

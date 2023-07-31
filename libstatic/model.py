@@ -31,9 +31,9 @@ from beniget.beniget import ordered_set  # type: ignore
 from typeshed_client import get_stub_file
 from typeshed_client.finder import parse_stub_file
 
-from .shared import ast_node_name, node2dottedname
-from .transform import Transform
-from .asteval import LiteralValue, _LiteralEval, _GotoDefinition
+from ._lib.shared import ast_node_name, node2dottedname
+from ._lib.transform import Transform
+from ._lib.asteval import LiteralValue, _LiteralEval, _GotoDefinition
 from .exceptions import (
     StaticStateIncomplete,
     StaticNameError,
@@ -63,6 +63,8 @@ class Def:
     """
     Model a use or a definition, either named or unnamed, and its users.
     """
+    __slots__ = 'node', '_users'
+
     def __init__(self, node:ast.AST) -> None:
         self.node = node
         self._users: MutableSet["Def"] = ordered_set()
@@ -155,6 +157,8 @@ class Mod(NameDef, OpenScope):
     """
     Model a module definition.
     """
+    __slots__ = (*Def.__slots__, '_modname', 'is_package', '_filename')
+
     node: ast.Module
     def __init__(self, 
                  node: ast.Module, 
@@ -209,7 +213,8 @@ class Imp(NameDef):
     """
     Model an imported name definition.
     """
-
+    __slots__ = (*Def.__slots__, 'orgmodule', 'orgname')
+    
     node: ast.alias
     def __init__(self, 
                  node: ast.alias, 
@@ -989,7 +994,7 @@ class Project:
         """
         t0 = time.time()
 
-        from .analyzer import Analyzer
+        from ._lib.analyzer import Analyzer
 
         Analyzer(cast(MutableState, self.state), self.options).analyze()
 
