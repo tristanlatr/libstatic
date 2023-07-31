@@ -121,7 +121,7 @@
             <div class="type">Module</div>
             <div class="kind">Module</div>
             <div class="privacy">PUBLIC</div>
-            <div class="summary">Wraps interface provided by <tt class="rst-docutils literal">beniget</tt>.</div>
+            <div class="summary">Wraps interface provided by <tt class="rst-docutils literal">beniget</tt>, and make it work with the standard <code><a href="https://docs.python.org/3/library/ast.html#module-ast" class="intersphinx-link">ast</a></code> library.</div>
           </li><li id="libstatic.exceptions">
             
             <div class="fullName">libstatic<wbr></wbr>.exceptions</div>
@@ -185,7 +185,7 @@
             <div class="type">Module</div>
             <div class="kind">Module</div>
             <div class="privacy">PUBLIC</div>
-            <div class="summary"><span class="undocumented">No module docstring; 1/3 function documented</span></div>
+            <div class="summary"><span class="undocumented">No module docstring; 1/3 function, 2/2 classes documented</span></div>
           </li><li id="libstatic.transform">
             
             <div class="fullName">libstatic<wbr></wbr>.transform</div>
@@ -226,6 +226,30 @@
             <div class="kind">Function</div>
             <div class="privacy">PUBLIC</div>
             <div class="summary"><span class="undocumented">Undocumented</span></div>
+          </li><li id="libstatic.shared.StmtVisitor">
+            
+            <div class="fullName">libstatic<wbr></wbr>.shared<wbr></wbr>.<wbr></wbr>Stmt<wbr></wbr>Visitor</div>
+            <div class="url">libstatic.shared.StmtVisitor.html</div>
+            <div class="type">Class</div>
+            <div class="kind">Class</div>
+            <div class="privacy">PUBLIC</div>
+            <div class="summary">Does not recurse on leaf type statements' content by default.</div>
+          </li><li id="libstatic.shared.StmtVisitor.visit_stmt">
+            
+            <div class="fullName">libstatic<wbr></wbr>.shared<wbr></wbr>.<wbr></wbr>Stmt<wbr></wbr>Visitor<wbr></wbr>.visit<wbr></wbr>_stmt</div>
+            <div class="url">libstatic.shared.StmtVisitor.html#visit_stmt</div>
+            <div class="type">Function</div>
+            <div class="kind">Method</div>
+            <div class="privacy">PUBLIC</div>
+            <div class="summary"><span class="undocumented">Undocumented</span></div>
+          </li><li id="libstatic.shared.LocalStmtVisitor">
+            
+            <div class="fullName">libstatic<wbr></wbr>.shared<wbr></wbr>.<wbr></wbr>Local<wbr></wbr>Stmt<wbr></wbr>Visitor</div>
+            <div class="url">libstatic.shared.LocalStmtVisitor.html</div>
+            <div class="type">Class</div>
+            <div class="kind">Class</div>
+            <div class="privacy">PUBLIC</div>
+            <div class="summary">Like <code><a href="libstatic.shared.StmtVisitor.html" class="internal-link" title="libstatic.shared.StmtVisitor">StmtVisitor</a></code> but does not recurse on functions or classes by default.</div>
           </li><li id="libstatic.transform.T">
             
             <div class="fullName">libstatic<wbr></wbr>.transform<wbr></wbr>.T</div>
@@ -1785,7 +1809,7 @@
             <div class="type">Function</div>
             <div class="kind">Method</div>
             <div class="privacy">PUBLIC</div>
-            <div class="summary">Simple identifier -&gt; defs resolving.</div>
+            <div class="summary">Simple, lazy identifier -&gt; defs resolving.</div>
           </li><li id="libstatic.model.State.expand_name">
             
             <div class="fullName">libstatic<wbr></wbr>.model<wbr></wbr>.<wbr></wbr>State<wbr></wbr>.expand<wbr></wbr>_name</div>
@@ -1825,7 +1849,7 @@
             <div class="type">Function</div>
             <div class="kind">Method</div>
             <div class="privacy">PUBLIC</div>
-            <div class="summary"><span class="undocumented">Undocumented</span></div>
+            <div class="summary">Finds all Name/@ctx=Load references pointing to the given definition. It follows imports, but bot aliases.</div>
           </li><li id="libstatic.model._load_typeshed_mod_spec">
             
             <div class="fullName">libstatic<wbr></wbr>.model<wbr></wbr>._load<wbr></wbr>_typeshed<wbr></wbr>_mod<wbr></wbr>_spec</div>
@@ -2282,10 +2306,26 @@
             <div class="kind">Class</div>
             <div class="privacy">PUBLIC</div>
             <div class="summary">Custom def-use builder</div>
+          </li><li id="libstatic.chains.DefUseChains.unbound_identifier">
+            
+            <div class="fullName">libstatic<wbr></wbr>.chains<wbr></wbr>.<wbr></wbr>Def<wbr></wbr>Use<wbr></wbr>Chains<wbr></wbr>.unbound<wbr></wbr>_identifier</div>
+            <div class="url">libstatic.chains.DefUseChains.html#unbound_identifier</div>
+            <div class="type">Function</div>
+            <div class="kind">Method</div>
+            <div class="privacy">PUBLIC</div>
+            <div class="summary"><span class="undocumented">Undocumented</span></div>
           </li><li id="libstatic.chains.Chains">
             
             <div class="fullName">libstatic<wbr></wbr>.chains<wbr></wbr>.<wbr></wbr>Chains</div>
             <div class="url">libstatic.chains.html#Chains</div>
+            <div class="type">Attribute</div>
+            <div class="kind">Type Alias</div>
+            <div class="privacy">PUBLIC</div>
+            <div class="summary"><span class="undocumented">Undocumented</span></div>
+          </li><li id="libstatic.chains.UseChains">
+            
+            <div class="fullName">libstatic<wbr></wbr>.chains<wbr></wbr>.<wbr></wbr>Use<wbr></wbr>Chains</div>
+            <div class="url">libstatic.chains.html#UseChains</div>
             <div class="type">Attribute</div>
             <div class="kind">Type Alias</div>
             <div class="privacy">PUBLIC</div>
@@ -2522,34 +2562,10 @@
             <div class="kind">Instance Variable</div>
             <div class="privacy">PRIVATE</div>
             <div class="summary"><span class="undocumented">Undocumented</span></div>
-          </li><li id="libstatic.reachability._Unreachable.visit_stmt">
-            
-            <div class="fullName">libstatic<wbr></wbr>.reachability<wbr></wbr>._<wbr></wbr>Unreachable<wbr></wbr>.visit<wbr></wbr>_stmt</div>
-            <div class="url">libstatic.reachability._Unreachable.html#visit_stmt</div>
-            <div class="type">Function</div>
-            <div class="kind">Method</div>
-            <div class="privacy">PUBLIC</div>
-            <div class="summary"><span class="undocumented">Undocumented</span></div>
           </li><li id="libstatic.reachability._Unreachable.visit_If">
             
             <div class="fullName">libstatic<wbr></wbr>.reachability<wbr></wbr>._<wbr></wbr>Unreachable<wbr></wbr>.visit_<wbr></wbr>If</div>
             <div class="url">libstatic.reachability._Unreachable.html#visit_If</div>
-            <div class="type">Function</div>
-            <div class="kind">Method</div>
-            <div class="privacy">PUBLIC</div>
-            <div class="summary"><span class="undocumented">Undocumented</span></div>
-          </li><li id="libstatic.reachability._Unreachable.visit_body">
-            
-            <div class="fullName">libstatic<wbr></wbr>.reachability<wbr></wbr>._<wbr></wbr>Unreachable<wbr></wbr>.visit<wbr></wbr>_body</div>
-            <div class="url">libstatic.reachability._Unreachable.html#visit_body</div>
-            <div class="type">Function</div>
-            <div class="kind">Method</div>
-            <div class="privacy">PUBLIC</div>
-            <div class="summary"><span class="undocumented">Undocumented</span></div>
-          </li><li id="libstatic.reachability._Unreachable.visit_orelse">
-            
-            <div class="fullName">libstatic<wbr></wbr>.reachability<wbr></wbr>._<wbr></wbr>Unreachable<wbr></wbr>.visit<wbr></wbr>_orelse</div>
-            <div class="url">libstatic.reachability._Unreachable.html#visit_orelse</div>
             <div class="type">Function</div>
             <div class="kind">Method</div>
             <div class="privacy">PUBLIC</div>
@@ -2834,6 +2850,14 @@
             <div class="kind">Method</div>
             <div class="privacy">PUBLIC</div>
             <div class="summary"><span class="undocumented">Undocumented</span></div>
+          </li><li id="libstatic.wildcards._VisitWildcardImports.visit_Import">
+            
+            <div class="fullName">libstatic<wbr></wbr>.wildcards<wbr></wbr>._<wbr></wbr>Visit<wbr></wbr>Wildcard<wbr></wbr>Imports<wbr></wbr>.visit_<wbr></wbr>Import</div>
+            <div class="url">libstatic.wildcards._VisitWildcardImports.html#visit_Import</div>
+            <div class="type">Function</div>
+            <div class="kind">Method</div>
+            <div class="privacy">PUBLIC</div>
+            <div class="summary"><span class="undocumented">Undocumented</span></div>
           </li><li id="libstatic.wildcards._VisitWildcardImports.visit_alias">
             
             <div class="fullName">libstatic<wbr></wbr>.wildcards<wbr></wbr>._<wbr></wbr>Visit<wbr></wbr>Wildcard<wbr></wbr>Imports<wbr></wbr>.visit<wbr></wbr>_alias</div>
@@ -2841,14 +2865,6 @@
             <div class="type">Function</div>
             <div class="kind">Method</div>
             <div class="privacy">PUBLIC</div>
-            <div class="summary"><span class="undocumented">Undocumented</span></div>
-          </li><li id="libstatic.wildcards._VisitWildcardImports._returns">
-            
-            <div class="fullName">libstatic<wbr></wbr>.wildcards<wbr></wbr>._<wbr></wbr>Visit<wbr></wbr>Wildcard<wbr></wbr>Imports<wbr></wbr>._returns</div>
-            <div class="url">libstatic.wildcards._VisitWildcardImports.html#_returns</div>
-            <div class="type">Function</div>
-            <div class="kind">Method</div>
-            <div class="privacy">PRIVATE</div>
             <div class="summary"><span class="undocumented">Undocumented</span></div>
           </li><li id="libstatic.wildcards._ComputeWildcards">
             
@@ -2898,10 +2914,10 @@
             <div class="kind">Method</div>
             <div class="privacy">PRIVATE</div>
             <div class="summary">Visit the defnintions of __all__ and ensure depending modules are processed as well.</div>
-          </li><li id="libstatic.wildcards._ComputeWildcards.visit_Module">
+          </li><li id="libstatic.wildcards._ComputeWildcards.compute_wildcards">
             
-            <div class="fullName">libstatic<wbr></wbr>.wildcards<wbr></wbr>._<wbr></wbr>Compute<wbr></wbr>Wildcards<wbr></wbr>.visit_<wbr></wbr>Module</div>
-            <div class="url">libstatic.wildcards._ComputeWildcards.html#visit_Module</div>
+            <div class="fullName">libstatic<wbr></wbr>.wildcards<wbr></wbr>._<wbr></wbr>Compute<wbr></wbr>Wildcards<wbr></wbr>.compute<wbr></wbr>_wildcards</div>
+            <div class="url">libstatic.wildcards._ComputeWildcards.html#compute_wildcards</div>
             <div class="type">Function</div>
             <div class="kind">Method</div>
             <div class="privacy">PUBLIC</div>

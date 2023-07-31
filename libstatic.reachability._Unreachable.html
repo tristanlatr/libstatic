@@ -104,16 +104,6 @@
         
 
         
-            <div class="itemName"><code><a href="#visit_body" class="internal-link" title="libstatic.reachability._Unreachable.visit_body">visit<wbr></wbr>_body</a></code>
-            </div>
-        
-
-    </li><li class="">
-        
-        
-        
-
-        
             <div class="itemName"><code><a href="#visit_If" class="internal-link" title="libstatic.reachability._Unreachable.visit_If">visit_<wbr></wbr>If</a></code>
             </div>
         
@@ -125,26 +115,6 @@
 
         
             <div class="itemName"><code><a href="#visit_Module" class="internal-link" title="libstatic.reachability._Unreachable.visit_Module">visit_<wbr></wbr>Module</a></code>
-            </div>
-        
-
-    </li><li class="">
-        
-        
-        
-
-        
-            <div class="itemName"><code><a href="#visit_orelse" class="internal-link" title="libstatic.reachability._Unreachable.visit_orelse">visit<wbr></wbr>_orelse</a></code>
-            </div>
-        
-
-    </li><li class="">
-        
-        
-        
-
-        
-            <div class="itemName"><code><a href="#visit_stmt" class="internal-link" title="libstatic.reachability._Unreachable.visit_stmt">visit<wbr></wbr>_stmt</a></code>
             </div>
         
 
@@ -383,7 +353,7 @@
         </div>
 
         <div class="extrasDocstring">
-          <p class="class-signature"><code><span class="py-keyword">class</span> <span class="py-defname">_Unreachable</span>(<a href="https://docs.python.org/3/library/ast.html#ast.NodeVisitor" class="intersphinx-link">ast.NodeVisitor</a>): <a href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/reachability.py#L30" class="sourceLink">(source)</a></code></p><p>Constructor: <code><a href="#__init__" class="internal-link" title="libstatic.reachability._Unreachable.__init__">_Unreachable(state, known_values)</a></code></p>
+          <p class="class-signature"><code><span class="py-keyword">class</span> <span class="py-defname">_Unreachable</span>(<a href="libstatic.shared.LocalStmtVisitor.html" class="internal-link" title="libstatic.shared.LocalStmtVisitor">LocalStmtVisitor</a>): <a href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/reachability.py#L30" class="sourceLink">(source)</a></code></p><p>Constructor: <code><a href="#__init__" class="internal-link" title="libstatic.reachability._Unreachable.__init__">_Unreachable(state, known_values)</a></code></p>
           <p><a href="classIndex.html#libstatic.reachability._Unreachable">View In Hierarchy</a></p>
         </div>
 
@@ -392,7 +362,7 @@
         </div>
 
         <div id="splitTables">
-          <table class="children sortable" id="id89">
+          <table class="children sortable" id="id91">
   
   
   <tr class="method">
@@ -403,27 +373,12 @@
   </tr><tr class="method">
     
     <td>Method</td>
-    <td><code><a href="#visit_body" class="internal-link" title="libstatic.reachability._Unreachable.visit_body">visit<wbr></wbr>_body</a></code></td>
-    <td><span class="undocumented">Undocumented</span></td>
-  </tr><tr class="method">
-    
-    <td>Method</td>
     <td><code><a href="#visit_If" class="internal-link" title="libstatic.reachability._Unreachable.visit_If">visit_<wbr></wbr>If</a></code></td>
     <td><span class="undocumented">Undocumented</span></td>
   </tr><tr class="method">
     
     <td>Method</td>
     <td><code><a href="#visit_Module" class="internal-link" title="libstatic.reachability._Unreachable.visit_Module">visit_<wbr></wbr>Module</a></code></td>
-    <td><span class="undocumented">Undocumented</span></td>
-  </tr><tr class="method">
-    
-    <td>Method</td>
-    <td><code><a href="#visit_orelse" class="internal-link" title="libstatic.reachability._Unreachable.visit_orelse">visit<wbr></wbr>_orelse</a></code></td>
-    <td><span class="undocumented">Undocumented</span></td>
-  </tr><tr class="method">
-    
-    <td>Method</td>
-    <td><code><a href="#visit_stmt" class="internal-link" title="libstatic.reachability._Unreachable.visit_stmt">visit<wbr></wbr>_stmt</a></code></td>
     <td><span class="undocumented">Undocumented</span></td>
   </tr><tr class="method">
     
@@ -483,33 +438,6 @@
 </div><div class="basemethod">
   
   
-  <a name="libstatic.reachability._Unreachable.visit_body">
-    
-  </a>
-  <a name="visit_body">
-    
-  </a>
-  <div class="functionHeader">
-    
-    
-    <span class="py-keyword">def</span> <span class="py-defname">visit_body</span><span class="function-signature">(self, node: <code><a href="libstatic.reachability.HasBody.html" class="internal-link" title="libstatic.reachability.HasBody">HasBody</a></code>)</span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/reachability.py#L64">
-      
-      (source)
-    </a>
-    <a class="headerLink" href="#visit_body" title="libstatic.reachability._Unreachable.visit_body">
-      
-      
-      ¶
-    </a>
-  </div>
-  <div class="docstring functionBody">
-    
-    <div><p class="undocumented">Undocumented</p></div>
-  </div>
-</div><div class="basemethod">
-  
-  
   <a name="libstatic.reachability._Unreachable.visit_If">
     
   </a>
@@ -520,7 +448,7 @@
     
     
     <span class="py-keyword">def</span> <span class="py-defname">visit_If</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.If" class="intersphinx-link">ast.If</a></code>)</span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/reachability.py#L45">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/reachability.py#L36">
       
       (source)
     </a>
@@ -547,65 +475,11 @@
     
     
     <span class="py-keyword">def</span> <span class="py-defname">visit_Module</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.Module" class="intersphinx-link">ast.Module</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Set" class="intersphinx-link">Set</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/reachability.py#L90">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/reachability.py#L66">
       
       (source)
     </a>
     <a class="headerLink" href="#visit_Module" title="libstatic.reachability._Unreachable.visit_Module">
-      
-      
-      ¶
-    </a>
-  </div>
-  <div class="docstring functionBody">
-    
-    <div><p class="undocumented">Undocumented</p></div>
-  </div>
-</div><div class="basemethod">
-  
-  
-  <a name="libstatic.reachability._Unreachable.visit_orelse">
-    
-  </a>
-  <a name="visit_orelse">
-    
-  </a>
-  <div class="functionHeader">
-    
-    
-    <span class="py-keyword">def</span> <span class="py-defname">visit_orelse</span><span class="function-signature">(self, node: <code><a href="libstatic.reachability.HasOrelse.html" class="internal-link" title="libstatic.reachability.HasOrelse">HasOrelse</a></code>)</span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/reachability.py#L71">
-      
-      (source)
-    </a>
-    <a class="headerLink" href="#visit_orelse" title="libstatic.reachability._Unreachable.visit_orelse">
-      
-      
-      ¶
-    </a>
-  </div>
-  <div class="docstring functionBody">
-    
-    <div><p class="undocumented">Undocumented</p></div>
-  </div>
-</div><div class="basemethod">
-  
-  
-  <a name="libstatic.reachability._Unreachable.visit_stmt">
-    
-  </a>
-  <a name="visit_stmt">
-    
-  </a>
-  <div class="functionHeader">
-    
-    
-    <span class="py-keyword">def</span> <span class="py-defname">visit_stmt</span><span class="function-signature">(self, node: <code>ast.stmt</code>)</span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/reachability.py#L36">
-      
-      (source)
-    </a>
-    <a class="headerLink" href="#visit_stmt" title="libstatic.reachability._Unreachable.visit_stmt">
       
       
       ¶
@@ -628,7 +502,7 @@
     
     
     <span class="py-keyword">def</span> <span class="py-defname">visit_Try</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.Try" class="intersphinx-link">ast.Try</a></code>)</span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/reachability.py#L79">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/reachability.py#L55">
       
       (source)
     </a>
@@ -736,7 +610,7 @@
     <div class="container">
       <a href="index.html">API Documentation</a> for <a href="https://github.com/tristanlatr/libstatic" class="projecthome">libstatic</a>,
     generated by <a href="https://github.com/twisted/pydoctor/">pydoctor</a>
-      23.4.1 at 2023-07-31 01:01:46.
+      23.4.1 at 2023-07-31 04:04:41.
     </div>
     
     <script src="ajax.js" type="text/javascript"></script>
