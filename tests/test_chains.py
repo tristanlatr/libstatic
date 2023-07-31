@@ -31,6 +31,14 @@ class TestUseDefChains(TestCase):
 
         sys_def = proj.state.goto_def(node.body[-1].value.value.value)
         assert isinstance(sys_def.node, ast.alias)
+        
+        # TODO: Change this to raising error
+        version_def = proj.state.goto_def(node.body[-1].value.value)
+        assert isinstance(version_def.node, ast.Name)
+        assert version_def.node.id=='sys'
+        major_def = proj.state.goto_def(node.body[-1].value)
+        assert isinstance(major_def.node, ast.Attribute)
+        assert major_def.node.attr=='version_info'
 
     def test_annassign(self):
         typing = '''

@@ -1,5 +1,5 @@
 import ast
-from typing import Optional, List, overload, Any, Union
+from typing import Optional, List, overload, Any, Union, TYPE_CHECKING
 import sys
 
 if sys.version_info >= (3,9):
@@ -45,3 +45,27 @@ def unparse(node:ast.AST) -> str:
         return to_source(node)
     except Exception:
         return '??'
+
+class StmtVisitor(ast.NodeVisitor):
+    """
+    Does not recurse on leaf type statements' content by default.
+    """
+
+    def visit_stmt(self, node:ast.stmt) -> None:
+        pass
+    
+    if not TYPE_CHECKING:
+        # let's just hide this from mypy
+        visit_Assign = visit_AugAssign = visit_AnnAssign = visit_Expr = visit_stmt
+        visit_Return = visit_Print = visit_Raise = visit_Assert = visit_stmt
+        visit_Pass = visit_Break = visit_Continue = visit_Delete = visit_stmt
+        visit_Global = visit_Nonlocal = visit_Exec = visit_stmt
+        visit_Import = visit_ImportFrom = visit_stmt
+
+class LocalStmtVisitor(ast.NodeVisitor):
+    """
+    Like L{StmtVisitor} but does not recurse on functions or classes by default.
+    """
+
+    if not TYPE_CHECKING:
+        visit_FunctionDef = visit_AsyncFunctionDef = visit_ClassDef = StmtVisitor.visit_stmt

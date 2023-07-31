@@ -1,8 +1,8 @@
 """
-Wraps interface provided by C{beniget}.
+Wraps interface provided by C{beniget}, and make it work with the standard L{ast} library.
 """
 import ast
-from typing import Dict, List, Mapping, Optional, Tuple
+from typing import Dict, Iterator, List, Mapping, Optional, Tuple
 
 import gast  # type:ignore
 from gast.ast3 import Ast3ToGAst  # type:ignore
@@ -53,8 +53,14 @@ class DefUseChains(BenigetDefUseChains):
     Custom def-use builder
     """
 
+    def unbound_identifier(self, name, node):
+        # TODO: customize messages
+        return super().unbound_identifier(name, node)
+
+    # We really just want to map the names.
 
 Chains = Dict[ast.AST, Def]
+UseChains = Dict[ast.AST, List[Def]]
 Locals = Dict[ast.AST, Dict[str, List["NameDef|None"]]]
 
 
@@ -160,7 +166,7 @@ def defuse_chains_and_locals(
     return converter.convert(defuse)
 
 
-def usedef_chains(def_use_chains: Chains) -> Dict[ast.AST, List[Def]]:
+def usedef_chains(def_use_chains: Chains) -> UseChains:
     """
     Flip the Def-Use chains to generate Use-Def chains. It does not include the use of buitins.
     """
