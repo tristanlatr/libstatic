@@ -64,7 +64,7 @@ class _ASTEval:
             visitor = getattr(self, method)
         except AttributeError:
             raise StaticCodeUnsupported(node, "node type", 
-                                        self._state.get_filename(node))
+                                        filename=self._state.get_filename(node))
         else:
             return visitor(node, path) # type: ignore
 
@@ -78,7 +78,7 @@ class _ASTEval:
             visitor = getattr(self, method)
         except AttributeError:
             raise StaticCodeUnsupported(node, f"node ctx {ctxname}", 
-                                        self._state.get_filename(node))
+                                        filename=self._state.get_filename(node))
         else:
             return visitor(node, path) # type: ignore
 
@@ -93,10 +93,10 @@ class _ASTEval:
     def visit(self, node: Any, path: List[ast.AST]) -> ASTOrLiteralValue:
         if node in path:
             raise StaticValueError(node, "node has cyclic definition", 
-                                   self._state.get_filename(node))
+                                   filename=self._state.get_filename(node))
         if len(path) > self._MAX_JUMPS:
             raise StaticCodeUnsupported(node, "expression is too complex", 
-                                        self._state.get_filename(node))
+                                        filename=self._state.get_filename(node))
         # fork path
         path = path.copy()
         path.append(node)
@@ -114,8 +114,8 @@ class _ASTEval:
                 )
             return self.visit(attribs[-1].node, path)
         else:
-            raise StaticTypeError(namespace, "Module or ClassDef", 
-                                  self._state.get_filename(node))
+            raise StaticTypeError(namespace, expected="Module or ClassDef", 
+                                  filename=self._state.get_filename(node))
 
     def visit_Name_Load(self, node: ast.Name, path: List[ast.AST]) -> ASTOrLiteralValue:
         # TODO: integrate with reachability analysis
@@ -134,8 +134,8 @@ class _ASTEval:
         )
         if isinstance(assign, ast.AugAssign):
             raise StaticCodeUnsupported(assign, "augmented assignments", 
-                                        self._state.get_filename(node))
-        value = get_stored_value(node, assign=assign)
+                                        filename=self._state.get_filename(node))
+        value = get_stored_value(node, assign=assign) # type: ignore
         if value is not None:
             return self.visit(value, path)
         else:
@@ -153,15 +153,15 @@ class _GotoDefinition(_ASTEval):
         super().__init__(state, raise_on_ambiguity)
 
         if follow_aliases:
-            self.visit_Name_Store = self.visit_Name_FollowAliases
+            self.visit_Name_Store = self.visit_Name_FollowAliases #type:ignore
         if not follow_imports:
-            self.visit_alias = self.visit_alias_DontFollowImports
+            self.visit_alias = self.visit_alias_DontFollowImports #type:ignore
 
     def visit(self, node: Any, path: List[ast.AST]) -> ast.AST:
         v = super().visit(node, path)
         if not isinstance(v, ast.AST):
-            raise StaticTypeError(v, "definition", 
-                                  self._state.get_filename(path[-1]))
+            raise StaticTypeError(v, expected="definition", 
+                                  filename=self._state.get_filename(path[-1]))
         return v
 
     def visit_alias(
@@ -188,8 +188,8 @@ class _GotoDefinition(_ASTEval):
         try:
             assign = self._state.get_parent_instance(node, (ast.Assign, ast.AnnAssign))
         except:
-            raise StaticCodeUnsupported(node, "name", self._state.get_filename(node))
-        value = get_stored_value(node, assign=assign)
+            raise StaticCodeUnsupported(node, "name", filename=self._state.get_filename(node))
+        value = get_stored_value(node, assign=assign) # type:ignore[arg-type]
         if node2dottedname(value) is not None:
             # it's an alias, so follow-it
             return self.visit(value, path)
@@ -314,7 +314,7 @@ def op2func(
 
 def ensure_literal(o: ASTOrLiteralValue) -> LiteralValue:
     if isinstance(o, ast.AST):
-        raise StaticTypeError(o, "literal")
+        raise StaticTypeError(o, expected="literal")
     return o
 
 # this class is inspired by several projects:
@@ -332,7 +332,7 @@ class _LiteralEval(_ASTEval):
         self._known_values = known_values
 
         if follow_imports:
-            self.visit_alias = self.visit_alias_FollowImports
+            self.visit_alias = self.visit_alias_FollowImports # type:ignore
 
     def visit_alias_Default(self, node: ast.alias, path: List[ast.AST]) -> LiteralValue:
         fullname = self._state.get_def(node).target()
@@ -372,8 +372,8 @@ class _LiteralEval(_ASTEval):
         v = node.value
         if not isinstance(v, (str, numbers.Number, bool, bytes, 
                               type(None), type(...))):
-            raise StaticTypeError(node.value, "literal", 
-                                  self._state.get_filename(node))
+            raise StaticTypeError(node.value, expected="literal", 
+                                  filename=self._state.get_filename(node))
         return v
 
     def visit_List(
@@ -381,7 +381,7 @@ class _LiteralEval(_ASTEval):
     ) -> LiteralValue:
         ctx = getattr(node, "ctx", ast.Load())
         if not isinstance(ctx, ast.Load):
-            raise StaticTypeError(ctx, "Load", self._state.get_filename(node))
+            raise StaticTypeError(ctx, expected="Load", filename=self._state.get_filename(node))
         # evaluate the list elements
         values: List[LiteralValue] = []
         for idx, elt in enumerate(node.elts):
@@ -389,10 +389,10 @@ class _LiteralEval(_ASTEval):
                 if isinstance(elt, ast.Starred):
                     v = ensure_literal(self.visit(elt.value, path))
                     if not isinstance(v, (list, tuple, set, dict, str, bytes)):
-                        raise StaticTypeError(v, "starred value iterable", 
-                                              self._state.get_filename(node))
+                        raise StaticTypeError(v, expected="starred value iterable", 
+                                              filename=self._state.get_filename(node))
                     else:
-                        values.extend(v)
+                        values.extend(v) # type: ignore[arg-type]
                 else:
                     values.append(ensure_literal(self.visit(elt, path)))
 
@@ -415,11 +415,10 @@ class _LiteralEval(_ASTEval):
     visit_Set = visit_List
 
     def visit_BinOp(self, node: ast.BinOp, path: List[ast.AST]) -> LiteralValue:
+        lval = ensure_literal(self.visit(node.left, path))
+        rval = ensure_literal(self.visit(node.right, path))
         try:
-            return op2func(node.op, type(node))(
-                ensure_literal(self.visit(node.left, path)), 
-                ensure_literal(self.visit(node.right, path)),
-            )
+            return op2func(node.op, type(node))(lval, rval)
         except Exception as e:
             raise StaticEvaluationError(
                 node, f"{e.__class__.__name__} in binary operation: {e}"
@@ -467,10 +466,10 @@ class _LiteralEval(_ASTEval):
 
     def visit_Subscript(self, node: ast.Subscript, path: List[ast.AST]) -> LiteralValue:
         if not isinstance(getattr(node, "ctx", ast.Load()), ast.Load):
-            raise StaticTypeError(node.ctx, "Load")
+            raise StaticTypeError(node.ctx, expected="Load")
         value = ensure_literal(self.visit(node.value, path))
         if not isinstance(value, (dict, list, tuple, str, bytes)):
-            raise StaticTypeError(value, "subscriptable")
+            raise StaticTypeError(value, expected="subscriptable")
         slc = ensure_literal(self.visit(node.slice, path))
         try:
             return value[slc]  # type: ignore
@@ -505,13 +504,13 @@ class _LiteralEval(_ASTEval):
         def visit_Num(self, node:ast.Num, path:Any) -> LiteralValue:
             v = node.n
             if not isinstance(v, numbers.Number):
-                raise StaticTypeError(v, "literal")
+                raise StaticTypeError(v, expected="literal")
             return v
         
         def visit_Str(self, node:Union[ast.Str, ast.Bytes], path:Any) -> LiteralValue:
             v = node.s
             if not isinstance(v, (str, bytes)):
-                raise StaticTypeError(v, "literal")
+                raise StaticTypeError(v, expected="literal")
             return v
         
         visit_Bytes = visit_Str
