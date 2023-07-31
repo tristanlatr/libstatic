@@ -1,5 +1,9 @@
 import ast
-from typing import Set, Dict, Any, Mapping
+from typing import List, Set, Dict, Any, Mapping, TYPE_CHECKING
+if TYPE_CHECKING:
+    from typing import Protocol
+else:
+    Protocol = object
 
 from .model import State, Options
 
@@ -18,6 +22,10 @@ def get_unreachable(state: State, options: Options, mod: ast.Module) -> Set[ast.
 
     return _Unreachable(state, known_values).visit_Module(mod)
 
+class HasBody(Protocol):
+    body: List[ast.stmt]
+class HasOrelse(HasBody, Protocol):
+    orelse: List[ast.stmt]
 
 class _Unreachable(ast.NodeVisitor):
     def __init__(self, state: State, known_values: Mapping[str, Any]) -> None:
@@ -25,7 +33,7 @@ class _Unreachable(ast.NodeVisitor):
         self._known_values: Mapping[str, Any] = known_values
         self._unreachable_nodes: Set[ast.AST] = set()
 
-    def visit_stmt(self, node):
+    def visit_stmt(self, node:ast.stmt) -> None:
         pass
 
     visit_Assign = visit_AugAssign = visit_AnnAssign = visit_Expr = visit_stmt
@@ -53,14 +61,14 @@ class _Unreachable(ast.NodeVisitor):
             for n in reachable:
                 self.generic_visit(n)
     
-    def visit_body(self, node):
+    def visit_body(self, node:HasBody) -> None:
         for stmt in node.body:
             self.visit(stmt)
 
     visit_ClassDef = visit_body
     visit_With = visit_AsyncWith = visit_body
 
-    def visit_orelse(self, node):
+    def visit_orelse(self, node:HasOrelse) -> None:
         for stmt in node.body:
             self.visit(stmt)
         for stmt in node.orelse:
@@ -68,7 +76,7 @@ class _Unreachable(ast.NodeVisitor):
 
     visit_For = visit_While = visit_AsyncFor = visit_orelse
 
-    def visit_Try(self, node:ast.Try):
+    def visit_Try(self, node:ast.Try) -> None:
         for stmt in node.body:
             self.visit(stmt)
         for stmt in node.orelse:
@@ -76,8 +84,8 @@ class _Unreachable(ast.NodeVisitor):
         for stmt in node.finalbody:
             self.visit(stmt)
         # TODO: mark node in handlers as "exceptionally reachable"
-        for stmt in node.handlers:
-            self.visit_body(stmt)
+        for h in node.handlers:
+            self.visit_body(h)
 
     def visit_Module(self, node: ast.Module) -> Set[ast.AST]:
         self.visit_body(node)

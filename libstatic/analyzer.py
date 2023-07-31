@@ -126,10 +126,7 @@ class Analyzer:
         """
         Initiate the project state.
         """
-        try:
-            self._analyzer_pass1()
-        except StaticCodeUnsupported as e:
-            raise StaticCodeUnsupported(e.node, e.msg, self._state.get_filename(e.node))
+        self._analyzer_pass1()
         
         # : Imports analysis: complement def-use chains with import chains
         # must be done after all modules have been added

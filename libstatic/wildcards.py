@@ -67,14 +67,17 @@ class _VisitWildcardImports(ast.NodeVisitor):
             imp = self._state.get_def(node)
             mod = self._builder.getProcessedModule(imp.orgmodule)
             if mod is not None:
-                dunder_all = self._builder.result.get(mod, _missing)
-                if dunder_all is not None:
-                    expanded_wildcard = dunder_all
-                elif dunder_all is _missing:
+                try:
+                    dunder_all = self._builder.result[mod]
+                except KeyError:
                     self._state.msg(f"failed to resolve wildcard import", ctx=node)
                     expanded_wildcard = None
                 else:
-                    expanded_wildcard = self._state.get_public_names(mod)
+                    if dunder_all is not None:
+                        expanded_wildcard = dunder_all
+                    else:
+                        expanded_wildcard = self._state.get_public_names(mod)
+
                 self._result[node] = expanded_wildcard
             else:
                 # not in the system
@@ -85,8 +88,6 @@ class _VisitWildcardImports(ast.NodeVisitor):
         return
 
     visit_ClassDef = visit_FunctionDef = visit_AsyncFunctionDef = visit_Lambda = _returns  # type: ignore
-
-_missing = object()
 
 class _ComputeWildcards(ast.NodeVisitor):
     def __init__(
