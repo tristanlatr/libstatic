@@ -63,6 +63,8 @@ class Def:
     """
     Model a use or a definition, either named or unnamed, and its users.
     """
+    __slots__ = 'node', '_users'
+
     def __init__(self, node:ast.AST) -> None:
         self.node = node
         self._users: MutableSet["Def"] = ordered_set()
@@ -155,6 +157,8 @@ class Mod(NameDef, OpenScope):
     """
     Model a module definition.
     """
+    __slots__ = (*Def.__slots__, '_modname', 'is_package', '_filename')
+
     node: ast.Module
     def __init__(self, 
                  node: ast.Module, 
@@ -209,7 +213,8 @@ class Imp(NameDef):
     """
     Model an imported name definition.
     """
-
+    __slots__ = (*Def.__slots__, 'orgmodule', 'orgname')
+    
     node: ast.alias
     def __init__(self, 
                  node: ast.alias, 
