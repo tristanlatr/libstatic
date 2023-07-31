@@ -6,6 +6,7 @@ import ast
 from dataclasses import dataclass
 import sys
 import time
+from pathlib import Path
 from typing import (
     TYPE_CHECKING,
     Iterator,
@@ -28,7 +29,7 @@ from typing import (
 )
 
 from beniget.beniget import ordered_set  # type: ignore
-from typeshed_client import get_stub_file
+from typeshed_client import get_stub_file, get_search_context
 from typeshed_client.finder import parse_stub_file
 
 from ._lib.shared import ast_node_name, node2dottedname
@@ -847,12 +848,12 @@ class State:
         for u in definition.users():
             yield from _refs(u)
 
-def _load_typeshed_mod_spec(modname: str) -> Tuple[str, ast.Module, bool]:
-    path = get_stub_file(modname)
+def _load_typeshed_mod_spec(modname: str, search_context:Any) -> Tuple[Path, ast.Module, bool]:
+    path = get_stub_file(modname, search_context=search_context)
     if not path:
         raise ModuleNotFoundError(name=modname)
     is_package = path.stem == "__init__"
-    return modname, cast(ast.Module, parse_stub_file(path)), is_package
+    return path, cast(ast.Module, parse_stub_file(path)), is_package
 
 
 class MutableState(State):
@@ -863,17 +864,26 @@ class MutableState(State):
     are replicated in the use-def chains as well, as if they form a unique
     data structure.
     """
+    search_context = None
+
 
     def add_typeshed_module(self, modname: str) -> "Mod|None":
         """
         Add a module from typeshed or from locally installed .pyi files or typed packages.
         """
+        search_context = self.search_context
+        if search_context is None:
+            # cache search_context
+            search_context = self.search_context = get_search_context()
         try:
-            _, modast, is_pack = _load_typeshed_mod_spec(modname)
-        except Exception as e:
-            self.msg(str(e))
+            path, modast, is_pack = _load_typeshed_mod_spec(modname, search_context)
+        except ModuleNotFoundError as e:
+            self.msg(f'stubs not found for module {modname!r}')
             return None
-        return self.add_module(modast, modname, is_package=is_pack)
+        except Exception as e:
+            self.msg(f'error loading stubs for module {modname!r}, {e.__class__.__name__}: {e}')
+            return None
+        return self.add_module(modast, modname, is_package=is_pack, filename=path.as_posix())
 
     def add_module(
         self, node: ast.Module, name: str, *, is_package: bool, filename: Optional[str]=None
