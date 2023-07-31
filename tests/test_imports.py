@@ -2,8 +2,8 @@ import ast
 from unittest import TestCase
 from textwrap import dedent
 
-from libstatic.shared import ast_node_name
-from libstatic.imports import ImportParser
+from libstatic._lib.shared import ast_node_name
+from libstatic._lib.imports import ImportParser
 
 class TestImportParser(TestCase):
 

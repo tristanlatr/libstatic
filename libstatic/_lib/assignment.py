@@ -1,7 +1,7 @@
 from typing import Optional
 import ast
 
-from .exceptions import StaticCodeUnsupported
+from ..exceptions import StaticCodeUnsupported
 
 
 # This could be implemented with the use-def chains.

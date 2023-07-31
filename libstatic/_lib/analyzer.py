@@ -2,12 +2,12 @@ import ast
 
 from typing import Any, Union
 
-from .model import MutableState, Options, Mod
+from ..model import MutableState, Options, Mod
 from .chains import defuse_chains_and_locals, usedef_chains
 from .ancestors import Ancestors
 from .reachability import get_unreachable
 from .wildcards import compute_wildcards
-from .exceptions import StaticException, StaticCodeUnsupported
+from ..exceptions import StaticException, StaticCodeUnsupported
 from .shared import StmtVisitor
 
 class ChainDefUseOfImports(StmtVisitor):

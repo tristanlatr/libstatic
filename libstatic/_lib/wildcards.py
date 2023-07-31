@@ -9,10 +9,10 @@ from typing import Any, Dict, Mapping, Optional, Collection, TYPE_CHECKING, Unio
 if TYPE_CHECKING:
     from typing import TypeGuard
 
-from .process import Processor
-from .model import MutableState, Def, State, Mod, Imp, Var
+from ..process import Processor
+from ..model import MutableState, Def, State, Mod, Imp, Var
 from .assignment import get_stored_value
-from .exceptions import StaticException
+from ..exceptions import StaticException
 from .shared import LocalStmtVisitor
 
 class _VisitDunderAllAssignment(ast.NodeVisitor):

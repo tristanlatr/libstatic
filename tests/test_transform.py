@@ -3,8 +3,8 @@ from unittest import TestCase
 from textwrap import dedent, indent
 
 
-from libstatic.transform import Transform
-from libstatic.shared import unparse
+from libstatic._lib.transform import Transform
+from libstatic._lib.shared import unparse
 
 
 class TestPrepare(TestCase):

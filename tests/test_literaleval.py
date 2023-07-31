@@ -3,7 +3,7 @@ import sys
 from unittest import TestCase
 
 from libstatic.model import Project
-from libstatic.asteval import _LiteralEval, _ASTEval
+from libstatic._lib.asteval import _LiteralEval, _ASTEval
 from libstatic.exceptions import StaticUnknownValue, StaticException
 
 

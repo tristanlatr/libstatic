@@ -5,7 +5,7 @@ if TYPE_CHECKING:
 else:
     Protocol = object
 
-from .model import State, Options
+from ..model import State, Options
 from .shared import LocalStmtVisitor
 
 def get_unreachable(state: State, options: Options, mod: ast.Module) -> Set[ast.AST]:

@@ -31,9 +31,9 @@ from beniget.beniget import ordered_set  # type: ignore
 from typeshed_client import get_stub_file
 from typeshed_client.finder import parse_stub_file
 
-from .shared import ast_node_name, node2dottedname
-from .transform import Transform
-from .asteval import LiteralValue, _LiteralEval, _GotoDefinition
+from ._lib.shared import ast_node_name, node2dottedname
+from ._lib.transform import Transform
+from ._lib.asteval import LiteralValue, _LiteralEval, _GotoDefinition
 from .exceptions import (
     StaticStateIncomplete,
     StaticNameError,
@@ -994,7 +994,7 @@ class Project:
         """
         t0 = time.time()
 
-        from .analyzer import Analyzer
+        from ._lib.analyzer import Analyzer
 
         Analyzer(cast(MutableState, self.state), self.options).analyze()
 

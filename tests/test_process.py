@@ -4,8 +4,8 @@ from unittest import TestCase
 
 from libstatic.model import Project, State
 from libstatic.process import Processor, _ProcessingState
-from libstatic.imports import ParseImportedNames
-from libstatic.ancestors import Ancestors
+from libstatic._lib.imports import ParseImportedNames
+from libstatic._lib.ancestors import Ancestors
 
 class Cycle(Exception):...
 

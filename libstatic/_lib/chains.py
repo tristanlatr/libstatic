@@ -11,9 +11,9 @@ from beniget.beniget import ( # type:ignore
     Def as BenigetDef,
 )  
 
-from .model import Cls, Func, Var, Imp, Def, Arg, AnonymousScope, NameDef
+from ..model import Cls, Func, Var, Imp, Def, Arg, AnonymousScope, NameDef
 from .imports import ParseImportedNames, ImportInfo
-from .exceptions import StaticTypeError, StaticCodeUnsupported
+from ..exceptions import StaticTypeError, StaticCodeUnsupported
 
 # beniget integration here:
 
