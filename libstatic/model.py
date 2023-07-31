@@ -381,7 +381,7 @@ class State:
         try:
             defs = self._use_def_chains[node]
             if isinstance(node, ast.Name):
-                # make sure only namedefs with same name are last in the list.
+                # make sure only namedefs with same name are in the list.
                 # this is a band-aid fix for https://github.com/serge-sans-paille/beniget/issues/63
                 # see test_chains.py::..::test_annassign
                 def f(d:Def) -> bool:
