@@ -2,10 +2,9 @@
 Technically, this is part of the L{analyzer}.
 """
 
-from _ast import Import, ImportFrom
 import ast
 from collections import OrderedDict
-from typing import Any, Dict, Mapping, Optional, Collection, TYPE_CHECKING
+from typing import Any, Dict, Mapping, Optional, Collection, TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
     from typing import TypeGuard
@@ -49,7 +48,6 @@ class _VisitDunderAllAssignment(ast.NodeVisitor):
             if fullname:
                 self._builder.getProcessedModule(fullname)
 
-
 class _VisitWildcardImports(LocalStmtVisitor):
     def __init__(
         self, state: State, builder: Processor[Mod, Optional["Collection[str]"]]
@@ -64,7 +62,7 @@ class _VisitWildcardImports(LocalStmtVisitor):
         self.generic_visit(node)
         return self._result
 
-    def visit_Import(self, node: Import) -> Any:
+    def visit_Import(self, node: Union[ast.Import, ast.ImportFrom]) -> Any:
         self.generic_visit(node)
     visit_ImportFrom = visit_Import
 
