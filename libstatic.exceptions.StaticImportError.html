@@ -94,15 +94,38 @@
         
 
         
-            <div class="itemName"><code><a href="#__str__" class="internal-link" title="libstatic.exceptions.StaticImportError.__str__">__str__</a></code>
+            <div class="itemName"><code><a href="#msg" class="internal-link" title="libstatic.exceptions.StaticImportError.msg">msg</a></code>
             </div>
         
 
     </li>
 </ul> 
 
+        <div class="childrenKindTitle">Inherited Methods</div>
+        <ul>
+    
+    <li class="">
         
-         
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic.exceptions.StaticException.html#__str__" class="internal-link" title="libstatic.exceptions.StaticException.__str__">__str__</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic.exceptions.StaticException.html#location" class="internal-link" title="libstatic.exceptions.StaticException.location">location</a></code>
+            </div>
+        
+
+    </li>
+</ul> 
 
         <div class="childrenKindTitle">Attributes</div>
         <ul>
@@ -120,8 +143,31 @@
     </li>
 </ul> 
 
+        <div class="childrenKindTitle">Inherited Attributes</div>
+        <ul>
+    
+    <li class="">
         
-         
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic.exceptions.StaticException.html#desrc" class="internal-link" title="libstatic.exceptions.StaticException.desrc">desrc</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic.exceptions.StaticException.html#filename" class="internal-link" title="libstatic.exceptions.StaticException.filename">filename</a></code>
+            </div>
+        
+
+    </li>
+</ul> 
         
       </div>
   </div><div>
@@ -360,7 +406,7 @@
         </div>
 
         <div class="extrasDocstring">
-          <p class="class-signature"><code><span class="py-keyword">class</span> <span class="py-defname">StaticImportError</span>(<a href="libstatic.exceptions.StaticException.html" class="internal-link" title="libstatic.exceptions.StaticException">StaticException</a>): <a href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/exceptions.py#L58" class="sourceLink">(source)</a></code></p>
+          <p class="class-signature"><code><span class="py-keyword">class</span> <span class="py-defname">StaticImportError</span>(<a href="libstatic.exceptions.StaticException.html" class="internal-link" title="libstatic.exceptions.StaticException">StaticException</a>): <a href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/exceptions.py#L86" class="sourceLink">(source)</a></code></p>
           <p><a href="classIndex.html#libstatic.exceptions.StaticImportError">View In Hierarchy</a></p>
         </div>
 
@@ -369,22 +415,51 @@
         </div>
 
         <div id="splitTables">
-          <table class="children sortable" id="id21">
+          <table class="children sortable" id="id26">
   
   
   <tr class="method">
     
     <td>Method</td>
-    <td><code><a href="#__str__" class="internal-link" title="libstatic.exceptions.StaticImportError.__str__">__str__</a></code></td>
+    <td><code><a href="#msg" class="internal-link" title="libstatic.exceptions.StaticImportError.msg">msg</a></code></td>
     <td><span class="undocumented">Undocumented</span></td>
-  </tr><tr class="instancevariable">
+  </tr><tr class="classvariable">
     
-    <td>Instance Variable</td>
+    <td>Class Variable</td>
     <td><code><a href="#node" class="internal-link" title="libstatic.exceptions.StaticImportError.node">node</a></code></td>
     <td><span class="undocumented">Undocumented</span></td>
   </tr>
 </table>
           
+            <p class="inheritedFrom">
+              Inherited from <code><a href="libstatic.exceptions.StaticException.html" class="internal-link" title="libstatic.exceptions.StaticException">StaticException</a></code>:
+            </p>
+            <table class="children sortable" id="id27">
+  
+  
+  <tr class="basemethod">
+    
+    <td>Method</td>
+    <td><code><a href="libstatic.exceptions.StaticException.html#__str__" class="internal-link" title="libstatic.exceptions.StaticException.__str__">__str__</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="basemethod">
+    
+    <td>Method</td>
+    <td><code><a href="libstatic.exceptions.StaticException.html#location" class="internal-link" title="libstatic.exceptions.StaticException.location">location</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="baseinstancevariable">
+    
+    <td>Instance Variable</td>
+    <td><code><a href="libstatic.exceptions.StaticException.html#desrc" class="internal-link" title="libstatic.exceptions.StaticException.desrc">desrc</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="baseinstancevariable">
+    
+    <td>Instance Variable</td>
+    <td><code><a href="libstatic.exceptions.StaticException.html#filename" class="internal-link" title="libstatic.exceptions.StaticException.filename">filename</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr>
+</table>
+            
 
             
         </div>
@@ -393,31 +468,31 @@
           <div class="basemethod">
   
   
-  <a name="libstatic.exceptions.StaticImportError.__str__">
+  <a name="libstatic.exceptions.StaticImportError.msg">
     
   </a>
-  <a name="__str__">
+  <a name="msg">
     
   </a>
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">__str__</span><span class="function-signature">(self) -&gt; <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/exceptions.py#L66">
+    <span class="py-keyword">def</span> <span class="py-defname">msg</span><span class="function-signature">(self) -&gt; <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/exceptions.py#L92">
       
       (source)
     </a>
-    <a class="headerLink" href="#__str__" title="libstatic.exceptions.StaticImportError.__str__">
+    <a class="headerLink" href="#msg" title="libstatic.exceptions.StaticImportError.msg">
       
       
       ¶
     </a>
   </div>
   <div class="docstring functionBody">
-    
+    <div class="interfaceinfo">overrides <code><a href="libstatic.exceptions.StaticException.html#msg" class="internal-link">libstatic.exceptions.StaticException.msg</a></code></div>
     <div><p class="undocumented">Undocumented</p></div>
   </div>
-</div><div class="baseinstancevariable">
+</div><div class="baseclassvariable">
   
   
   <a name="libstatic.exceptions.StaticImportError.node">
@@ -429,7 +504,7 @@
   <div class="functionHeader">
     
     <span class="py-defname">node</span>: <code><a href="https://docs.python.org/3/library/ast.html#ast.alias" class="intersphinx-link">ast.alias</a></code> =
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/exceptions.py#L64">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/exceptions.py#L90">
       
       (source)
     </a>
@@ -440,7 +515,7 @@
     </a>
   </div>
   <div class="functionBody">
-    
+    <div class="interfaceinfo">overrides <code><a href="libstatic.exceptions.StaticException.html#node" class="internal-link">libstatic.exceptions.StaticException.node</a></code></div>
     <div><p class="undocumented">Undocumented</p></div>
     
   </div>
@@ -457,7 +532,7 @@
     <div class="container">
       <a href="index.html">API Documentation</a> for <a href="https://github.com/tristanlatr/libstatic" class="projecthome">libstatic</a>,
     generated by <a href="https://github.com/twisted/pydoctor/">pydoctor</a>
-      23.4.1 at 2023-07-29 16:14:06.
+      23.4.1 at 2023-07-31 01:01:46.
     </div>
     
     <script src="ajax.js" type="text/javascript"></script>

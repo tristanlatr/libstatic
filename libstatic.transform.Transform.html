@@ -154,16 +154,6 @@
         
 
         
-            <div class="itemName"><code><a href="#visit_Classdef" class="internal-link" title="libstatic.transform.Transform.visit_Classdef">visit_<wbr></wbr>Classdef</a></code>
-            </div>
-        
-
-    </li><li class="">
-        
-        
-        
-
-        
             <div class="itemName"><code><a href="#visit_Expr" class="internal-link" title="libstatic.transform.Transform.visit_Expr">visit_<wbr></wbr>Expr</a></code>
             </div>
         
@@ -205,6 +195,16 @@
 
         
             <div class="itemName"><code><a href="#visit_Module" class="internal-link" title="libstatic.transform.Transform.visit_Module">visit_<wbr></wbr>Module</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#visit_scope" class="internal-link" title="libstatic.transform.Transform.visit_scope">visit<wbr></wbr>_scope</a></code>
             </div>
         
 
@@ -335,6 +335,16 @@
             </div>
         
 
+    </li><li class="private">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic.transform.html#_astT" class="internal-link" title="libstatic.transform._astT">_ast<wbr></wbr>T</a></code>
+            </div>
+        
+
     </li>
 </ul> 
 
@@ -450,7 +460,7 @@
         </div>
 
         <div id="splitTables">
-          <table class="children sortable" id="id78">
+          <table class="children sortable" id="id94">
   
   
   <tr class="method">
@@ -486,11 +496,6 @@
   </tr><tr class="method">
     
     <td>Method</td>
-    <td><code><a href="#visit_Classdef" class="internal-link" title="libstatic.transform.Transform.visit_Classdef">visit_<wbr></wbr>Classdef</a></code></td>
-    <td><span class="undocumented">Undocumented</span></td>
-  </tr><tr class="method">
-    
-    <td>Method</td>
     <td><code><a href="#visit_Expr" class="internal-link" title="libstatic.transform.Transform.visit_Expr">visit_<wbr></wbr>Expr</a></code></td>
     <td><span class="undocumented">Undocumented</span></td>
   </tr><tr class="method">
@@ -512,6 +517,11 @@
     
     <td>Method</td>
     <td><code><a href="#visit_Module" class="internal-link" title="libstatic.transform.Transform.visit_Module">visit_<wbr></wbr>Module</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="method">
+    
+    <td>Method</td>
+    <td><code><a href="#visit_scope" class="internal-link" title="libstatic.transform.Transform.visit_scope">visit<wbr></wbr>_scope</a></code></td>
     <td><span class="undocumented">Undocumented</span></td>
   </tr><tr class="instancevariable private">
     
@@ -575,8 +585,8 @@
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">current</span><span class="function-signature">(self)</span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/transform.py#L86">
+    <span class="py-keyword">def</span> <span class="py-defname">current</span><span class="function-signature">(self) -&gt; <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code></span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/transform.py#L85">
       
       (source)
     </a>
@@ -603,7 +613,7 @@
     
     
     <span class="py-keyword">def</span> <span class="py-defname">current_block</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Tuple" class="intersphinx-link">Tuple</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>, <wbr></wbr><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>]</code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/transform.py#L89">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/transform.py#L88">
       
       (source)
     </a>
@@ -629,7 +639,7 @@
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">generic_visit</span><span class="function-signature">(self, node)</span>:
+    <span class="py-keyword">def</span> <span class="py-defname">generic_visit</span><span class="function-signature">(self, node: <code><a href="libstatic.transform.html#_astT" class="internal-link" title="libstatic.transform._astT">_astT</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr><a href="libstatic.transform.html#_astT" class="internal-link" title="libstatic.transform._astT">_astT</a>]</code></span>:
     <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/transform.py#L46">
       
       (source)
@@ -683,39 +693,12 @@
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">visit_AugAssign</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.AugAssign" class="intersphinx-link">ast.AugAssign</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AugAssign" class="intersphinx-link">ast.AugAssign</a>, <wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.Assign" class="intersphinx-link">ast.Assign</a>]</code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/transform.py#L147">
+    <span class="py-keyword">def</span> <span class="py-defname">visit_AugAssign</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.AugAssign" class="intersphinx-link">ast.AugAssign</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code></span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/transform.py#L146">
       
       (source)
     </a>
     <a class="headerLink" href="#visit_AugAssign" title="libstatic.transform.Transform.visit_AugAssign">
-      
-      
-      ¶
-    </a>
-  </div>
-  <div class="docstring functionBody">
-    
-    <div><p class="undocumented">Undocumented</p></div>
-  </div>
-</div><div class="basemethod">
-  
-  
-  <a name="libstatic.transform.Transform.visit_Classdef">
-    
-  </a>
-  <a name="visit_Classdef">
-    
-  </a>
-  <div class="functionHeader">
-    
-    
-    <span class="py-keyword">def</span> <span class="py-defname">visit_Classdef</span><span class="function-signature">(self, node)</span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/transform.py#L104">
-      
-      (source)
-    </a>
-    <a class="headerLink" href="#visit_Classdef" title="libstatic.transform.Transform.visit_Classdef">
       
       
       ¶
@@ -737,8 +720,8 @@
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">visit_Expr</span><span class="function-signature">(self, node)</span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/transform.py#L173">
+    <span class="py-keyword">def</span> <span class="py-defname">visit_Expr</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.Expr" class="intersphinx-link">ast.Expr</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code></span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/transform.py#L172">
       
       (source)
     </a>
@@ -764,8 +747,8 @@
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">visit_If</span><span class="function-signature">(self, node: <code>ast.stmt</code>)</span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/transform.py#L109">
+    <span class="py-keyword">def</span> <span class="py-defname">visit_If</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.If" class="intersphinx-link">ast.If</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code></span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/transform.py#L108">
       
       (source)
     </a>
@@ -791,8 +774,8 @@
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">visit_jump</span><span class="function-signature">(self, node: <code>ast.stmt</code>)</span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/transform.py#L129">
+    <span class="py-keyword">def</span> <span class="py-defname">visit_jump</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code></span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/transform.py#L128">
       
       (source)
     </a>
@@ -818,8 +801,8 @@
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">visit_loop</span><span class="function-signature">(self, node)</span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/transform.py#L119">
+    <span class="py-keyword">def</span> <span class="py-defname">visit_loop</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code></span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/transform.py#L118">
       
       (source)
     </a>
@@ -845,12 +828,39 @@
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">visit_Module</span><span class="function-signature">(self, node)</span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/transform.py#L101">
+    <span class="py-keyword">def</span> <span class="py-defname">visit_Module</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.Module" class="intersphinx-link">ast.Module</a></code>)</span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/transform.py#L100">
       
       (source)
     </a>
     <a class="headerLink" href="#visit_Module" title="libstatic.transform.Transform.visit_Module">
+      
+      
+      ¶
+    </a>
+  </div>
+  <div class="docstring functionBody">
+    
+    <div><p class="undocumented">Undocumented</p></div>
+  </div>
+</div><div class="basemethod">
+  
+  
+  <a name="libstatic.transform.Transform.visit_scope">
+    
+  </a>
+  <a name="visit_scope">
+    
+  </a>
+  <div class="functionHeader">
+    
+    
+    <span class="py-keyword">def</span> <span class="py-defname">visit_scope</span><span class="function-signature">(self, node: <code><a href="libstatic.transform.html#T" class="internal-link" title="libstatic.transform.T">T</a></code>) -&gt; <code><a href="libstatic.transform.html#T" class="internal-link" title="libstatic.transform.T">T</a></code></span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/transform.py#L103">
+      
+      (source)
+    </a>
+    <a class="headerLink" href="#visit_scope" title="libstatic.transform.Transform.visit_scope">
       
       
       ¶
@@ -954,7 +964,7 @@
     <div class="container">
       <a href="index.html">API Documentation</a> for <a href="https://github.com/tristanlatr/libstatic" class="projecthome">libstatic</a>,
     generated by <a href="https://github.com/twisted/pydoctor/">pydoctor</a>
-      23.4.1 at 2023-07-29 16:14:06.
+      23.4.1 at 2023-07-31 01:01:46.
     </div>
     
     <script src="ajax.js" type="text/javascript"></script>

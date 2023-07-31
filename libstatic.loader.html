@@ -6,7 +6,7 @@
 
   <head>
     
-    <title>libstatic.process</title>
+    <title>libstatic.loader</title>
     <meta name="generator" content="pydoctor 23.4.1"> 
         
     </meta>
@@ -73,7 +73,7 @@
 
       <div class="thingTitle">
         <span>Module</span>
-        <code class="thisobject"><a href="libstatic.process.html" class="internal-link" title="This module">process</a></code> 
+        <code class="thisobject"><a href="libstatic.loader.html" class="internal-link" title="This module">loader</a></code> 
       </div>
       
       <div>
@@ -82,7 +82,10 @@
         
          
 
-        <div class="childrenKindTitle">Classes</div>
+        
+        
+
+        <div class="childrenKindTitle">Functions</div>
         <ul>
     
     <li class="">
@@ -91,7 +94,7 @@
         
 
         
-            <div class="itemName"><code><a href="libstatic.process.Processor.html" class="internal-link" title="libstatic.process.Processor"><wbr></wbr>Processor</a></code>
+            <div class="itemName"><code><a href="#load_path" class="internal-link" title="libstatic.loader.load_path">load<wbr></wbr>_path</a></code>
             </div>
         
 
@@ -101,15 +104,22 @@
         
 
         
-            <div class="itemName"><code><a href="libstatic.process._ProcessingState.html" class="internal-link" title="libstatic.process._ProcessingState">_<wbr></wbr>Processing<wbr></wbr>State</a></code>
+            <div class="itemName"><code><a href="#_load_path" class="internal-link" title="libstatic.loader._load_path">_load<wbr></wbr>_path</a></code>
+            </div>
+        
+
+    </li><li class="private">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#_parse_file" class="internal-link" title="libstatic.loader._parse_file">_parse<wbr></wbr>_file</a></code>
             </div>
         
 
     </li>
-</ul>
-
-        
-         
+</ul> 
 
         
          
@@ -117,23 +127,13 @@
         <div class="childrenKindTitle">Variables</div>
         <ul>
     
-    <li class="">
+    <li class="private">
         
         
         
 
         
-            <div class="itemName"><code><a href="#BuildType" class="internal-link" title="libstatic.process.BuildType"><wbr></wbr>Build<wbr></wbr>Type</a></code>
-            </div>
-        
-
-    </li><li class="">
-        
-        
-        
-
-        
-            <div class="itemName"><code><a href="#ModType" class="internal-link" title="libstatic.process.ModType"><wbr></wbr>Mod<wbr></wbr>Type</a></code>
+            <div class="itemName"><code><a href="#_parse" class="internal-link" title="libstatic.loader._parse">_parse</a></code>
             </div>
         
 
@@ -227,7 +227,7 @@
             </div>
         
 
-    </li><li class="">
+    </li><li class=" thisobject">
         
         
         
@@ -247,7 +247,7 @@
             </div>
         
 
-    </li><li class=" thisobject">
+    </li><li class="">
         
         
         
@@ -419,7 +419,7 @@
         </div>
 
         <div class="page-header">
-          <h1 class="module"><code><code><a href="index.html" class="internal-link">libstatic</a></code><wbr></wbr>.<code><a href="libstatic.process.html" class="internal-link" title="libstatic.process">process</a></code></code></h1>
+          <h1 class="module"><code><code><a href="index.html" class="internal-link">libstatic</a></code><wbr></wbr>.<code><a href="libstatic.loader.html" class="internal-link" title="libstatic.loader">loader</a></code></code></h1>
           <div id="showPrivate">
             <button class="btn btn-link" onclick="togglePrivate()">Toggle Private API</button>
           </div>
@@ -430,37 +430,37 @@
         </div>
 
         <div class="extrasDocstring">
-          <a href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/process.py" class="sourceLink">(source)</a>
+          <a href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/loader.py" class="sourceLink">(source)</a>
           <p></p>
         </div>
 
         <div class="moduleDocstring">
-          <div><p>Provides a generic class to process a collection of modules.</p></div>
+          <div><p>Load a project form a python package/module path in the filesystem.</p></div>
         </div>
 
         <div id="splitTables">
-          <table class="children sortable" id="id82">
+          <table class="children sortable" id="id44">
   
   
-  <tr class="class">
+  <tr class="function">
     
-    <td>Class</td>
-    <td><code><a href="libstatic.process.Processor.html" class="internal-link" title="libstatic.process.Processor"><wbr></wbr>Processor</a></code></td>
-    <td>Base class for processing modules in order. Decoupled from the concrete types so it can be re-used for several inter-modules analysis.</td>
-  </tr><tr class="typevariable">
+    <td>Function</td>
+    <td><code><a href="#load_path" class="internal-link" title="libstatic.loader.load_path">load<wbr></wbr>_path</a></code></td>
+    <td>Load a project form a python package/module path in the filesystem. Project.analyze_project() must still be called after loading a path into the project.</td>
+  </tr><tr class="function private">
     
-    <td>Type Variable</td>
-    <td><code><a href="#BuildType" class="internal-link" title="libstatic.process.BuildType"><wbr></wbr>Build<wbr></wbr>Type</a></code></td>
+    <td>Function</td>
+    <td><code><a href="#_load_path" class="internal-link" title="libstatic.loader._load_path">_load<wbr></wbr>_path</a></code></td>
     <td><span class="undocumented">Undocumented</span></td>
-  </tr><tr class="typevariable">
+  </tr><tr class="function private">
     
-    <td>Type Variable</td>
-    <td><code><a href="#ModType" class="internal-link" title="libstatic.process.ModType"><wbr></wbr>Mod<wbr></wbr>Type</a></code></td>
-    <td><span class="undocumented">Undocumented</span></td>
-  </tr><tr class="class private">
+    <td>Function</td>
+    <td><code><a href="#_parse_file" class="internal-link" title="libstatic.loader._parse_file">_parse<wbr></wbr>_file</a></code></td>
+    <td>Parse the contents of a Python source file.</td>
+  </tr><tr class="variable private">
     
-    <td>Class</td>
-    <td><code><a href="libstatic.process._ProcessingState.html" class="internal-link" title="libstatic.process._ProcessingState">_<wbr></wbr>Processing<wbr></wbr>State</a></code></td>
+    <td>Variable</td>
+    <td><code><a href="#_parse" class="internal-link" title="libstatic.loader._parse">_parse</a></code></td>
     <td><span class="undocumented">Undocumented</span></td>
   </tr>
 </table>
@@ -470,23 +470,104 @@
         </div>
 
         <div id="childList">
-          <div class="basetypevariable">
+          <div class="basefunction">
   
   
-  <a name="libstatic.process.BuildType">
+  <a name="libstatic.loader.load_path">
     
   </a>
-  <a name="BuildType">
+  <a name="load_path">
     
   </a>
   <div class="functionHeader">
     
-    <span class="py-defname">BuildType</span> =
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/process.py#L10">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">load_path</span><span class="function-signature">(project: <code><a href="libstatic.model.Project.html" class="internal-link" title="libstatic.model.Project">Project</a></code>, path: <code><a href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" class="intersphinx-link">Path</a></code>)</span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/loader.py#L48">
       
       (source)
     </a>
-    <a class="headerLink" href="#BuildType" title="libstatic.process.BuildType">
+    <a class="headerLink" href="#load_path" title="libstatic.loader.load_path">
+      
+      
+      ¶
+    </a>
+  </div>
+  <div class="docstring functionBody">
+    
+    <div><p>Load a project form a python package/module path in the filesystem. Project.analyze_project() must still be called after loading a path into the project.</p></div>
+  </div>
+</div><div class="basefunction private">
+  
+  
+  <a name="libstatic.loader._load_path">
+    
+  </a>
+  <a name="_load_path">
+    
+  </a>
+  <div class="functionHeader">
+    
+    
+    <span class="py-keyword">def</span> <span class="py-defname">_load_path</span><span class="function-signature">(project: <code><a href="libstatic.model.Project.html" class="internal-link" title="libstatic.model.Project">Project</a></code>, path: <code><a href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" class="intersphinx-link">Path</a></code>, added: <code><a href="https://docs.python.org/3/library/typing.html#typing.Set" class="intersphinx-link">Set</a>[<wbr></wbr><a href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" class="intersphinx-link">Path</a>]</code>, parent: <code><a href="https://docs.python.org/3/library/typing.html#typing.Tuple" class="intersphinx-link">Tuple</a>[<wbr></wbr><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>, <wbr></wbr><span class="rst-variable-ellipsis">...</span>]</code> = ())</span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/loader.py#L24">
+      
+      (source)
+    </a>
+    <a class="headerLink" href="#_load_path" title="libstatic.loader._load_path">
+      
+      
+      ¶
+    </a>
+  </div>
+  <div class="docstring functionBody">
+    
+    <div><p class="undocumented">Undocumented</p></div>
+  </div>
+</div><div class="basefunction private">
+  
+  
+  <a name="libstatic.loader._parse_file">
+    
+  </a>
+  <a name="_parse_file">
+    
+  </a>
+  <div class="functionHeader">
+    
+    
+    <span class="py-keyword">def</span> <span class="py-defname">_parse_file</span><span class="function-signature">(path: <code><a href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" class="intersphinx-link">Path</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/ast.html#ast.Module" class="intersphinx-link">ast.Module</a></code></span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/loader.py#L13">
+      
+      (source)
+    </a>
+    <a class="headerLink" href="#_parse_file" title="libstatic.loader._parse_file">
+      
+      
+      ¶
+    </a>
+  </div>
+  <div class="docstring functionBody">
+    
+    <div><p>Parse the contents of a Python source file.</p></div>
+  </div>
+</div><div class="basevariable private">
+  
+  
+  <a name="libstatic.loader._parse">
+    
+  </a>
+  <a name="_parse">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-defname">_parse</span> =
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/loader.py#L20">
+      
+      (source)
+    </a>
+    <a class="headerLink" href="#_parse" title="libstatic.loader._parse">
       
       
       ¶
@@ -495,34 +576,7 @@
   <div class="functionBody">
     
     <div><p class="undocumented">Undocumented</p></div>
-    <table class="valueTable"><tr class="fieldStart"><td class="fieldName">Value</td></tr><tr><td><pre class="constant-value"><code><a href="https://docs.python.org/3/library/typing.html#typing.TypeVar" class="intersphinx-link">TypeVar</a>(<wbr></wbr><span class="rst-variable-quote">'</span><span class="rst-variable-string">BuildType</span><span class="rst-variable-quote">'</span>)</code></pre></td></tr></table>
-  </div>
-</div><div class="basetypevariable">
-  
-  
-  <a name="libstatic.process.ModType">
     
-  </a>
-  <a name="ModType">
-    
-  </a>
-  <div class="functionHeader">
-    
-    <span class="py-defname">ModType</span> =
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/process.py#L9">
-      
-      (source)
-    </a>
-    <a class="headerLink" href="#ModType" title="libstatic.process.ModType">
-      
-      
-      ¶
-    </a>
-  </div>
-  <div class="functionBody">
-    
-    <div><p class="undocumented">Undocumented</p></div>
-    <table class="valueTable"><tr class="fieldStart"><td class="fieldName">Value</td></tr><tr><td><pre class="constant-value"><code><a href="https://docs.python.org/3/library/typing.html#typing.TypeVar" class="intersphinx-link">TypeVar</a>(<wbr></wbr><span class="rst-variable-quote">'</span><span class="rst-variable-string">ModType</span><span class="rst-variable-quote">'</span>)</code></pre></td></tr></table>
   </div>
 </div>
         </div>
