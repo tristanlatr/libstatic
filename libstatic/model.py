@@ -673,9 +673,9 @@ class State:
 
     def goto_symbol_def(self, scope: Scope, name:str, *, is_annotation:bool=False) -> List[NameDef]:
         """
-        Simple identifier -> defs resolving.
+        Simple, lazy identifier -> defs resolving.
 
-        Lookup a name in the context of the provided scope.
+        "Lookup" a name in the context of the provided scope, it does not use the chains
         Note that nonlocal and global keywords are ignored by this function.
 
         @raise StaticNameError: For builtin or unbound names.
@@ -820,8 +820,27 @@ class State:
         definition = visitor.visit(node, [])
         return self.get_def(definition)
 
-    def goto_references(self, ) -> None:
-        raise NotImplementedError()
+    def goto_references(self, definition:Def) -> Iterator[Def]:
+        """
+        Finds all Name/@ctx=Load references pointing to the given definition.
+        It follows imports, but bot aliases.
+        """
+        seen = set()
+        if not isinstance(definition, NameDef):
+            raise StaticTypeError(definition, expected='NameDef')
+        def _refs(dnode:Def) -> Iterable[Def]:
+            if dnode in seen:
+                return
+            seen.add(dnode)
+            if isinstance(dnode, Imp):
+                # follow imports
+                for u in dnode.users():
+                    yield from _refs(u)
+                # TODO: follow aliases
+            elif isinstance(dnode.node, ast.Name) and dnode.node.ctx.__class__.__name__=='Load':
+                yield dnode
+        for u in definition.users():
+            yield from _refs(u)
 
 def _load_typeshed_mod_spec(modname: str) -> Tuple[str, ast.Module, bool]:
     path = get_stub_file(modname)
