@@ -8,9 +8,9 @@ from .ancestors import Ancestors
 from .reachability import get_unreachable
 from .wildcards import compute_wildcards
 from .exceptions import StaticException, StaticCodeUnsupported
+from .shared import StmtVisitor
 
-
-class ChainDefUseOfImports(ast.NodeVisitor):
+class ChainDefUseOfImports(StmtVisitor):
     """
     Adds each alias instance to the list of uses of the Def of the name their are binding.
     """

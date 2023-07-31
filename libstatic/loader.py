@@ -35,14 +35,14 @@ def _load_path(project:Project,
         curr_pack = parent + (path.name,)
         project.add_module(mod, '.'.join(curr_pack), 
                            is_package=True,
-                           filename=init_file.absolute().as_posix())
+                           filename=init_file.as_posix())
         added.add(init_file)
         for p in sorted(path.iterdir()):
             _load_path(project, p, added, parent=curr_pack)
     elif path.is_file() and path.suffix == '.py':
         mod = _parse_file(path)
         project.add_module(mod, '.'.join(parent + (path.stem,)), 
-                           filename=path.absolute().as_posix())
+                           filename=path.as_posix())
         added.add(path)
 
 def load_path(project:Project, path:Path) -> None:

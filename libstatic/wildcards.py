@@ -2,6 +2,7 @@
 Technically, this is part of the L{analyzer}.
 """
 
+from _ast import Import, ImportFrom
 import ast
 from collections import OrderedDict
 from typing import Any, Dict, Mapping, Optional, Collection, TYPE_CHECKING
@@ -13,6 +14,7 @@ from .process import Processor
 from .model import MutableState, Def, State, Mod, Imp, Var
 from .assignment import get_stored_value
 from .exceptions import StaticException
+from .shared import LocalStmtVisitor
 
 class _VisitDunderAllAssignment(ast.NodeVisitor):
     """
@@ -48,7 +50,7 @@ class _VisitDunderAllAssignment(ast.NodeVisitor):
                 self._builder.getProcessedModule(fullname)
 
 
-class _VisitWildcardImports(ast.NodeVisitor):
+class _VisitWildcardImports(LocalStmtVisitor):
     def __init__(
         self, state: State, builder: Processor[Mod, Optional["Collection[str]"]]
     ) -> None:
@@ -61,6 +63,10 @@ class _VisitWildcardImports(ast.NodeVisitor):
     ) -> Dict[ast.alias, Optional["Collection[str]"]]:
         self.generic_visit(node)
         return self._result
+
+    def visit_Import(self, node: Import) -> Any:
+        self.generic_visit(node)
+    visit_ImportFrom = visit_Import
 
     def visit_alias(self, node: ast.alias) -> None:
         if node.name == "*":
@@ -84,14 +90,11 @@ class _VisitWildcardImports(ast.NodeVisitor):
                 self._state.msg(f"wildcard import from unknown module {imp.orgmodule!r}", ctx=node)
                 self._result[node] = None
 
-    def _returns(self, ob: ast.stmt) -> None:
-        return
-
-    visit_ClassDef = visit_FunctionDef = visit_AsyncFunctionDef = visit_Lambda = _returns  # type: ignore
-
-class _ComputeWildcards(ast.NodeVisitor):
+class _ComputeWildcards:
     def __init__(
-        self, state: MutableState, builder: Processor[Mod, "Collection[str] | None"]
+        self, 
+        state: MutableState, 
+        builder: Processor[Mod, "Collection[str] | None"]
     ) -> None:
         self._state = state
         self._builder = builder
@@ -175,7 +178,7 @@ class _ComputeWildcards(ast.NodeVisitor):
 
         return dunder_all_def
 
-    def visit_Module(self, node: ast.Module) -> "Collection[str] | None":
+    def compute_wildcards(self, node: ast.Module) -> "Collection[str] | None":
         dunder_all: "Collection[str] | None" = None
 
         self._process_wildcard_imports(node)
@@ -225,6 +228,6 @@ def compute_wildcards(state: MutableState) -> Mapping[Mod, "Collection[str] | No
             return state.get_module(name)
 
         def processModule(self, mod: Mod) -> Optional[Collection[str]]:
-            return _ComputeWildcards(state, self).visit_Module(mod.node)
+            return _ComputeWildcards(state, self).compute_wildcards(mod.node)
 
     return WildcardsProcessor().process(state.get_all_modules())
