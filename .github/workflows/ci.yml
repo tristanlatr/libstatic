@@ -36,9 +36,35 @@ jobs:
       - name: Run tests
         run: tox -e ${{ matrix.tox-target }}
   
+  static_check:
+    name: ${{ matrix.tox-target }} ${{ matrix.os }} py${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }} 
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest]
+        python-version: ['3.10', '3.11']
+        tox-target: [mypy,]
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install tox
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install tox
+        
+      - name: Run static checks
+        run: tox -e ${{ matrix.tox-target }}
+
   release:
 
-    needs: [test]
+    needs: [test, static_check]
     runs-on: ubuntu-latest
 
     steps:

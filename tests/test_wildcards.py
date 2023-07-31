@@ -72,8 +72,8 @@ class TestWildcardParsing(TestCase):
         m3 = proj.add_module(ast.parse(dedent(mod3)), 'mod3')
         proj.analyze_project()
 
-        assert out.getvalue().replace('_ast', 'ast') == ("mod1:4:16: Cannot evaluate tuple element at index 1: Expected literal, got: <class 'ast.ClassDef'>\n"
-                                  "mod1:4:19: Cannot evaluate tuple element at index 2: Unsupported node type: <class 'ast.Call'>\n")
+        assert out.getvalue().replace('_ast', 'ast').startswith("mod1:4:16: Cannot evaluate tuple element at index 1: ?:2: Expected literal, got: <class 'ast.ClassDef'>\n"
+                                  "mod1:4:19: Cannot evaluate tuple element at index 2: mod1:4:19: Unsupported node type: <ast.Call object ")
 
         assert proj.state.get_all_names(m3)==('z', 'b',)
         assert proj.state.get_all_names(m2)==('b', )
@@ -181,11 +181,13 @@ class TestWildcardParsing(TestCase):
         m5 = proj.add_module(ast.parse(dedent(mod5)), 'mod5')
         m6 = proj.add_module(ast.parse(dedent(mod6)), 'mod6')
         m7 = proj.add_module(ast.parse(dedent(mod7)), 'mod7')
-        proj.analyze_project()
+        # proj.analyze_project()
 
         stdout = StringIO()
         with redirect_stdout(stdout):
             proj.analyze_project()
+        out = stdout.getvalue()
+        print(out)
         
         assert proj.state.get_all_names(m7) == ['ham', 'Qux', 'spam', 'Eggs']
         assert proj.state.get_all_names(m6) == ['Qux',]
@@ -194,7 +196,7 @@ class TestWildcardParsing(TestCase):
         assert proj.state.get_all_names(m3) == ['Qux',]
         assert proj.state.get_all_names(m2) == ['spam', 'Eggs', 'Qux']
 
-        assert not stdout.getvalue()
+        assert not out
 
     def test_still_one_iteration_again(self):
         mod1 = '''
@@ -224,8 +226,6 @@ class TestWildcardParsing(TestCase):
         m3 = proj.add_module(ast.parse(dedent(mod3)), 'mod3')
         m4 = proj.add_module(ast.parse(dedent(mod4)), 'mod4')
         m5 = proj.add_module(ast.parse(dedent(mod5)), 'mod5')
-        proj.analyze_project()
-
         stdout = StringIO()
         with redirect_stdout(stdout):
             proj.analyze_project()

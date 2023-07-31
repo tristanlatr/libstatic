@@ -13,7 +13,7 @@ from beniget.beniget import ( # type:ignore
 
 from .model import Cls, Func, Var, Imp, Def, Arg, AnonymousScope, NameDef
 from .imports import ParseImportedNames, ImportInfo
-from .exceptions import StaticTypeError
+from .exceptions import StaticTypeError, StaticCodeUnsupported
 
 # beniget integration here:
 
@@ -23,7 +23,13 @@ class _AstToGAst(Ast3ToGAst):
         self.mapping: Dict[gast.AST, ast.AST] = {}
 
     def visit(self, node: ast.AST) -> gast.AST:
-        newnode = super().visit(node)
+        try:
+            newnode = super().visit(node)
+        except StaticCodeUnsupported:
+            raise
+        except Exception:
+            raise StaticCodeUnsupported(node, 'error in ast to gast')
+        
         if not isinstance(node, ast.expr_context):
             self.mapping[newnode] = node
         return newnode
@@ -166,15 +172,6 @@ def usedef_chains(def_use_chains: Chains) -> Dict[ast.AST, List[Def]]:
 
         for use in chain.users():
             chains.setdefault(use.node, []).append(chain)
-            if __debug__:
-                if (
-                    isinstance(use.node, ast.Name)
-                    and getattr(use.node, "ctx").__class__.__name__ == "Load"
-                ):
-                    if not isinstance(chain, NameDef):
-                        raise StaticTypeError(
-                            chain.node, f"Name {use.name()} should link to a NameDef, got {type(chain)}"
-                        )
 
     return chains
     # this does not support builtins, by design

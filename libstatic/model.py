@@ -331,23 +331,23 @@ class State:
                 return None
             self._raise_node_not_in_chains(e, node)
 
-    @overload
-    def goto_def(self, node: "ast.alias", noraise: "Literal[False]" = False) -> NameDef:
-        ...
+    # @overload
+    # def goto_def(self, node: "ast.alias", noraise: "Literal[False]" = False) -> NameDef:
+    #     ...
 
-    @overload
-    def goto_def(
-        self, node: "ast.alias", noraise: "Literal[True]"
-    ) -> Optional[NameDef]:
-        ...
+    # @overload
+    # def goto_def(
+    #     self, node: "ast.alias", noraise: "Literal[True]"
+    # ) -> Optional[NameDef]:
+    #     ...
 
-    @overload
-    def goto_def(self, node: "ast.Name", noraise: "Literal[False]" = False) -> NameDef:
-        ...
+    # @overload
+    # def goto_def(self, node: "ast.Name", noraise: "Literal[False]" = False) -> NameDef:
+    #     ...
 
-    @overload
-    def goto_def(self, node: "ast.Name", noraise: "Literal[True]") -> Optional[NameDef]:
-        ...
+    # @overload
+    # def goto_def(self, node: "ast.Name", noraise: "Literal[True]") -> Optional[NameDef]:
+    #     ...
 
     @overload
     def goto_def(self, node: "ast.AST", noraise: "Literal[False]" = False) -> Def:
@@ -380,10 +380,17 @@ class State:
         """
         try:
             defs = self._use_def_chains[node]
+            if isinstance(node, ast.Name):
+                # make sure only namedefs with same name are in the list.
+                # this is a band-aid fix for https://github.com/serge-sans-paille/beniget/issues/63
+                # see test_chains.py::..::test_annassign
+                def f(d:Def) -> bool:
+                    return d.name()==node.id
+                defs = list(filter(f, defs))
             if len(defs) == 0:
                 if isinstance(node, ast.alias):
-                    raise StaticImportError(node)
-                raise StaticNameError(node)
+                    raise StaticImportError(node, filename=self.get_filename(node))
+                raise StaticNameError(node, filename=self.get_filename(node))            
             return defs
         except StaticException as e:
             if noraise:
@@ -412,7 +419,7 @@ class State:
         name: str,
     ) -> Optional["Mod"]:
         """
-        Get the
+        Get a sub-module of the given module.
         """
         if isinstance(mod, ast.AST):
             mod = self.get_def(mod)
@@ -444,11 +451,11 @@ class State:
 
     def get_attribute(
         self,
-        namespace: Union["Mod", "Def", ast.AST],
+        namespace: Union[ast.ClassDef, ast.Module, Mod, Cls],
         name: str,
         *,
         ignore_locals: bool = False,
-    ) -> List[Union["Mod", "Def"]]:
+    ) -> List[NameDef]:
         """
         Get local attributes definitions matching the name from this scope.
         It calls both `get_local()` and `get_sub_module()`.
@@ -461,7 +468,9 @@ class State:
         # TODO: Handle looking up in super classes?
 
         if isinstance(namespace, ast.AST):
-            namespace = self.get_def(namespace)
+            namespace = self.get_def(namespace) # type: ignore
+        if not isinstance(namespace, (Mod, Cls)):
+            raise StaticTypeError(namespace, expected='Module or Class')
         if not ignore_locals:
             values = [v for v in self.get_local(namespace, name) if v]
         else:
@@ -473,7 +482,7 @@ class State:
                 return [sub]
         if values:
             return values
-        raise StaticAttributeError(namespace, name)
+        raise StaticAttributeError(namespace, attr=name)
 
     def get_dunder_all(self, mod: "Mod") -> "Collection[str]|None":
         """
@@ -552,8 +561,17 @@ class State:
 
         @raises StaticValueError: If the the node has no parents of the requested type.
         """
-        # TODO: Use TypeGard annotation
+        # special case module access for speed.
+        if isinstance(cls, type) and issubclass(cls, ast.Module):
+            try:
+                mod = next(iter(self.get_parents(node)))
+            except StopIteration:
+                pass
+            else:
+                if isinstance(mod, cls):
+                    return mod  # type: ignore
         for n in reversed(self.get_parents(node)):
+            # TODO: Use TypeGard annotation
             if isinstance(n, cls):
                 return n  # type: ignore
         raise StaticValueError(node, f"node has no parent of type {cls}")
@@ -569,15 +587,8 @@ class State:
             node = node.node
         if isinstance(node, ast.Module):
             return self.get_def(node)
-        return self.get_def(self.get_parent_instance(node, ast.Module))
-
-        # try:
-        #     root = self.get_parents(node)[0]
-        # except IndexError:
-        #     raise StaticStateIncomplete(node, 'missing parent')
-        # if isinstance(node, ast.Module):
-        #     return self.get_def(root)
-        # raise StaticStateIncomplete(root, 'fisrt parent should be a module')
+        return self.get_def(
+            self.get_parent_instance(node, ast.Module))
 
     def get_filename(self, node: ast.AST) -> Optional[str]:
         """
@@ -699,7 +710,7 @@ class State:
             if defs:
                 return defs
             elif len(scopes)==0:
-                raise StaticNameError(name)
+                raise StaticNameError(name, filename=self.get_filename(scope.node))
             return _lookup()
 
         scopes = _get_lookup_scopes()
@@ -759,7 +770,7 @@ class State:
             name for name in ast.walk(node) if isinstance(name, ast.Name)
         )
         top_level_definition = self.goto_def(top_level_name, noraise=True)
-        if top_level_definition is None:
+        if not isinstance(top_level_definition, NameDef):
             # unbound name
             return None
         return ".".join((self.get_qualname(top_level_definition), *dottedname[1:]))
@@ -783,7 +794,7 @@ class State:
         )
         result = visitor.visit(node, [])
         if isinstance(result, ast.AST):
-            raise StaticTypeError(result, "literal")
+            raise StaticTypeError(result, expected="literal")
         return result
 
     def goto_definition(
@@ -841,7 +852,7 @@ class MutableState(State):
         return self.add_module(modast, modname, is_package=is_pack)
 
     def add_module(
-        self, node: ast.Module, name: str, *, is_package: bool = False
+        self, node: ast.Module, name: str, *, is_package: bool, filename: Optional[str]=None
     ) -> "Mod":
         """
         Adds a module to the project.
@@ -852,7 +863,9 @@ class MutableState(State):
         """
         if name in self._modules:
             raise StaticValueError(node, f"duplicate module {name!r}")
-        mod = Mod(Transform().transform(node), name, is_package=is_package)
+        # TODO: find an extensible way to transform the tree
+        Transform().transform(node)
+        mod = Mod(node, name, is_package=is_package, filename=filename)
         self._modules[name] = mod
         # add module to the chains
         self._def_use_chains[node] = mod
@@ -965,13 +978,15 @@ class Project:
         self.msg(f"analysis took {t1-t0} seconds", thresh=1)
 
     def add_module(
-        self, node: ast.Module, name: str, *, is_package: bool = False
+        self, node: ast.Module, name: str, *, 
+        is_package: bool = False, 
+        filename: Optional[str]=None
     ) -> "Mod":
         """
         Add a module to the project, all module should be added before calling L{analyze_project}.
         """
         return cast(MutableState, self.state).add_module(
-            node, name, is_package=is_package
+            node, name, is_package=is_package, filename=filename
         )
 
     # TODO: introduce a generic reporter object used by System.msg, Documentable.report and here.

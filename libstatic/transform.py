@@ -1,12 +1,12 @@
 import ast
-from typing import Callable, Tuple, Union, TypeVar
+from typing import Callable, Optional, Tuple, Union, TypeVar, cast
 
 from .shared import node2dottedname
 
 T = TypeVar(
     "T", bound=Union[ast.FunctionDef, ast.AsyncFunctionDef, ast.Module, ast.ClassDef]
 )
-
+_astT = TypeVar("_astT", bound=ast.AST)
 
 def fix_ast_location(new_node, old_node):
     return ast.fix_missing_locations(ast.copy_location(new_node, old_node))
@@ -36,14 +36,14 @@ class Transform(ast.NodeTransformer):
 
     # TODO: unstring annotations?
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         # stack of nodes
         self._node_stack = []  # type:list[ast.AST]
         self._dead_blocks = set()  # type: set[Tuple[ast.AST , str]]
         self._control_flow_jumps = []  # type:list[Callable[[ast.AST], bool]]
 
-    def generic_visit(self, node):
+    def generic_visit(self, node:_astT) -> Optional[_astT]: # type: ignore[override]
         # simply remove dead code, as a side effect this might creates
         # function or classes with an empty body, which is not correct python code.
         if self.current_block(node) in self._dead_blocks:
@@ -53,7 +53,7 @@ class Transform(ast.NodeTransformer):
                 return None
 
         self._node_stack.append(node)
-        node = super().generic_visit(node)
+        super().generic_visit(node)
         self._node_stack.pop()
         return node
 
@@ -76,14 +76,13 @@ class Transform(ast.NodeTransformer):
         # does not call self.generic_visit() since we don't want to
         # remove whole function or classes, also it raises an IndexError
         # when calling current_block() when visiting a root node.
-        node = super().generic_visit(node)
+        node = cast(T, super().generic_visit(node))
         self._control_flow_jumps.pop()
         self._node_stack.pop()
         assert not self._node_stack
-
         return node
 
-    def current(self):
+    def current(self) -> ast.AST:
         return self._node_stack[-1]
 
     def current_block(self, node: ast.AST) -> Tuple[ast.AST, str]:
@@ -98,58 +97,58 @@ class Transform(ast.NodeTransformer):
             raise RuntimeError(f"node {node} not found in {current}")
         return current, fieldname
 
-    def visit_Module(self, node):
+    def visit_Module(self, node:ast.Module) -> None:
         assert False
 
-    def visit_Classdef(self, node):
+    def visit_scope(self, node:T) -> T:
         return self.__class__().transform(node)
 
-    visit_AsyncFunctionDef = visit_FunctionDef = visit_Classdef
+    visit_AsyncFunctionDef = visit_FunctionDef = visit_ClassDef = visit_scope
 
-    def visit_If(self, node: ast.stmt):
-        node = self.generic_visit(node)
-        if node is None:
+    def visit_If(self, node: ast.If) -> Optional[ast.AST]:
+        tnode = self.generic_visit(node)
+        if tnode is None:
             return None
         # if both the body and the else branch are dead ends,
         # then the rest of the block is dead as well.
-        if all(b in self._dead_blocks for b in [(node, "body"), (node, "orelse")]):
-            self._dead_blocks.add(self.current_block(node))
-        return node
+        if all(b in self._dead_blocks for b in [(tnode, "body"), (tnode, "orelse")]):
+            self._dead_blocks.add(self.current_block(tnode))
+        return tnode
 
-    def visit_loop(self, node):
+    def visit_loop(self, node:ast.AST) -> Optional[ast.AST]:
         self._control_flow_jumps.append(
             lambda n: type(n).__name__ in {"Continue", "Break"}
         )
-        node = self.generic_visit(node)
+        tnode = self.generic_visit(node)
         self._control_flow_jumps.pop()
-        return node
+        return tnode
 
     visit_For = visit_AsyncFor = visit_While = visit_loop
 
-    def visit_jump(self, node: ast.stmt):
+    def visit_jump(self, node: ast.AST) -> Optional[ast.AST]:
         # Union[ast.Break, ast.Continue, ast.Return, ast.Raise]
-        node = self.generic_visit(node)
-        if node is None:
+        tnode = self.generic_visit(node)
+        if tnode is None:
             # already in a dead block
             return None
 
         for exits in reversed(self._control_flow_jumps):
-            if exits(node):
-                self._dead_blocks.add(self.current_block(node))
+            if exits(tnode):
+                self._dead_blocks.add(self.current_block(tnode))
                 break
 
-        return node
+        return tnode
 
     visit_Raise = (
         visit_Return
     ) = visit_Break = visit_Continue = visit_Assert = visit_jump
 
-    def visit_AugAssign(self, node: ast.AugAssign) -> Union[ast.AugAssign, ast.Assign]:
-        node = self.generic_visit(node)
-        if node is None:
+    def visit_AugAssign(self, node: ast.AugAssign) -> Optional[ast.AST]:
+        tnode = self.generic_visit(node)
+        if tnode is None:
             return None
         # Only transform top-level __all__ augmentd assignments into regular assignments
-        if node2dottedname(node.target) == ["__all__"] and not any(
+        if node2dottedname(tnode.target) == ["__all__"] and not any(
             isinstance(n, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
             for n in self._node_stack
         ):
@@ -158,38 +157,38 @@ class Transform(ast.NodeTransformer):
                     targets=[ast.Name(id="__all__", ctx=ast.Store())],
                     value=ast.BinOp(
                         left=ast.Name(id="__all__", ctx=ast.Load()),
-                        op=node.op,
-                        right=node.value,
+                        op=tnode.op,
+                        right=tnode.value,
                     ),
                     type_comment=None,
                 ),
-                node,
+                tnode,
             )
         else:
-            return node
+            return tnode
 
     # Transform statement level __all__.extend() and __all__.append()
     # into assignments
-    def visit_Expr(self, node):
-        node = self.generic_visit(node)
-        if node is None:
+    def visit_Expr(self, node:ast.Expr) -> Optional[ast.AST]:
+        tnode = self.generic_visit(node)
+        if tnode is None:
             return None
 
         if any(
             isinstance(n, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
             for n in self._node_stack
         ):
-            return node
+            return tnode
 
-        v = node.value
+        v = tnode.value
         if not (isinstance(v, ast.Call) and isinstance(v.func, ast.Attribute)):
-            return node
+            return tnode
 
         o = v.func.value
         a = v.func.attr
 
         if len(v.args) != 1 or len(v.keywords) != 0:
-            return node
+            return tnode
 
         # We can safely apply this transformation because
         # we know __all__ should be a list or tuple.
@@ -204,7 +203,7 @@ class Transform(ast.NodeTransformer):
                         elts=[
                             ast.Starred(ast.Name("__all__", ast.Load()), ast.Load()),
                             ast.Starred(v.args[0], ast.Load()),
-                        ]
+                        ], ctx=ast.Load()
                     ),
                     type_comment=None,
                 )
@@ -215,11 +214,11 @@ class Transform(ast.NodeTransformer):
                         elts=[
                             ast.Starred(ast.Name("__all__", ast.Load()), ast.Load()),
                             v.args[0],
-                        ]
+                        ], ctx=ast.Load()
                     ),
                     type_comment=None,
                 )
             if aug:
-                return fix_ast_location(aug, node)
+                return fix_ast_location(aug, tnode)
 
-        return node
+        return tnode
