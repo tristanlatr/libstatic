@@ -9,8 +9,8 @@ class ImportInfo(NamedTuple):
 
 class ImportParser(ast.NodeVisitor):
     """
-    Transform import statements into a series of `ImportedName`s.
-    One instance of ImportParser can be used to parse all imports in a given module.
+    Transform import statements into a mapping from `ast.alias` to `ImportInfo`.
+    One instance of `ImportParser` can be used to parse all imports in a given module.
     """
 
     def __init__(self, modname: str, *, is_package: bool) -> None:
