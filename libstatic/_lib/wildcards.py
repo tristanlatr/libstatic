@@ -132,8 +132,9 @@ class _ComputeWildcards:
                 ), alias)
                 resolved_def = Imp(new_node, orgmodule=old_def.orgmodule, orgname=name)
                 self._state.add_definition(resolved_def)
-                # We should use the modifiers for the following line:
+                # TODO: We should use the modifiers for the following lines:
                 self._state._locals[node].setdefault(name, []).append(resolved_def)
+                self._state._ancestors[new_node] = self._state._ancestors[alias]
 
                 for unbound_name in list(old_def.users()):
                     if unbound_name.name() == resolved_def.name():

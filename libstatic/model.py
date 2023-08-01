@@ -4,8 +4,10 @@ This module contains the def-use models, use to represent the code as well as pr
 
 import ast
 from dataclasses import dataclass
+from itertools import chain
 import sys
 import time
+from pathlib import Path
 from typing import (
     TYPE_CHECKING,
     Iterator,
@@ -17,6 +19,7 @@ from typing import (
     Mapping,
     MutableSet,
     Optional,
+    Sequence,
     Set,
     TextIO,
     Tuple,
@@ -28,7 +31,7 @@ from typing import (
 )
 
 from beniget.beniget import ordered_set  # type: ignore
-from typeshed_client import get_stub_file
+from typeshed_client import get_stub_file, get_search_context
 from typeshed_client.finder import parse_stub_file
 
 from ._lib.shared import ast_node_name, node2dottedname
@@ -430,6 +433,22 @@ class State:
             mod = self.get_def(mod)
         return self._modules.get(f"{mod.name()}.{name}")
 
+    def get_parent_module(
+        self,
+        mod: Union["Mod", ast.Module],
+    ) -> Optional["Mod"]:
+        """
+        Get the parent package of the given module.
+
+        Returns None if the given module is a root 
+        module or the parent package is not found in the system.
+        """
+        if isinstance(mod, ast.AST):
+            mod = self.get_def(mod)
+        if '.' not in mod.name():
+            return None
+        return self._modules.get('.'.join(mod.name().split('.')[:-1]))
+
     def get_locals(
         self, node: Union["Mod", "Def", ast.AST]
     ) -> Mapping[str, List[Optional["NameDef"]]]:
@@ -460,6 +479,7 @@ class State:
         name: str,
         *,
         ignore_locals: bool = False,
+        noraise: bool = False
     ) -> List[NameDef]:
         """
         Get local attributes definitions matching the name from this scope.
@@ -475,6 +495,8 @@ class State:
         if isinstance(namespace, ast.AST):
             namespace = self.get_def(namespace) # type: ignore
         if not isinstance(namespace, (Mod, Cls)):
+            if noraise:
+                return []
             raise StaticTypeError(namespace, expected='Module or Class')
         if not ignore_locals:
             values = [v for v in self.get_local(namespace, name) if v]
@@ -487,6 +509,8 @@ class State:
                 return [sub]
         if values:
             return values
+        if noraise:
+            return []
         raise StaticAttributeError(namespace, attr=name)
 
     def get_dunder_all(self, mod: "Mod") -> "Collection[str]|None":
@@ -619,7 +643,12 @@ class State:
     #             'node':ast2json(_m.node)
     #         }
     #     return [_dump_mod(m) for m in self._modules.values()]
-
+    @overload
+    def get_enclosing_scope(self, definition: Mod) -> None: # type:ignore[misc]
+        ...
+    @overload
+    def get_enclosing_scope(self, definition: Def) -> "Scope":
+        ...
     def get_enclosing_scope(self, definition: Def) -> "Scope|None":
         """
         Get the first enclosing scope of this use or deinition.
@@ -642,18 +671,20 @@ class State:
             ),
         )
         s = self.get_def(enclosing_scope)
-        if __debug__:
-            assert isinstance(s, Scope)
+        assert isinstance(s, Scope)
         return s # type: ignore
 
-    def get_all_enclosing_scopes(self, definition: Def) -> Iterator[Scope]:
+    def get_all_enclosing_scopes(self, definition: Def) -> Sequence[Scope]:
         """
-        Iterate over all scopes snclosing this definition.
+        Returns all scopes enclosing this definition.
         """
+        
         parent = self.get_enclosing_scope(definition)
+        scopes = [parent]
         while parent:
-            yield parent
-            parent = self.get_enclosing_scope(definition)
+            scopes.append(parent)
+            parent = self.get_enclosing_scope(parent)
+        return scopes # type:ignore
 
     def get_qualname(self, definition: Union[NameDef, Scope]) -> "str":
         """
@@ -825,12 +856,10 @@ class State:
         definition = visitor.visit(node, [])
         return self.get_def(definition)
 
-    def goto_references(self, definition:Def) -> Iterator[Def]:
+    def _goto_references(self, definition:Def, seen:Set[Def]) -> Iterator[Def]:
         """
-        Finds all Name/@ctx=Load references pointing to the given definition.
-        It follows imports, but bot aliases.
+        Finds all Name or Import references, it follows imports, but bot aliases.
         """
-        seen = set()
         if not isinstance(definition, NameDef):
             raise StaticTypeError(definition, expected='NameDef')
         def _refs(dnode:Def) -> Iterable[Def]:
@@ -839,6 +868,7 @@ class State:
             seen.add(dnode)
             if isinstance(dnode, Imp):
                 # follow imports
+                yield dnode
                 for u in dnode.users():
                     yield from _refs(u)
                 # TODO: follow aliases
@@ -846,13 +876,132 @@ class State:
                 yield dnode
         for u in definition.users():
             yield from _refs(u)
+    
+    def _goto_attr_references(self, definition:NameDef, seen:Set[Def]) -> Iterator[Def]:
+        """
+        Find attribute refernces. 
 
-def _load_typeshed_mod_spec(modname: str) -> Tuple[str, ast.Module, bool]:
-    path = get_stub_file(modname)
+        Pitfalls:
+         - inherited attributes access in subclasses are not considered
+        """
+        seen.add(definition)
+        
+        # determine if this definition can be the target of a resolvable attribute access.
+        # definition might be inside a class that it killed
+        if not getattr(definition, 'islive', True) or any(isinstance(e, 
+                (ClosedScope)) or not getattr(e, 'islive', True) for e 
+               in self.get_all_enclosing_scopes(definition)):
+            return
+
+        if isinstance(definition, Mod):
+            module = self.get_parent_module(definition)
+            if not module:
+                return
+            parent_qualname = module.name()
+            def_name = definition.name().split('.')[-1]
+        else:
+            module = self.get_root(definition)
+            if not module:
+                return
+            parent_qualname = self.get_qualname(self.get_enclosing_scope(definition))
+            def_name = definition.name()
+
+        # get_qualname returns the target name for imports, so we make sure 
+        # we have the right name here by calling get_qualname on the enclosing scope only
+        diffnames = [*parent_qualname.split('.'), def_name][len(module.name().split('.')):]
+        
+        # make sure it supports access accross sub-modules, even if there are chances that
+        # it raises a runtime error if the module has not been imported, it still counts as references.
+        while module:
+            seen.add(module)
+            for ref in self._goto_references(module, seen.copy()):
+                refs = [ref]
+                if isinstance(ref, Imp):
+                    if ref not in seen:
+                        refs = list(self._goto_attr_references(ref, seen))
+                for ref in refs:                    
+                    attr_node = parent_node = self.get_parent(ref.node)
+                    index = 0
+                    # check whether the node is part of an attribute and 
+                    # compare it's dotted name with the diffnames
+                    while isinstance(parent_node, ast.Attribute) and index < len(diffnames):
+                        if parent_node.attr != diffnames[index]:
+                            break
+                        attr_node = parent_node
+                        parent_node = self.get_parent(parent_node)
+                        index += 1
+                    else:
+                        if index:
+                            # It has not break and did a loop, meaning we found a match
+                            attr_def = self.get_def(attr_node)
+                            if attr_def not in seen:
+                                seen.add(attr_def)
+                                yield attr_def
+            
+            module = self.get_parent_module(module)
+            if module:
+                diffnames = [module.name().split('.')[-1], *diffnames]
+        
+    def goto_references(self, definition:NameDef) -> Iterator[Def]:
+        """
+        Finds all C{Name} and C{Attribute} references pointing to the given definition.
+        """
+        name_references = self._goto_references(definition, set())
+        imports_references = []
+        for ref in name_references:
+            if isinstance(ref, Imp):
+                imports_references.append(ref)
+            else:
+                yield ref
+        yield from self._goto_attr_references(definition, set())
+        # handle import aliases?
+        for imp in imports_references:
+            yield from self._goto_attr_references(imp, set())
+
+    def get_defs_from_qualname(self, qualname:str) -> List[Def]:
+        """
+        Finds the definitions having the given qualname.
+        """
+        def find(current:List[Def], path:Sequence[str]) -> List[Def]:
+            curr, *parts = path
+            while curr:
+                current = list(chain.from_iterable(
+                    self.get_attribute(o, curr, noraise=noraise) for o in current)) # type: ignore
+                if not current or not parts:
+                    break
+                curr, *parts = parts
+            return current
+
+        # support getting modules by name in modules mapping
+        noraise=True
+        names:Tuple[str, ...] = ()
+        module: Optional[Def] = None
+        qnameparts = qualname.split('.')
+        while qnameparts:
+            module = self.get_module('.'.join(qnameparts))
+            if module:
+                break
+            *qnameparts, name = qnameparts
+            names = (name, ) + names
+        if module:
+            if not names:
+                return [module]
+            ob = find([module], names)
+            if ob:
+                return ob
+        if module:
+            noraise=False
+            # should raise
+            return find([module], names)
+        else:
+            raise StaticStateIncomplete(qualname, f'{qualname!r} not in the system')
+
+def _load_typeshed_mod_spec(modname: str, search_context:Any) -> Tuple[Path, ast.Module, bool]:
+    path = get_stub_file(modname, search_context=search_context)
     if not path:
         raise ModuleNotFoundError(name=modname)
     is_package = path.stem == "__init__"
-    return modname, cast(ast.Module, parse_stub_file(path)), is_package
+    return path, cast(ast.Module, parse_stub_file(path)), is_package
 
 
 class MutableState(State):
@@ -863,17 +1012,26 @@ class MutableState(State):
     are replicated in the use-def chains as well, as if they form a unique
     data structure.
     """
+    search_context = None
+
 
     def add_typeshed_module(self, modname: str) -> "Mod|None":
         """
         Add a module from typeshed or from locally installed .pyi files or typed packages.
         """
+        search_context = self.search_context
+        if search_context is None:
+            # cache search_context
+            search_context = self.search_context = get_search_context()
         try:
-            _, modast, is_pack = _load_typeshed_mod_spec(modname)
-        except Exception as e:
-            self.msg(str(e))
+            path, modast, is_pack = _load_typeshed_mod_spec(modname, search_context)
+        except ModuleNotFoundError as e:
+            self.msg(f'stubs not found for module {modname!r}')
             return None
-        return self.add_module(modast, modname, is_package=is_pack)
+        except Exception as e:
+            self.msg(f'error loading stubs for module {modname!r}, {e.__class__.__name__}: {e}')
+            return None
+        return self.add_module(modast, modname, is_package=is_pack, filename=path.as_posix())
 
     def add_module(
         self, node: ast.Module, name: str, *, is_package: bool, filename: Optional[str]=None
