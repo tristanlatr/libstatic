@@ -1706,6 +1706,14 @@
             <div class="kind">Method</div>
             <div class="privacy">PUBLIC</div>
             <div class="summary">Get a sub-module of the given module.</div>
+          </li><li id="libstatic.model.State.get_parent_module">
+            
+            <div class="fullName">libstatic<wbr></wbr>.model<wbr></wbr>.<wbr></wbr>State<wbr></wbr>.get<wbr></wbr>_parent<wbr></wbr>_module</div>
+            <div class="url">libstatic.model.State.html#get_parent_module</div>
+            <div class="type">Function</div>
+            <div class="kind">Method</div>
+            <div class="privacy">PUBLIC</div>
+            <div class="summary">Get the parent package of the given module.</div>
           </li><li id="libstatic.model.State.get_locals">
             
             <div class="fullName">libstatic<wbr></wbr>.model<wbr></wbr>.<wbr></wbr>State<wbr></wbr>.get<wbr></wbr>_locals</div>
@@ -1817,7 +1825,7 @@
             <div class="type">Function</div>
             <div class="kind">Method</div>
             <div class="privacy">PUBLIC</div>
-            <div class="summary">Iterate over all scopes snclosing this definition.</div>
+            <div class="summary">Returns all scopes enclosing this definition.</div>
           </li><li id="libstatic.model.State.get_qualname">
             
             <div class="fullName">libstatic<wbr></wbr>.model<wbr></wbr>.<wbr></wbr>State<wbr></wbr>.get<wbr></wbr>_qualname</div>
@@ -1866,6 +1874,22 @@
             <div class="kind">Method</div>
             <div class="privacy">PUBLIC</div>
             <div class="summary">Go to the genuine definition of this expression. This is not a simple use-def chains accessor, it's recursive. By default it follows imports but not aliases.</div>
+          </li><li id="libstatic.model.State._goto_references">
+            
+            <div class="fullName">libstatic<wbr></wbr>.model<wbr></wbr>.<wbr></wbr>State<wbr></wbr>._goto<wbr></wbr>_references</div>
+            <div class="url">libstatic.model.State.html#_goto_references</div>
+            <div class="type">Function</div>
+            <div class="kind">Method</div>
+            <div class="privacy">PRIVATE</div>
+            <div class="summary">Finds all Name or Import references, it follows imports, but bot aliases.</div>
+          </li><li id="libstatic.model.State._goto_attr_references">
+            
+            <div class="fullName">libstatic<wbr></wbr>.model<wbr></wbr>.<wbr></wbr>State<wbr></wbr>._goto<wbr></wbr>_attr<wbr></wbr>_references</div>
+            <div class="url">libstatic.model.State.html#_goto_attr_references</div>
+            <div class="type">Function</div>
+            <div class="kind">Method</div>
+            <div class="privacy">PRIVATE</div>
+            <div class="summary">Find attribute refernces.</div>
           </li><li id="libstatic.model.State.goto_references">
             
             <div class="fullName">libstatic<wbr></wbr>.model<wbr></wbr>.<wbr></wbr>State<wbr></wbr>.goto<wbr></wbr>_references</div>
@@ -1873,7 +1897,15 @@
             <div class="type">Function</div>
             <div class="kind">Method</div>
             <div class="privacy">PUBLIC</div>
-            <div class="summary">Finds all Name/@ctx=Load references pointing to the given definition. It follows imports, but bot aliases.</div>
+            <div class="summary">Finds all <tt class="rst-docutils literal">Name</tt> and <tt class="rst-docutils literal">Attribute</tt> references pointing to the given definition.</div>
+          </li><li id="libstatic.model.State.get_defs_from_qualname">
+            
+            <div class="fullName">libstatic<wbr></wbr>.model<wbr></wbr>.<wbr></wbr>State<wbr></wbr>.get<wbr></wbr>_defs<wbr></wbr>_from<wbr></wbr>_qualname</div>
+            <div class="url">libstatic.model.State.html#get_defs_from_qualname</div>
+            <div class="type">Function</div>
+            <div class="kind">Method</div>
+            <div class="privacy">PUBLIC</div>
+            <div class="summary">Finds the definitions having the given qualname.</div>
           </li><li id="libstatic.model._load_typeshed_mod_spec">
             
             <div class="fullName">libstatic<wbr></wbr>.model<wbr></wbr>._load<wbr></wbr>_typeshed<wbr></wbr>_mod<wbr></wbr>_spec</div>
@@ -1890,6 +1922,14 @@
             <div class="kind">Class</div>
             <div class="privacy">PUBLIC</div>
             <div class="summary">Class providing modifiers for the `State`.</div>
+          </li><li id="libstatic.model.MutableState.search_context">
+            
+            <div class="fullName">libstatic<wbr></wbr>.model<wbr></wbr>.<wbr></wbr>Mutable<wbr></wbr>State<wbr></wbr>.search<wbr></wbr>_context</div>
+            <div class="url">libstatic.model.MutableState.html#search_context</div>
+            <div class="type">Attribute</div>
+            <div class="kind">Instance Variable</div>
+            <div class="privacy">PUBLIC</div>
+            <div class="summary"><span class="undocumented">Undocumented</span></div>
           </li><li id="libstatic.model.MutableState.add_typeshed_module">
             
             <div class="fullName">libstatic<wbr></wbr>.model<wbr></wbr>.<wbr></wbr>Mutable<wbr></wbr>State<wbr></wbr>.add<wbr></wbr>_typeshed<wbr></wbr>_module</div>
@@ -2090,44 +2130,20 @@
             <div class="kind">Function</div>
             <div class="privacy">PUBLIC</div>
             <div class="summary">Load a project form a python package/module path in the filesystem. Project.analyze_project() must still be called after loading a path into the project.</div>
-          </li><li id="libstatic.__main__.paths">
+          </li><li id="libstatic.__main__.location">
             
-            <div class="fullName">libstatic<wbr></wbr>.__main__<wbr></wbr>.paths</div>
-            <div class="url">libstatic.__main__.html#paths</div>
-            <div class="type">Attribute</div>
-            <div class="kind">Variable</div>
+            <div class="fullName">libstatic<wbr></wbr>.__main__<wbr></wbr>.location</div>
+            <div class="url">libstatic.__main__.html#location</div>
+            <div class="type">Function</div>
+            <div class="kind">Function</div>
             <div class="privacy">PUBLIC</div>
             <div class="summary"><span class="undocumented">Undocumented</span></div>
-          </li><li id="libstatic.__main__.proj">
+          </li><li id="libstatic.__main__.main">
             
-            <div class="fullName">libstatic<wbr></wbr>.__main__<wbr></wbr>.proj</div>
-            <div class="url">libstatic.__main__.html#proj</div>
-            <div class="type">Attribute</div>
-            <div class="kind">Variable</div>
-            <div class="privacy">PUBLIC</div>
-            <div class="summary"><span class="undocumented">Undocumented</span></div>
-          </li><li id="libstatic.__main__.p">
-            
-            <div class="fullName">libstatic<wbr></wbr>.__main__<wbr></wbr>.p</div>
-            <div class="url">libstatic.__main__.html#p</div>
-            <div class="type">Attribute</div>
-            <div class="kind">Variable</div>
-            <div class="privacy">PUBLIC</div>
-            <div class="summary"><span class="undocumented">Undocumented</span></div>
-          </li><li id="libstatic.__main__.total_defs">
-            
-            <div class="fullName">libstatic<wbr></wbr>.__main__<wbr></wbr>.total<wbr></wbr>_defs</div>
-            <div class="url">libstatic.__main__.html#total_defs</div>
-            <div class="type">Attribute</div>
-            <div class="kind">Variable</div>
-            <div class="privacy">PUBLIC</div>
-            <div class="summary"><span class="undocumented">Undocumented</span></div>
-          </li><li id="libstatic.__main__.mod_defs">
-            
-            <div class="fullName">libstatic<wbr></wbr>.__main__<wbr></wbr>.mod<wbr></wbr>_defs</div>
-            <div class="url">libstatic.__main__.html#mod_defs</div>
-            <div class="type">Attribute</div>
-            <div class="kind">Variable</div>
+            <div class="fullName">libstatic<wbr></wbr>.__main__<wbr></wbr>.main</div>
+            <div class="url">libstatic.__main__.html#main</div>
+            <div class="type">Function</div>
+            <div class="kind">Function</div>
             <div class="privacy">PUBLIC</div>
             <div class="summary"><span class="undocumented">Undocumented</span></div>
           </li><li id="libstatic._lib.imports.ImportInfo">
