@@ -330,7 +330,7 @@ class State:
         """
         Def-Use chains accessor.
 
-        @raises StaticValueError: If the node is not a registered use or definition.
+        :raises StaticValueError: If the node is not a registered use or definition.
         """
         try:
             return self._def_use_chains[node]
@@ -367,7 +367,7 @@ class State:
 
     def goto_def(self, node: ast.AST, noraise: bool = False) -> Optional[Def]:
         """
-        Use-Def chains accessor that returns only one def, or raise L{StaticException}.
+        Use-Def chains accessor that returns only one def, or raise `StaticException`.
         It returns the last def in the list. It does not ensure that the list is only
         composed by one element.
         """
@@ -384,7 +384,7 @@ class State:
 
         @note: It does not recurse on follow-up definitions in case of aliases.
 
-        @raises StaticException: If the node is unbound or unknown.
+        :raises StaticException: If the node is unbound or unknown.
         """
         try:
             defs = self._use_def_chains[node]
@@ -453,7 +453,7 @@ class State:
         self, node: Union["Mod", "Def", ast.AST]
     ) -> Mapping[str, List[Optional["NameDef"]]]:
         """
-        Get the mapping of locals under the given C{node}.
+        Get the mapping of locals under the given ``node``.
         """
         if isinstance(node, Def):
             node = node.node
@@ -466,7 +466,7 @@ class State:
         self, node: Union["Mod", "Def", ast.AST], name: str
     ) -> List[Optional["NameDef"]]:
         """
-        Get the definition of the given C{name} in scope C{node}.
+        Get the definition of the given ``name`` in scope ``node``.
         """
         try:
             return self.get_locals(node)[name]
@@ -485,7 +485,7 @@ class State:
         Get local attributes definitions matching the name from this scope.
         It calls both `get_local()` and `get_sub_module()`.
 
-        @raises StaticAttributeError: If the attribute is not found.
+        :raises StaticAttributeError: If the attribute is not found.
         """
         # TODO: Handle {"__name__", "__doc__", "__file__", "__path__", "__package__"}?
         # TODO: Handle {__class__, __module__, __qualname__}?
@@ -519,7 +519,7 @@ class State:
 
         If __all__ variable is not defined or too complex returns None.
 
-        @raises StaticStateIncomplete: If no information is registered for the module C{mod}.
+        :raises StaticStateIncomplete: If no information is registered for the module ``mod``.
         """
         try:
             return self._dunder_all[mod]
@@ -547,7 +547,7 @@ class State:
 
         @note: If __all__ is defined, it simply returns the computed literal value.
             No checks is done to verify if names are actually defined.
-        @raises StaticException: If something went wrong.
+        :raises StaticException: If something went wrong.
         """
         __all__ = self.get_dunder_all(
             mod if isinstance(mod, Mod) else self.get_def(mod)
@@ -560,7 +560,7 @@ class State:
         """
         Returns the direct parent of the given node.
 
-        @raises StaticValueError: If node is a module, is has no parents.
+        :raises StaticValueError: If node is a module, is has no parents.
         """
         try:
             return self.get_parents(node)[-1]
@@ -575,7 +575,7 @@ class State:
         """
         Returns all syntax tree parents of the node up to the root module.
 
-        @raises StaticStateIncomplete: If no parents informations is available.
+        :raises StaticStateIncomplete: If no parents informations is available.
         """
         try:
             return self._ancestors[node]
@@ -588,7 +588,7 @@ class State:
         """
         Returns the first parent of the node matching the given type info.
 
-        @raises StaticValueError: If the the node has no parents of the requested type.
+        :raises StaticValueError: If the the node has no parents of the requested type.
         """
         # special case module access for speed.
         if isinstance(cls, type) and issubclass(cls, ast.Module):
@@ -610,7 +610,7 @@ class State:
         If this node is a module, returns it's Mod instance,
         else find the parent Module and return it's Mod instance.
 
-        @raises StaticException: If something is wrong.
+        :raises StaticException: If something is wrong.
         """
         if isinstance(node, Def):
             node = node.node
@@ -714,7 +714,7 @@ class State:
         "Lookup" a name in the context of the provided scope, it does not use the chains
         Note that nonlocal and global keywords are ignored by this function.
 
-        @raise StaticNameError: For builtin or unbound names.
+        :raise StaticNameError: For builtin or unbound names.
         """
         def _get_lookup_scopes() -> List[Scope]:
             # heads[-1] is the direct enclosing scope and heads[0] is the module.
@@ -789,11 +789,16 @@ class State:
         does not recurse in attributes definitions,
         simply append the rest of the names at the end.
 
-        >>> from twisted.web.template import Tag as TagType
-        >>> v = TagType # <- expanded name is 'twisted.web.template.Tag',
-        >>> # even if Tag is actually imported from another module.
+        >>> p = Project()
+        >>> node = ast.parse('from twisted.web.template import Tag as TagType; TagType')
+        >>> p.add_module(node, 'test')
+        <libstatic.model.Mod object at 0x...>
+        >>> p.analyze_project()
+        >>> use = node.body[-1].value
+        >>> p.state.expand_expr(use)
+        'twisted.web.template.Tag'
 
-        Returns None is the name is unbound or the expreesion is not composed by names.
+        Returns None if the name is unbound or the expreesion is not composed by names.
         """
 
         dottedname = node2dottedname(node)
@@ -944,7 +949,7 @@ class State:
         
     def goto_references(self, definition:NameDef) -> Iterator[Def]:
         """
-        Finds all C{Name} and C{Attribute} references pointing to the given definition.
+        Finds all ``Name`` and ``Attribute`` references pointing to the given definition.
         """
         name_references = self._goto_references(definition, set())
         imports_references = []
@@ -1039,9 +1044,9 @@ class MutableState(State):
         """
         Adds a module to the project.
         All modules should be added before calling `analyze_project()`.
-        This will slightly transform the AST... see L{Transform}.
+        This will slightly transform the AST... see `Transform`.
 
-        @raises StaticValueError: If the module name is already in the project.
+        :raises StaticValueError: If the module name is already in the project.
         """
         if name in self._modules:
             raise StaticValueError(node, f"duplicate module {name!r}")
@@ -1165,7 +1170,7 @@ class Project:
         filename: Optional[str]=None
     ) -> "Mod":
         """
-        Add a module to the project, all module should be added before calling L{analyze_project}.
+        Add a module to the project, all module should be added before calling `analyze_project`.
         """
         return cast(MutableState, self.state).add_module(
             node, name, is_package=is_package, filename=filename

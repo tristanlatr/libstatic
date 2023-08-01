@@ -1,5 +1,5 @@
 """
-Wraps interface provided by C{beniget}, and make it work with the standard L{ast} library.
+Wraps interface provided by ``beniget``, and make it work with the standard `ast` library.
 """
 import ast
 from typing import Dict, Iterator, List, Mapping, Optional, Tuple

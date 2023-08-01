@@ -1,3 +1,3 @@
 """
-Code analysis, based on C{beniget}.
+Code analysis, based on ``beniget``.
 """

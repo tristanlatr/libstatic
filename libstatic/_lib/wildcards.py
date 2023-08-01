@@ -1,5 +1,5 @@
 """
-Technically, this is part of the L{analyzer}.
+Technically, this is part of the `analyzer`.
 """
 
 import ast
