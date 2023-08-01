@@ -937,8 +937,6 @@ class State:
         """
         Finds all C{Name} and C{Attribute} references pointing to the given definition.
         """
-        seen:Set[Def] = set()
-        
         name_references = self._goto_references(definition, set())
         imports_references = []
         for ref in name_references:
