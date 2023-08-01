@@ -643,7 +643,12 @@ class State:
     #             'node':ast2json(_m.node)
     #         }
     #     return [_dump_mod(m) for m in self._modules.values()]
-
+    @overload
+    def get_enclosing_scope(self, definition: Mod) -> None: # type:ignore[misc]
+        ...
+    @overload
+    def get_enclosing_scope(self, definition: Def) -> "Scope":
+        ...
     def get_enclosing_scope(self, definition: Def) -> "Scope|None":
         """
         Get the first enclosing scope of this use or deinition.
@@ -679,7 +684,7 @@ class State:
         while parent:
             scopes.append(parent)
             parent = self.get_enclosing_scope(parent)
-        return scopes
+        return scopes # type:ignore
 
     def get_qualname(self, definition: Union[NameDef, Scope]) -> "str":
         """
@@ -890,13 +895,17 @@ class State:
 
         if isinstance(definition, Mod):
             module = self.get_parent_module(definition)
+            if not module:
+                return
             parent_qualname = module.name()
             def_name = definition.name().split('.')[-1]
         else:
             module = self.get_root(definition)
+            if not module:
+                return
             parent_qualname = self.get_qualname(self.get_enclosing_scope(definition))
             def_name = definition.name()
-        
+
         # get_qualname returns the target name for imports, so we make sure 
         # we have the right name here by calling get_qualname on the enclosing scope only
         diffnames = [*parent_qualname.split('.'), def_name][len(module.name().split('.')):]
