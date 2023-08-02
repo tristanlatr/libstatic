@@ -2,7 +2,6 @@ import doctest
 import unittest
 import os
 from importlib import import_module
-from .importlib_utils import get_submodules
 
 import libstatic.model
 
