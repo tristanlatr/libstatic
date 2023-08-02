@@ -9,7 +9,7 @@ else:
 
 def node2dottedname(node: Optional[ast.AST]) -> Optional[List[str]]:
     """
-    Resove expression composed by L{ast.Attribute} and L{ast.Name} nodes to a list of names. 
+    Resove expression composed by `ast.Attribute` and `ast.Name` nodes to a list of names. 
     """
     parts = []
     while isinstance(node, ast.Attribute):
@@ -64,7 +64,7 @@ class StmtVisitor(ast.NodeVisitor):
 
 class LocalStmtVisitor(ast.NodeVisitor):
     """
-    Like L{StmtVisitor} but does not recurse on functions or classes by default.
+    Like `StmtVisitor` but does not recurse on functions or classes by default.
     """
 
     if not TYPE_CHECKING:

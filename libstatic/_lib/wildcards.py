@@ -1,5 +1,5 @@
 """
-Technically, this is part of the L{analyzer}.
+Technically, this is part of the `analyzer`.
 """
 
 import ast
@@ -80,7 +80,7 @@ class _VisitWildcardImports(LocalStmtVisitor):
                     if dunder_all is not None:
                         expanded_wildcard = dunder_all
                     else:
-                        expanded_wildcard = self._state.get_public_names(mod)
+                        expanded_wildcard = self._state._get_public_names(mod)
 
                 self._result[node] = expanded_wildcard
             else:

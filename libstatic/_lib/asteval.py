@@ -338,7 +338,8 @@ class _LiteralEval(_ASTEval):
         fullname = self._state.get_def(node).target()
         if fullname in self._known_values:
             return self._known_values[fullname]
-        raise StaticUnknownValue(node, fullname)
+        raise StaticUnknownValue(node, fullname, 
+                                 filename=self._state.get_filename(node))
 
     def visit_alias_FollowImports(
         self, node: ast.alias, path: List[ast.AST]

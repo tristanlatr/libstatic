@@ -1,5 +1,5 @@
 """
-Wraps interface provided by C{beniget}, and make it work with the standard L{ast} library.
+Wraps interface provided by ``beniget``, and make it work with the standard `ast` library.
 """
 import ast
 from typing import Dict, Iterator, List, Mapping, Optional, Tuple
@@ -40,7 +40,7 @@ def ast_to_gast(node: ast.Module) -> Tuple[gast.Module, Mapping[gast.AST, ast.AS
     This function returns a tuple which first element is the ``gast`` module and the second element is a
     mapping from gast nodes to standard library nodes. It should be used with caution
     since not all nodes have a corespondance. Namely, ``expr_context`` nodes and the store ``Name`` of
-    ``ExceptHandler``s are not present in the mapping.
+    ``ExceptHandler`` are not present in the mapping.
     """
     # returns a tuple: (gast node, mapping from gast node to ast node)
     _vis = _AstToGAst()
