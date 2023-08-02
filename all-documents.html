@@ -1266,6 +1266,14 @@
             <div class="kind">Method</div>
             <div class="privacy">PUBLIC</div>
             <div class="summary">The list of ast entity that holds a reference to this node.</div>
+          </li><li id="libstatic.model.Def.__repr__">
+            
+            <div class="fullName">libstatic<wbr></wbr>.model<wbr></wbr>.<wbr></wbr>Def<wbr></wbr>.__repr__</div>
+            <div class="url">libstatic.model.Def.html#__repr__</div>
+            <div class="type">Function</div>
+            <div class="kind">Method</div>
+            <div class="privacy">PUBLIC</div>
+            <div class="summary"><span class="undocumented">Undocumented</span></div>
           </li><li id="libstatic.model.Def.__str__">
             
             <div class="fullName">libstatic<wbr></wbr>.model<wbr></wbr>.<wbr></wbr>Def<wbr></wbr>.__str__</div>
@@ -1577,7 +1585,7 @@
             <div class="type">Class</div>
             <div class="kind">Class</div>
             <div class="privacy">PUBLIC</div>
-            <div class="summary">The `Project`'s state.</div>
+            <div class="summary">The <code><a href="libstatic.model.Project.html" class="internal-link" title="libstatic.model.Project">Project</a></code>'s state.</div>
           </li><li id="libstatic.model.State.__init__">
             
             <div class="fullName">libstatic<wbr></wbr>.model<wbr></wbr>.<wbr></wbr>State<wbr></wbr>.__init__</div>
@@ -1649,7 +1657,7 @@
             <div class="type">Attribute</div>
             <div class="kind">Instance Variable</div>
             <div class="privacy">PRIVATE</div>
-            <div class="summary">Mapping from Mod instances explicit ``__all__`` values or None.</div>
+            <div class="summary">Mapping from Mod instances explicit <tt class="rst-docutils literal">__all__</tt> values or None.</div>
           </li><li id="libstatic.model.State._raise_node_not_in_chains">
             
             <div class="fullName">libstatic<wbr></wbr>.model<wbr></wbr>.<wbr></wbr>State<wbr></wbr>._raise<wbr></wbr>_node<wbr></wbr>_not<wbr></wbr>_in<wbr></wbr>_chains</div>
@@ -1665,7 +1673,7 @@
             <div class="type">Function</div>
             <div class="kind">Method</div>
             <div class="privacy">PUBLIC</div>
-            <div class="summary">Def-Use chains accessor.</div>
+            <div class="summary">Def-Use chains accessor: returns the L{Def} instance  for this node.</div>
           </li><li id="libstatic.model.State.goto_def">
             
             <div class="fullName">libstatic<wbr></wbr>.model<wbr></wbr>.<wbr></wbr>State<wbr></wbr>.goto<wbr></wbr>_def</div>
@@ -1673,7 +1681,7 @@
             <div class="type">Function</div>
             <div class="kind">Method</div>
             <div class="privacy">PUBLIC</div>
-            <div class="summary">Use-Def chains accessor that returns only one def, or raise <code><a href="libstatic.exceptions.StaticException.html" class="internal-link" title="libstatic.exceptions.StaticException">StaticException</a></code>. It returns the last def in the list. It does not ensure that the list is only composed by one element.</div>
+            <div class="summary">Use-Def chains accessor that returns only one L{Def}, or raise <code><a href="libstatic.exceptions.StaticException.html" class="internal-link" title="libstatic.exceptions.StaticException">StaticException</a></code>. It returns the last def in the list. It does not ensure that the list is only composed by one element.</div>
           </li><li id="libstatic.model.State.goto_defs">
             
             <div class="fullName">libstatic<wbr></wbr>.model<wbr></wbr>.<wbr></wbr>State<wbr></wbr>.goto<wbr></wbr>_defs</div>
@@ -1681,7 +1689,7 @@
             <div class="type">Function</div>
             <div class="kind">Method</div>
             <div class="privacy">PUBLIC</div>
-            <div class="summary">Use-Def chains accessor. It does not work for builtins at the moment.</div>
+            <div class="summary">Use-Def chains accessor: returns the definition points of this use.</div>
           </li><li id="libstatic.model.State.get_module">
             
             <div class="fullName">libstatic<wbr></wbr>.model<wbr></wbr>.<wbr></wbr>State<wbr></wbr>.get<wbr></wbr>_module</div>
@@ -1689,7 +1697,7 @@
             <div class="type">Function</div>
             <div class="kind">Method</div>
             <div class="privacy">PUBLIC</div>
-            <div class="summary">Returns the module with the given name.</div>
+            <div class="summary">Returns the module with the given name if it's in the system, else None.</div>
           </li><li id="libstatic.model.State.get_all_modules">
             
             <div class="fullName">libstatic<wbr></wbr>.model<wbr></wbr>.<wbr></wbr>State<wbr></wbr>.get<wbr></wbr>_all<wbr></wbr>_modules</div>
@@ -1721,7 +1729,7 @@
             <div class="type">Function</div>
             <div class="kind">Method</div>
             <div class="privacy">PUBLIC</div>
-            <div class="summary">Get the mapping of locals under the given <tt class="rst-docutils literal">node</tt>.</div>
+            <div class="summary">Get the mapping of locals of the given <tt class="rst-docutils literal">node</tt>.</div>
           </li><li id="libstatic.model.State.get_local">
             
             <div class="fullName">libstatic<wbr></wbr>.model<wbr></wbr>.<wbr></wbr>State<wbr></wbr>.get<wbr></wbr>_local</div>
@@ -1729,7 +1737,7 @@
             <div class="type">Function</div>
             <div class="kind">Method</div>
             <div class="privacy">PUBLIC</div>
-            <div class="summary">Get the definition of the given <tt class="rst-docutils literal">name</tt> in scope <tt class="rst-docutils literal">node</tt>.</div>
+            <div class="summary">Get the definitions of the given <tt class="rst-docutils literal">name</tt> in scope <tt class="rst-docutils literal">node</tt>.</div>
           </li><li id="libstatic.model.State.get_attribute">
             
             <div class="fullName">libstatic<wbr></wbr>.model<wbr></wbr>.<wbr></wbr>State<wbr></wbr>.get<wbr></wbr>_attribute</div>
@@ -1737,7 +1745,7 @@
             <div class="type">Function</div>
             <div class="kind">Method</div>
             <div class="privacy">PUBLIC</div>
-            <div class="summary">Get local attributes definitions matching the name from this scope. It calls both `get_local()` and `get_sub_module()`.</div>
+            <div class="summary">Get <tt class="rst-docutils literal">scope</tt> attributes definitions matching the <tt class="rst-docutils literal">name</tt>. It calls both <code><a href="libstatic.model.State.html#get_local" class="internal-link" title="libstatic.model.State.get_local">get_local()</a></code> and <code><a href="libstatic.model.State.html#get_sub_module" class="internal-link" title="libstatic.model.State.get_sub_module">get_sub_module()</a></code>.</div>
           </li><li id="libstatic.model.State.get_dunder_all">
             
             <div class="fullName">libstatic<wbr></wbr>.model<wbr></wbr>.<wbr></wbr>State<wbr></wbr>.get<wbr></wbr>_dunder<wbr></wbr>_all</div>
@@ -1745,14 +1753,14 @@
             <div class="type">Function</div>
             <div class="kind">Method</div>
             <div class="privacy">PUBLIC</div>
-            <div class="summary">Get the computed value for the __all__ variable of this module.</div>
-          </li><li id="libstatic.model.State.get_public_names">
+            <div class="summary">Get the computed value for the <tt class="rst-docutils literal">__all__</tt> variable of this module.</div>
+          </li><li id="libstatic.model.State._get_public_names">
             
-            <div class="fullName">libstatic<wbr></wbr>.model<wbr></wbr>.<wbr></wbr>State<wbr></wbr>.get<wbr></wbr>_public<wbr></wbr>_names</div>
-            <div class="url">libstatic.model.State.html#get_public_names</div>
+            <div class="fullName">libstatic<wbr></wbr>.model<wbr></wbr>.<wbr></wbr>State<wbr></wbr>._get<wbr></wbr>_public<wbr></wbr>_names</div>
+            <div class="url">libstatic.model.State.html#_get_public_names</div>
             <div class="type">Function</div>
             <div class="kind">Method</div>
-            <div class="privacy">PUBLIC</div>
+            <div class="privacy">PRIVATE</div>
             <div class="summary">In the absence of definition of __all__, we use this function to compute names bound when wildcard importing the given module.</div>
           </li><li id="libstatic.model.State.get_all_names">
             
@@ -1769,7 +1777,7 @@
             <div class="type">Function</div>
             <div class="kind">Method</div>
             <div class="privacy">PUBLIC</div>
-            <div class="summary">Returns the direct parent of the given node.</div>
+            <div class="summary">Returns the direct parent of the given node in the syntax tree.</div>
           </li><li id="libstatic.model.State.get_parents">
             
             <div class="fullName">libstatic<wbr></wbr>.model<wbr></wbr>.<wbr></wbr>State<wbr></wbr>.get<wbr></wbr>_parents</div>
@@ -1777,7 +1785,7 @@
             <div class="type">Function</div>
             <div class="kind">Method</div>
             <div class="privacy">PUBLIC</div>
-            <div class="summary">Returns all syntax tree parents of the node up to the root module.</div>
+            <div class="summary">Returns all syntax tree parents of the node in the syntax tree up to the root module.</div>
           </li><li id="libstatic.model.State.get_parent_instance">
             
             <div class="fullName">libstatic<wbr></wbr>.model<wbr></wbr>.<wbr></wbr>State<wbr></wbr>.get<wbr></wbr>_parent<wbr></wbr>_instance</div>
@@ -1785,7 +1793,7 @@
             <div class="type">Function</div>
             <div class="kind">Method</div>
             <div class="privacy">PUBLIC</div>
-            <div class="summary">Returns the first parent of the node matching the given type info.</div>
+            <div class="summary">Returns the first parent of the node in the syntax tree matching the given type info.</div>
           </li><li id="libstatic.model.State.get_root">
             
             <div class="fullName">libstatic<wbr></wbr>.model<wbr></wbr>.<wbr></wbr>State<wbr></wbr>.get<wbr></wbr>_root</div>
@@ -1793,7 +1801,7 @@
             <div class="type">Function</div>
             <div class="kind">Method</div>
             <div class="privacy">PUBLIC</div>
-            <div class="summary">If this node is a module, returns it's Mod instance, else find the parent Module and return it's Mod instance.</div>
+            <div class="summary">If this node is a module, returns it's <code><a href="libstatic.model.Mod.html" class="internal-link" title="libstatic.model.Mod">Mod</a></code> instance, else find the parent Module and return it's <code><a href="libstatic.model.Mod.html" class="internal-link" title="libstatic.model.Mod">Mod</a></code> instance.</div>
           </li><li id="libstatic.model.State.get_filename">
             
             <div class="fullName">libstatic<wbr></wbr>.model<wbr></wbr>.<wbr></wbr>State<wbr></wbr>.get<wbr></wbr>_filename</div>
@@ -1865,7 +1873,7 @@
             <div class="type">Function</div>
             <div class="kind">Method</div>
             <div class="privacy">PUBLIC</div>
-            <div class="summary">Powerfull ``ast.literal_eval()`` function. Does not support dicts at the moment.</div>
+            <div class="summary">Powerfull <tt class="rst-docutils literal">ast.literal_eval()</tt> function. Does not support dicts at the moment.</div>
           </li><li id="libstatic.model.State.goto_definition">
             
             <div class="fullName">libstatic<wbr></wbr>.model<wbr></wbr>.<wbr></wbr>State<wbr></wbr>.goto<wbr></wbr>_definition</div>
@@ -1921,7 +1929,7 @@
             <div class="type">Class</div>
             <div class="kind">Class</div>
             <div class="privacy">PUBLIC</div>
-            <div class="summary">Class providing modifiers for the `State`.</div>
+            <div class="summary">Class providing modifiers for the <code><a href="libstatic.model.State.html" class="internal-link" title="libstatic.model.State">State</a></code>.</div>
           </li><li id="libstatic.model.MutableState.search_context">
             
             <div class="fullName">libstatic<wbr></wbr>.model<wbr></wbr>.<wbr></wbr>Mutable<wbr></wbr>State<wbr></wbr>.search<wbr></wbr>_context</div>
@@ -1945,7 +1953,7 @@
             <div class="type">Function</div>
             <div class="kind">Method</div>
             <div class="privacy">PUBLIC</div>
-            <div class="summary">Adds a module to the project. All modules should be added before calling `analyze_project()`. This will slightly transform the AST... see <code><a href="libstatic._lib.transform.Transform.html" class="internal-link" title="libstatic._lib.transform.Transform">Transform</a></code>.</div>
+            <div class="summary">Adds a module to the project. All modules should be added before calling <code><a href="libstatic.model.Project.html#analyze_project" class="internal-link" title="libstatic.model.Project.analyze_project">analyze_project()</a></code>. This will slightly transform the AST... see <code><a href="libstatic._lib.transform.Transform.html" class="internal-link" title="libstatic._lib.transform.Transform">Transform</a></code>.</div>
           </li><li id="libstatic.model.MutableState._add_usedef">
             
             <div class="fullName">libstatic<wbr></wbr>.model<wbr></wbr>.<wbr></wbr>Mutable<wbr></wbr>State<wbr></wbr>._add<wbr></wbr>_usedef</div>
@@ -2177,7 +2185,7 @@
             <div class="type">Class</div>
             <div class="kind">Class</div>
             <div class="privacy">PUBLIC</div>
-            <div class="summary">Transform import statements into a series of `ImportedName`s. One instance of ImportParser can be used to parse all imports in a given module.</div>
+            <div class="summary">Transform import statements into a mapping from <code><a href="https://docs.python.org/3/library/ast.html#ast.alias" class="intersphinx-link">ast.alias</a></code> to <code><a href="libstatic._lib.imports.ImportInfo.html" class="internal-link" title="libstatic._lib.imports.ImportInfo">ImportInfo</a></code>. One instance of <code><a href="libstatic._lib.imports.ImportParser.html" class="internal-link" title="libstatic._lib.imports.ImportParser">ImportParser</a></code> can be used to parse all imports in a given module.</div>
           </li><li id="libstatic._lib.imports.ImportParser.__init__">
             
             <div class="fullName">libstatic<wbr></wbr>._lib<wbr></wbr>.imports<wbr></wbr>.<wbr></wbr>Import<wbr></wbr>Parser<wbr></wbr>.__init__</div>
@@ -2249,7 +2257,7 @@
             <div class="type">Class</div>
             <div class="kind">Class</div>
             <div class="privacy">PUBLIC</div>
-            <div class="summary">Maps each `ast.alias` to their `ImportInfo` counterpart.</div>
+            <div class="summary">Maps each <code><a href="https://docs.python.org/3/library/ast.html#ast.alias" class="intersphinx-link">ast.alias</a></code> to their <code><a href="libstatic._lib.imports.ImportInfo.html" class="internal-link" title="libstatic._lib.imports.ImportInfo">ImportInfo</a></code> counterpart.</div>
           </li><li id="libstatic._lib.imports.ParseImportedNames.__init__">
             
             <div class="fullName">libstatic<wbr></wbr>._lib<wbr></wbr>.imports<wbr></wbr>.<wbr></wbr>Parse<wbr></wbr>Imported<wbr></wbr>Names<wbr></wbr>.__init__</div>
@@ -2337,7 +2345,7 @@
             <div class="type">Function</div>
             <div class="kind">Function</div>
             <div class="privacy">PUBLIC</div>
-            <div class="summary">This function returns a tuple which first element is the ``gast`` module and the second element is a mapping from gast nodes to standard library nodes. It should be used with caution since not all nodes have a corespondance...</div>
+            <div class="summary">This function returns a tuple which first element is the <tt class="rst-docutils literal">gast</tt> module and the second element is a mapping from gast nodes to standard library nodes. It should be used with caution since not all nodes have a corespondance...</div>
           </li><li id="libstatic._lib.chains.DefUseChains">
             
             <div class="fullName">libstatic<wbr></wbr>._lib<wbr></wbr>.chains<wbr></wbr>.<wbr></wbr>Def<wbr></wbr>Use<wbr></wbr>Chains</div>
@@ -2969,7 +2977,7 @@
             <div class="type">Function</div>
             <div class="kind">Function</div>
             <div class="privacy">PUBLIC</div>
-            <div class="summary">Maps ast Modules to the collection of names explicitely given in ``__all__`` variable. If ``__all__`` is not defined at the module scope, the result is None.</div>
+            <div class="summary">Maps ast Modules to the collection of names explicitely given in <tt class="rst-docutils literal">__all__</tt> variable. If <tt class="rst-docutils literal">__all__</tt> is not defined at the module scope, the result is None.</div>
           </li><li id="libstatic._lib.analyzer.ChainDefUseOfImports">
             
             <div class="fullName">libstatic<wbr></wbr>._lib<wbr></wbr>.analyzer<wbr></wbr>.<wbr></wbr>Chain<wbr></wbr>Def<wbr></wbr>Use<wbr></wbr>Of<wbr></wbr>Imports</div>
