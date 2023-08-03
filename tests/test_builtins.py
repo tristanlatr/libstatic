@@ -91,7 +91,7 @@ class TestBuiltins(TestCase):
         # TODO: islive flag seems still True...
         # assert first_zip_def.islive == False, location(first_zip_def.node, proj.state.get_filename(first_zip_def.node))
 
-        zip_def = proj.state.goto_definition(src1.node.body[-1].value, raise_on_ambiguity=True)
+        zip_def = proj.state.goto_definition(src1.node.body[-1].value)
         # TODO: Should not be this one :/
         assert location(zip_def.node, proj.state.get_filename(zip_def.node)) == 'builtins:24:8'
         assert zip_def.islive
