@@ -183,6 +183,7 @@ class Analyzer:
                                     if isinstance(n, ast.alias)
                                 )]
                         else:
+                            assert self._builtins_converter is not None
                             deps = [i.orgmodule for i in 
                                     self._builtins_converter.alias2importinfo.values()]
                         

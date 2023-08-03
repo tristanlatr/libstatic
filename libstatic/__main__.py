@@ -56,7 +56,7 @@ def main() -> None:
         t0 = time.time()
         for qualname in args.uses:
             for i,d in enumerate(proj.state.get_defs_from_qualname(qualname)):
-                usages = list(proj.state.goto_references(d))
+                usages = list(proj.state.goto_references(d)) # type:ignore
                 qualname_id = f'{qualname!r}{"" if i==0 else f" ({i})"} at {location(d.node, proj.state.get_filename(d.node))}'
                 if usages:
                     print(f'Found {len(usages)} usages of {qualname_id} in the project')
@@ -72,11 +72,12 @@ def main() -> None:
             for i,d in enumerate(proj.state.get_defs_from_qualname(qualname)):
                 qualname_id = f'{qualname!r}{"" if i==0 else f" ({i})"} at {location(d.node, proj.state.get_filename(d.node))}'
                 print(f'Locals of {qualname_id}')
-                for locs in filter(None, proj.state.get_locals(d).values()):
+                for locs in proj.state.get_locals(d).values():
+                    locs = list(filter(None, locs))
                     loc = locs[0]
                     locs_repr = ', '.join(repr(l) for l in locs)
                     if proj.options.verbosity>0:
-                        print(f' - {locs_repr} at {location(loc.node, proj.state.get_filename(loc.node))}')
+                        print(f' - {locs_repr} at {location(loc.node, proj.state.get_filename(loc.node))}') # type: ignore
                     else:
                         print(f' - {locs_repr}')
     
