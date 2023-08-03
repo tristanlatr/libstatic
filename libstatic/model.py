@@ -66,10 +66,11 @@ class Def:
     """
     Model a use or a definition, either named or unnamed, and its users.
     """
-    __slots__ = 'node', '_users'
+    __slots__ = 'node', '_users', 'islive'
 
-    def __init__(self, node:ast.AST) -> None:
+    def __init__(self, node:ast.AST, islive:bool=True) -> None:
         self.node = node
+        self.islive = islive
         self._users: MutableSet["Def"] = ordered_set()
 
     def add_user(self, node: "Def") -> None:
@@ -110,7 +111,6 @@ class Def:
                 self.name() or self.node.__class__.__name__,
                 ", ".join(u._str(nodes.copy()) for u in self._users),
             )
-
 
 class NameDef(Def):
     """
@@ -230,9 +230,10 @@ class Imp(NameDef):
     node: ast.alias
     def __init__(self, 
                  node: ast.alias, 
+                 islive: bool, 
                  orgmodule: str, 
                  orgname: Optional[str] = None) -> None:
-        super().__init__(node)
+        super().__init__(node, islive)
         self.orgmodule = orgmodule
         self.orgname = orgname
 
@@ -760,7 +761,7 @@ class State:
             context = scopes.pop()
             defs:List[NameDef] = []
             for loc in self.get_local(context, name):
-                if loc and getattr(loc, 'islive', True):
+                if loc and loc.islive:
                     defs.append(loc)
             if defs:
                 return defs
@@ -953,7 +954,7 @@ class State:
         
         # determine if this definition can be the target of a resolvable attribute access.
         # definition might be inside a class that it killed
-        if not getattr(definition, 'islive', True) or any(isinstance(e, 
+        if not definition.islive or any(isinstance(e, 
                 (ClosedScope)) or not getattr(e, 'islive', True) for e 
                in self.get_all_enclosing_scopes(definition)):
             return
@@ -1270,6 +1271,9 @@ class Project:
         return cast(MutableState, self.state).add_module(
             node, name, is_package=is_package, filename=filename
         )
+
+    def add_typeshed_module(self, modname: str) -> "Mod|None":
+        return cast(MutableState, self.state).add_typeshed_module(modname)
 
     # TODO: introduce a generic reporter object used by System.msg, Documentable.report and here.
     def msg(self, msg: str, ctx: Optional[ast.AST] = None, thresh: int = 0) -> None:

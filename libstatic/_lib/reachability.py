@@ -48,7 +48,7 @@ class _Unreachable(LocalStmtVisitor):
             reachable = node.body if testval else node.orelse
             mark_unreachable = _MarkUnreachable(self._unreachable_nodes)
             for n in unreachable:
-                self._state.msg(f"is unreachable.", ctx=n, thresh=1)
+                self._state.msg(f"is unreachable.", ctx=n, thresh=2)
                 mark_unreachable.visit(n)
             for n in reachable:
                 self.generic_visit(n)

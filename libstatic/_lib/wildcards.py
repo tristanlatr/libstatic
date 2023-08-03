@@ -130,7 +130,7 @@ class _ComputeWildcards:
                     name,
                     asname=None
                 ), alias)
-                resolved_def = Imp(new_node, orgmodule=old_def.orgmodule, orgname=name)
+                resolved_def = Imp(new_node, islive=True, orgmodule=old_def.orgmodule, orgname=name)
                 self._state.add_definition(resolved_def)
                 # TODO: We should use the modifiers for the following lines:
                 self._state._locals[node].setdefault(name, []).append(resolved_def)

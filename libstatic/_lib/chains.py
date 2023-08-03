@@ -9,7 +9,7 @@ from gast.ast3 import Ast3ToGAst  # type:ignore
 from beniget.beniget import ( # type:ignore
     DefUseChains as BenigetDefUseChains,
     Def as BenigetDef,
-)  
+)
 
 from ..model import Cls, Func, Var, Imp, Def, Arg, AnonymousScope, NameDef
 from .imports import ParseImportedNames, ImportInfo
@@ -47,15 +47,37 @@ def ast_to_gast(node: ast.Module) -> Tuple[gast.Module, Mapping[gast.AST, ast.AS
     newnode = _vis.visit(node)
     return newnode, _vis.mapping
 
+_default_builtins = BenigetDefUseChains()._builtins
 
 class DefUseChains(BenigetDefUseChains):
     """
-    Custom def-use builder
+    Custom def-use builder with unified support for builtins.
     """
 
+    def __init__(self, filename:Optional[str]=None, 
+                 builtins:Optional[Mapping[str, Def]]=None):
+        super().__init__(filename)
+        if builtins:
+            self._builtins = {k:d for k,d in builtins.items()}
+    
+    def location(self, node):
+        if hasattr(node, "lineno"):
+            filename = "{}:".format(
+                "<unknown>" if self.filename is None else self.filename
+            )
+            return "{}{}:{}".format(filename,
+                                            node.lineno,
+                                            node.col_offset)
+        else:
+            return "?"
+        
     def unbound_identifier(self, name, node):
-        # TODO: customize messages
-        return super().unbound_identifier(name, node)
+        location = self.location(node)
+        if name in _default_builtins:
+            if name not in self._builtins:
+                print(f"{location}: unbound identifier '{name}' (should be in builtins)")
+                return
+        print(f"{location}: unbound identifier '{name}'")
 
     # We really just want to map the names.
 
@@ -68,12 +90,12 @@ class BenigetConverter:
     def __init__(
         self,
         gast2ast: Mapping[gast.AST, ast.AST],
-        alias2importinfo: Mapping[ast.alias, ImportInfo],
+        alias2importinfo: Mapping[ast.alias, ImportInfo]
     ) -> None:
         self.gast2ast = gast2ast
         self.alias2importinfo = alias2importinfo
         self.converted: Dict[BenigetDef, Optional[Def]] = {}
-        self.scopes: Dict[BenigetDef, Optional[BenigetDef]] = {}
+
 
     def convert(self, b: DefUseChains) -> Tuple[Chains, Locals]:
         chains = self._convert_chains(b.chains)
@@ -88,7 +110,8 @@ class BenigetConverter:
         if ast_node is None:
             new_definition = None
         else:
-            new_definition = self._def_factory(ast_node)
+            new_definition = self._def_factory(ast_node, 
+                                islive=getattr(definition, 'islive', True))
 
         self.converted[definition] = new_definition
         if new_definition:
@@ -107,31 +130,33 @@ class BenigetConverter:
                 new_chains[new_def.node] = new_def
         return new_chains
 
-    def _def_factory(self, node: ast.AST) -> "Def|None":
+    def _def_factory(self, node: ast.AST, islive:bool) -> "Def|None":
         # attributes are not NameDef
         if isinstance(node, ast.ClassDef):
-            return Cls(node)
+            return Cls(node, islive=islive)
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            return Func(node)
+            return Func(node, islive=islive)
         elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
-            return Var(node)
+            return Var(node, islive=islive)
         elif isinstance(node, ast.arg):
             # TODO: get kind, default value and annotation in this object.
-            return Arg(node)
+            return Arg(node, islive=islive)
         elif isinstance(node, ast.alias):
             info = self.alias2importinfo.get(node)
             if info:
-                return Imp(node, info.orgmodule, info.orgname)
+                return Imp(node, islive=islive, 
+                           orgmodule=info.orgmodule, 
+                           orgname=info.orgname)
             return None
         elif isinstance(
             node,
             (ast.Lambda, ast.GeneratorExp, ast.ListComp, ast.DictComp, ast.SetComp),
         ):
-            return AnonymousScope(node)
+            return AnonymousScope(node, islive=islive)
         elif isinstance(node, ast.Module):
             raise RuntimeError()
         else:
-            return Def(node)
+            return Def(node, islive=islive)
 
     def _convert_locals(self, locals: Mapping[ast.AST, List["BenigetDef"]]) -> Locals:
         locals_as_dict: Dict[ast.AST, Dict[str, List["NameDef|None"]]] = {}
@@ -144,15 +169,49 @@ class BenigetConverter:
                 d.setdefault(loc.name(), []).append(converted_local) # type: ignore
         return locals_as_dict
 
+class BenigetConverterBuiltins(BenigetConverter):
+
+    def __init__(self, gast2ast: Mapping[gast.AST, ast.AST], 
+                 alias2importinfo: Mapping[ast.alias, ImportInfo],
+                 duc:DefUseChains,
+                 converted: Dict[BenigetDef, Optional[Def]]) -> None:
+        super().__init__(gast2ast, alias2importinfo)
+        assert duc.module
+        self.duc = duc
+        self.module = duc.module
+        self.converted = converted
+
+        self.builtins_dict:Optional[Mapping[str, 'BenigetDef']] = {}
+        builtins_dict = self.builtins_dict
+        
+        for d in duc.locals[duc.module]:
+            name = d.name()
+            # we can't trust the islive flag here, but why?
+            if name in _default_builtins:
+                builtins_dict[name] = d
+                # If we have two (or more) definitions for this builtin name,
+                # we under-approximate by taking the last defined name.
+                # TODO: do better here
+
+        # link usages in the builtins module itself
+        for name, d in duc._builtins.items():
+            if name in builtins_dict:
+                new_d = builtins_dict[name]
+                for u in d.users():
+                    new_d.add_user(u)
 
 def defuse_chains_and_locals(
-    node: ast.Module, modname: str, filename: str, is_package: bool
-) -> Tuple[Chains, Locals]:
+    node: ast.Module, 
+    modname: str, 
+    filename: str, 
+    is_package: bool,
+    builtins: Optional[Mapping[str, BenigetDef]]=None
+) -> Tuple[Chains, Locals, Mapping[BenigetDef, Optional[Def]]]:
     # create gast node as well as gast -> ast mapping
     gast_node, gast2ast = ast_to_gast(node)
 
     # - compute beniget def-use chains
-    defuse = DefUseChains(filename=filename)
+    defuse = DefUseChains(filename=filename, builtins=builtins)
     setattr(defuse, "future_annotations", True)
     defuse.visit(gast_node)
 
@@ -163,7 +222,8 @@ def defuse_chains_and_locals(
 
     # convert result into standard library
     converter = BenigetConverter(gast2ast, alias2importinfo)
-    return converter.convert(defuse)
+    chains, locals = converter.convert(defuse)
+    return chains, locals, converter.converted
 
 
 def usedef_chains(def_use_chains: Chains) -> UseChains:

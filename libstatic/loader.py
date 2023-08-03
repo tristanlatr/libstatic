@@ -49,5 +49,10 @@ def load_path(project:Project, path:Path) -> None:
     """
     Load a project form a python package/module path in the filesystem.
     Project.analyze_project() must still be called after loading a path into the project.
+
+    >>> p = Project()
+    >>> load_path(p, Path('./libstatic'))
+    >>> p.analyze_project()
+    ... ...
     """
     _load_path(project, path, set(), ())

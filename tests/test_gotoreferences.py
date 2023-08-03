@@ -9,7 +9,7 @@ def location(node:ast.AST, filename:str) -> str:
     return StaticNameError(node, filename=filename).location()
 
 class TestReferences(TestCase):
-    def test_references_(self, ):
+    def test_goto_references(self, ):
         deprecated = '''
         def deprecated(f):
             return f
