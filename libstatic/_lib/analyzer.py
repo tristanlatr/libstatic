@@ -93,7 +93,11 @@ class Analyzer:
         # if we'a analyzing the builtins module, we can't 
         # use it to map the builtins usages yet.
         duc = DefUseChains(self._state.get_filename(builtins.node))
+        # TODO: pass is_stub arround to add_module() 
+        # so we'll not draw inccorect conclusions by alalyzing all modules
+        # like if they were stubs :/
         setattr(duc, "future_annotations", True)
+        setattr(duc, "is_stub", True)
         duc.visit(gastnode)
         
         # parse imports

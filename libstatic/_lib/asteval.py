@@ -7,7 +7,6 @@ from typing import (
     Callable,
     List,
     Mapping,
-    Optional,
     Type,
     Union,
     overload,
@@ -16,7 +15,7 @@ from typing import (
 
 if TYPE_CHECKING:
     from typing import TypeAlias
-    from ..model import State, Def
+    from ..model import _MinimalState
 
 from .shared import node2dottedname
 from .assignment import get_stored_value
@@ -53,7 +52,7 @@ class _ASTEval:
     _MAX_JUMPS = int(sys.getrecursionlimit() / 1.5)
     # each visited ast node counts for one jump.
 
-    def __init__(self, state: 'State', raise_on_ambiguity: bool = False) -> None:
+    def __init__(self, state: '_MinimalState', raise_on_ambiguity: bool = False) -> None:
         self._state = state
         self._raise_on_ambiguity = raise_on_ambiguity
 
@@ -145,7 +144,7 @@ class _ASTEval:
 class _GotoDefinition(_ASTEval):
     def __init__(
         self,
-        state: 'State',
+        state: '_MinimalState',
         raise_on_ambiguity: bool = False,
         follow_aliases: bool = False,
         follow_imports: bool = True,
@@ -322,7 +321,7 @@ def ensure_literal(o: ASTOrLiteralValue) -> LiteralValue:
 class _LiteralEval(_ASTEval):
     def __init__(
         self,
-        state: 'State',
+        state: '_MinimalState',
         *,
         known_values: Mapping[str, LiteralValue],
         raise_on_ambiguity: bool = False,

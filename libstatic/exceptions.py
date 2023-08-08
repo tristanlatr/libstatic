@@ -26,16 +26,17 @@ class StaticException(Exception, abc.ABC):
             return '?'
         lineno = getattr(node, "lineno", "?")
         col_offset = getattr(node, "col_offset", None)
+        nodecls = f'ast.{node.__class__.__name__}'
         if col_offset:
             if self.filename:
-                return f"{self.filename}:{lineno}:{col_offset}"
+                return f"{nodecls} at {self.filename}:{lineno}:{col_offset}"
             else:
-                return f"?:{lineno}:{col_offset}"
+                return f"{nodecls} at ?:{lineno}:{col_offset}"
         else:
             if self.filename:
-                return f"{self.filename}:{lineno}"
+                return f"{nodecls} at {self.filename}:{lineno}"
             else:
-                return f"?:{lineno}"
+                return f"{nodecls} at ?:{lineno}"
 
     @abc.abstractmethod
     def msg(self) -> str:
@@ -80,7 +81,7 @@ class StaticTypeError(StaticException):
     desrc: None = attrs.ib(init=False, default=None)
 
     def msg(self) -> str:
-        return f"Expected {self.expected}, got: {type(self.node)}"
+        return f"Expected {self.expected}, got: {type(self.node).__name__}"
 
 
 class StaticImportError(StaticException):
@@ -119,7 +120,7 @@ class StaticCodeUnsupported(StaticException):
     """
 
     def msg(self) -> str:
-        return f"Unsupported {self.desrc}: {self.node}"
+        return f"Unsupported {self.desrc}"
 
 
 class StaticAmbiguity(StaticException):
@@ -129,7 +130,7 @@ class StaticAmbiguity(StaticException):
     node: ast.AST
 
     def msg(self) -> str:
-        return f"Ambiguous definition, {ast_node_name(self.node) or self.node}: {self.desrc}"
+        return f"Ambiguous definition: {self.desrc}"
 
 
 class StaticEvaluationError(StaticException):

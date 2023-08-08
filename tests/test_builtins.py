@@ -93,6 +93,6 @@ class TestBuiltins(TestCase):
 
         zip_def = proj.state.goto_definition(src1.node.body[-1].value)
         # TODO: Should not be this one :/
-        assert location(zip_def.node, proj.state.get_filename(zip_def.node)) == 'builtins:24:8'
+        assert location(zip_def.node, proj.state.get_filename(zip_def.node)) == 'ast.FunctionDef at builtins:24:8'
         assert zip_def.islive
         assert proj.state.is_reachable(zip_def)

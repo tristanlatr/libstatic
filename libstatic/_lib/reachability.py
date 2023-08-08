@@ -15,9 +15,9 @@ def get_unreachable(state: State, options: Options, mod: ast.Module) -> Set[ast.
     if version:
         assert isinstance(version, tuple)
         assert len(version) >= 2
-        assert all(isinstance(p, int) for p in version)
+        assert all(isinstance(p, int) for p in version[0:2])
 
-        known_values["sys.version_info"] = version
+        known_values["sys.version_info"] = version[0:2]
         known_values["sys.version_info.major"] = version[0]
         known_values["sys.version_info.minor"] = version[1]
 
@@ -67,6 +67,10 @@ class _Unreachable(LocalStmtVisitor):
     def visit_Module(self, node: ast.Module) -> Set[ast.AST]:
         self.generic_visit(node)
         return self._unreachable_nodes
+    
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        for stmt in node.body:
+            self.visit(stmt)
 
 
 class _MarkUnreachable(ast.NodeVisitor):

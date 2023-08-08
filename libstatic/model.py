@@ -249,8 +249,26 @@ class Imp(NameDef):
 
 ### Project-wide state and accessors
 
+class _MinimalState(Protocol):
+    msg: _Msg
+    def get_filename(self, n:ast.AST)->'str|None':...
 
-class State:
+    def get_local(self, node:ast.AST, name:str) -> List[Optional[Def]]:... # can be empty
+    # these returned lists should never be empty, raise exception instead.
+    def get_attribute(self, node:ast.AST, name:str) -> List['Def']:...
+    @overload
+    def get_def(self, node: "ast.alias") -> Imp:
+        ...
+    @overload
+    def get_def(self, node:ast.AST) -> 'Def':...
+    def goto_defs(self, node:ast.AST) -> List['Def']:...
+    def get_parent_instance(
+        self, node: ast.AST, cls: "Type[T]|Tuple[Type[T],...]"
+    ) -> T:...
+    def expand_expr(self, node:ast.AST) -> 'str|None':
+        ...
+
+class State(_MinimalState):
     """
     The `Project`'s state.
     """
@@ -306,7 +324,7 @@ class State:
             # pyastgrep './/FunctionDef[contains(@name, "visit_")][not(contains(body//Call/func/Name/@id, "Def"))]'
             raise StaticValueError(node, "node is not a use or a definition") from e
 
-    @overload
+    @overload # type: ignore[override]
     def get_def(self, node: "ast.alias") -> Imp:
         ...
 
@@ -476,9 +494,9 @@ class State:
         except KeyError as e:
             raise StaticValueError(node, "node has no locals") from e
 
-    def get_local(
+    def get_local( #type:ignore[override]
         self, node: Union["Mod", "Def", ast.AST], name: str
-    ) -> List[Optional["NameDef"]]:
+    ) -> List[Optional["NameDef"]]: 
         """
         Get the definitions of the given ``name`` in scope ``node``.
         """
@@ -487,9 +505,9 @@ class State:
         except KeyError:
             return []
 
-    def get_attribute(
+    def get_attribute( # type: ignore[override]
         self,
-        namespace: Union[ast.ClassDef, ast.Module, Mod, Cls],
+        node: Union[ast.ClassDef, ast.Module, Mod, Cls],
         name: str,
         *,
         ignore_locals: bool = False,
@@ -506,26 +524,26 @@ class State:
         # TODO: Handle instance variables?
         # TODO: Handle looking up in super classes?
 
-        if isinstance(namespace, ast.AST):
-            namespace = self.get_def(namespace) # type: ignore
-        if not isinstance(namespace, (Mod, Cls)):
+        if isinstance(node, ast.AST):
+            node = self.get_def(node) # type: ignore
+        if not isinstance(node, (Mod, Cls)):
             if noraise:
                 return []
-            raise StaticTypeError(namespace, expected='Module or Class')
+            raise StaticTypeError(node, expected='Module or Class')
         if not ignore_locals:
-            values = [v for v in self.get_local(namespace, name) if v]
+            values = [v for v in self.get_local(node, name) if v]
         else:
             values = []
-        if not values and isinstance(namespace, Mod) and namespace.is_package:
+        if not values and isinstance(node, Mod) and node.is_package:
             # a sub-package
-            sub = self.get_sub_module(namespace, name)
+            sub = self.get_sub_module(node, name)
             if sub:
                 return [sub]
         if values:
             return values
         if noraise:
             return []
-        raise StaticAttributeError(namespace, attr=name)
+        raise StaticAttributeError(node, attr=name)
 
     def get_dunder_all(self, mod: "Mod") -> "Collection[str]|None":
         """
@@ -663,15 +681,23 @@ class State:
     @overload
     def get_enclosing_scope(self, definition: Def) -> "Scope":
         ...
-    def get_enclosing_scope(self, definition: Def) -> "Scope|None":
+    @overload
+    def get_enclosing_scope(self, definition: ast.AST) -> "Scope":
+        ...
+    @overload
+    def get_enclosing_scope(self, definition: ast.Module) -> None: # type:ignore[misc]
+        ...
+    def get_enclosing_scope(self, definition: Union[Def, ast.AST]) -> "Scope|None":
         """
         Get the first enclosing scope of this use or deinition.
         Returns None only of the definition is a Module.
         """
-        if isinstance(definition, Mod):
+        if isinstance(definition, Def):
+            definition = definition.node
+        if isinstance(definition, ast.Module):
             return None
         enclosing_scope = self.get_parent_instance(
-            definition.node,
+            definition,
             (
                 ast.SetComp,
                 ast.DictComp,
@@ -806,7 +832,7 @@ class State:
             return None
         return ".".join((self.get_qualname(top_level_definition), *dottedname[1:]))
 
-    def expand_expr(self, node: ast.expr) -> "str|None":
+    def expand_expr(self, node: ast.AST) -> "str|None":
         """
         Resove a name expression to it's qualified name.
         by using information only available in the current module.
@@ -1090,6 +1116,24 @@ class State:
         else:
             raise StaticStateIncomplete(qualname, f'{qualname!r} not in the system')
 
+class SingleModuleState(State):
+    """
+    A state subclass that is internally used to run the reachability analysis.
+    """
+    
+    def __init__(self, node:ast.Module, modname:str, filename:str, 
+                 defchains: Mapping[ast.AST, Def], 
+                 usechains: Mapping[ast.AST, Sequence[Def]], 
+                 locals: Mapping[ast.AST, Mapping[str, Sequence[Def]]], 
+                 ancestors: Mapping[ast.AST, List[ast.AST]]):
+        
+        mod = Mod(node, modname, filename=filename)
+        self._modules[modname] = mod
+        self._def_use_chains.update(defchains)
+        self._use_def_chains.update(usechains)
+        self._locals.update(locals)
+        self._ancestors.update(ancestors)
+
 def _load_typeshed_mod_spec(modname: str, search_context:Any) -> Tuple[Path, ast.Module, bool]:
     path = get_stub_file(modname, search_context=search_context)
     if not path:
@@ -1163,7 +1207,8 @@ class MutableState(State):
         self._add_usedef(use, definition)
 
     def remove_user(self, definition: "Def", use: "Def") -> None:
-        definition._users.discard(use)
+        # TODO: use discard when the beniget version > 0.4.1
+        definition._users.values.pop(use) # type: ignore
         self._use_def_chains[use.node].remove(definition)
 
     def remove_definition(self, definition: "Def") -> None:

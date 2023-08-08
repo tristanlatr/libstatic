@@ -18,6 +18,25 @@ class TestUseDefChains(TestCase):
 
         sys_def = proj.state.goto_def(node.body[-1].value)
         assert isinstance(sys_def.node, ast.alias)
+    
+    def test_arg(self):
+        src = '''
+        # uncomment me when https://github.com/serge-sans-paille/beniget/pull/70 is fixed
+        # lambda x,args,kwargs: True
+        def f(x:bool, *args, **kwargs):...
+        '''
+
+        node = ast.parse(dedent(src))
+        proj = Project(python_version=(3,7), )
+        proj.add_module(node, 'mod1')
+        proj.analyze_project()
+
+        for a in (n for n in ast.walk(node) if isinstance(n, ast.arg)):
+            fn = proj.state.get_enclosing_scope(a)
+            assert isinstance(fn.node, (ast.FunctionDef, ast.Lambda))
+            assert list(proj.state.get_locals(fn))==['x','args','kwargs']
+            proj.state.get_def(a)
+
 
     def test_attr(self):
         code = '''

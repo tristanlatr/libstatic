@@ -170,7 +170,10 @@ class BenigetConverter:
         return locals_as_dict
 
 class BenigetConverterBuiltins(BenigetConverter):
-
+    # TODO: builtins module should not have special handling here, 
+    # but rather we should alwasy return builint defs for every modules
+    # and do the corespondance in the analyzer.
+    # Plus using a subclass make it unclear
     def __init__(self, gast2ast: Mapping[gast.AST, ast.AST], 
                  alias2importinfo: Mapping[ast.alias, ImportInfo],
                  duc:DefUseChains,
@@ -191,7 +194,8 @@ class BenigetConverterBuiltins(BenigetConverter):
                 builtins_dict[name] = d
                 # If we have two (or more) definitions for this builtin name,
                 # we under-approximate by taking the last defined name.
-                # TODO: do better here
+                # TODO: do better here, construct a single module state 
+                # and run reachability analysis
 
         # link usages in the builtins module itself
         for name, d in duc._builtins.items():
@@ -213,6 +217,7 @@ def defuse_chains_and_locals(
     # - compute beniget def-use chains
     defuse = DefUseChains(filename=filename, builtins=builtins)
     setattr(defuse, "future_annotations", True)
+    setattr(defuse, "is_stub", True)
     defuse.visit(gast_node)
 
     # parse imports
