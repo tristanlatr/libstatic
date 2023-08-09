@@ -81,7 +81,7 @@ class Analyzer:
         if not builtins:
             return None
         
-        self_chains = self._analyze_module_pass1(builtins, is_builtins=True)
+        self_chains = self._analyze_module_pass1(builtins)
 
         for d in filter(None, chain.from_iterable(
             self._state.get_locals(builtins).values())):
@@ -99,6 +99,7 @@ class Analyzer:
         self._link_builtins_chains(self_chains)
 
     def _link_builtins_chains(self, builtins_defuse: BuiltinsChains) -> None:
+        # If the buitlins module is not in the system, this is a no-op.
 
         # TODO: Does this needs to handle KeyError?
         for name in self._builtins_dict:
@@ -111,9 +112,9 @@ class Analyzer:
             for u in definition.users():
                 self._state.add_user(proper_builtin_def, u)
 
-    def _analyze_module_pass1(self, mod: "Mod", is_builtins:bool=False) -> BuiltinsChains:
-        # Returns the builtins chains of the module, the return value is only used to
-        # process the builtins module itself.
+    def _analyze_module_pass1(self, mod: "Mod") -> BuiltinsChains:
+        # Returns the builtins chains of the module, the value is 
+        # used to process the builtins usages inside the module.
 
         self._state.msg(f'analyzing {mod.name()}', thresh=1)
         module_node = mod.node
@@ -124,7 +125,7 @@ class Analyzer:
         # : Accumulate static analysis infos from beniget
         # - compute local def-use chains
         # - parsing imports
-        defuse, locals, _, builtins_defuse = defuse_chains_and_locals(
+        defuse, locals, builtins_defuse = defuse_chains_and_locals(
             module_node,
             filename=mod.filename(),
             modname=mod.name(),
@@ -139,9 +140,6 @@ class Analyzer:
         # : Reachability analysis
         unreachable = get_unreachable(self._state, self._options, module_node)
         self._state.store_anaysis(unreachable=unreachable)
-        
-        if not is_builtins:
-            self._link_builtins_chains(builtins_defuse)
         
         return builtins_defuse
 
@@ -165,7 +163,8 @@ class Analyzer:
 
                     if name != 'builtins':
                         # we handle the builtins module analysis elsewhere.
-                        self._analyze_module_pass1(mod)
+                        b = self._analyze_module_pass1(mod)
+                        self._link_builtins_chains(b)
 
                     # add dependencies
                     if iteration != self._options.nested_dependencies:
@@ -196,6 +195,7 @@ class Analyzer:
         # must be done after all modules have been added
         for mod in self._state.get_all_modules():
             ChainDefUseOfImports(self._state).visit(mod.node)
+        
         # at this point goto definition is working, for non wildcard imports names
         # : Compute __all__ and wildcard imports and fixup def-use chains for wildcard imports
         self._state._dunder_all = compute_wildcards(self._state)

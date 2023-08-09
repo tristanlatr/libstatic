@@ -49,7 +49,7 @@ def ast_to_gast(node: ast.Module) -> Tuple[gast.Module, Mapping[gast.AST, ast.AS
 
 class DefUseChains(BenigetDefUseChains):
     """
-    Custom def-use builder with unified support for builtins.
+    Custom def-use builder.
     """
 
     def location(self, node):
@@ -151,7 +151,8 @@ class BenigetConverter:
             return None
         elif isinstance(
             node,
-            (ast.Lambda, ast.GeneratorExp, ast.ListComp, ast.DictComp, ast.SetComp),
+            (ast.Lambda, ast.GeneratorExp, ast.ListComp, 
+             ast.DictComp, ast.SetComp),
         ):
             return AnonymousScope(node, islive=islive)
         elif isinstance(node, ast.Module):
@@ -176,8 +177,7 @@ def defuse_chains_and_locals(
     modname: str, 
     filename: str, 
     is_package: bool,
-    builtins: Optional[Mapping[str, BenigetDef]]=None
-) -> Tuple[Chains, Locals, Mapping[BenigetDef, Optional[Def]], BuiltinsChains]:
+) -> Tuple[Chains, Locals, BuiltinsChains]:
     # create gast node as well as gast -> ast mapping
     gast_node, gast2ast = ast_to_gast(node)
 
@@ -195,12 +195,12 @@ def defuse_chains_and_locals(
     # convert result into standard library
     converter = BenigetConverter(gast2ast, alias2importinfo)
     chains, locals, builtins_defuse = converter.convert(defuse)
-    return chains, locals, converter.converted, builtins_defuse
+    return chains, locals, builtins_defuse
 
 
 def usedef_chains(def_use_chains: Chains) -> UseChains:
     """
-    Flip the Def-Use chains to generate Use-Def chains. It does not include the use of buitins.
+    Flip the Def-Use chains to generate Use-Def chains. 
     """
     chains: Dict[ast.AST, List[Def]] = {}
     for chain in def_use_chains.values():
