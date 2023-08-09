@@ -2,7 +2,7 @@
 Wraps interface provided by ``beniget``, and make it work with the standard `ast` library.
 """
 import ast
-from typing import Dict, Iterator, List, Mapping, Optional, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 import gast  # type:ignore
 from gast.ast3 import Ast3ToGAst  # type:ignore
@@ -47,19 +47,11 @@ def ast_to_gast(node: ast.Module) -> Tuple[gast.Module, Mapping[gast.AST, ast.AS
     newnode = _vis.visit(node)
     return newnode, _vis.mapping
 
-_default_builtins = BenigetDefUseChains()._builtins
-
 class DefUseChains(BenigetDefUseChains):
     """
     Custom def-use builder with unified support for builtins.
     """
 
-    def __init__(self, filename:Optional[str]=None, 
-                 builtins:Optional[Mapping[str, Def]]=None):
-        super().__init__(filename)
-        if builtins:
-            self._builtins = {k:d for k,d in builtins.items()}
-    
     def location(self, node):
         if hasattr(node, "lineno"):
             filename = "{}:".format(
@@ -72,15 +64,13 @@ class DefUseChains(BenigetDefUseChains):
             return "?"
         
     def unbound_identifier(self, name, node):
+        # TODO: use reporter object
         location = self.location(node)
-        if name in _default_builtins:
-            if name not in self._builtins:
-                print(f"{location}: unbound identifier '{name}' (should be in builtins)")
-                return
         print(f"{location}: unbound identifier '{name}'")
 
-    # We really just want to map the names.
+    # TODO: We really just want to map the names.
 
+BuiltinsChains = Dict[str, Def]
 Chains = Dict[ast.AST, Def]
 UseChains = Dict[ast.AST, List[Def]]
 Locals = Dict[ast.AST, Dict[str, List["NameDef|None"]]]
@@ -97,21 +87,26 @@ class BenigetConverter:
         self.converted: Dict[BenigetDef, Optional[Def]] = {}
 
 
-    def convert(self, b: DefUseChains) -> Tuple[Chains, Locals]:
-        chains = self._convert_chains(b.chains)
+    def convert(self, b: DefUseChains) -> Tuple[Chains, Locals, BuiltinsChains]:
+        chains: Chains = self._convert_chains(b.chains) # type:ignore
+        builtins_chains: BuiltinsChains = self._convert_chains(b._builtins, is_builtins=True) # type:ignore
         locals = self._convert_locals(b.locals)
-        return chains, locals
+        return chains, locals, builtins_chains
 
     def _convert_definition(self, definition: BenigetDef) -> "Def|None":
         if definition in self.converted:
             return self.converted[definition]
 
-        ast_node = self.gast2ast.get(definition.node)
-        if ast_node is None:
-            new_definition = None
+        if not isinstance(definition.node, gast.AST):
+            # a builtin
+            new_definition = self._def_factory(definition.node, islive=True)
         else:
-            new_definition = self._def_factory(ast_node, 
-                                islive=getattr(definition, 'islive', True))
+            ast_node = self.gast2ast.get(definition.node)
+            if ast_node is None:
+                new_definition = None
+            else:
+                new_definition = self._def_factory(ast_node, 
+                                    islive=getattr(definition, 'islive', True))
 
         self.converted[definition] = new_definition
         if new_definition:
@@ -122,12 +117,18 @@ class BenigetConverter:
 
         return new_definition
 
-    def _convert_chains(self, chains: Dict[gast.AST, BenigetDef]) -> Chains:
-        new_chains: Dict[ast.AST, Def] = {}
-        for definition in chains.values():
+    # TODO: use overload
+    def _convert_chains(self, chains: Dict[Any, BenigetDef], is_builtins:bool=False) -> 'Chains|BuiltinsChains':
+        new_chains: Dict[Any, Def] = {}
+        for node, definition in chains.items():
             new_def = self._convert_definition(definition)
             if new_def:
-                new_chains[new_def.node] = new_def
+                if is_builtins:
+                    # here node is actually the symbol name
+                    assert isinstance(node, str)
+                    new_chains[node] = new_def
+                else:
+                    new_chains[new_def.node] = new_def
         return new_chains
 
     def _def_factory(self, node: ast.AST, islive:bool) -> "Def|None":
@@ -169,40 +170,6 @@ class BenigetConverter:
                 d.setdefault(loc.name(), []).append(converted_local) # type: ignore
         return locals_as_dict
 
-class BenigetConverterBuiltins(BenigetConverter):
-    # TODO: builtins module should not have special handling here, 
-    # but rather we should alwasy return builint defs for every modules
-    # and do the corespondance in the analyzer.
-    # Plus using a subclass make it unclear
-    def __init__(self, gast2ast: Mapping[gast.AST, ast.AST], 
-                 alias2importinfo: Mapping[ast.alias, ImportInfo],
-                 duc:DefUseChains,
-                 converted: Dict[BenigetDef, Optional[Def]]) -> None:
-        super().__init__(gast2ast, alias2importinfo)
-        assert duc.module
-        self.duc = duc
-        self.module = duc.module
-        self.converted = converted
-
-        self.builtins_dict:Optional[Mapping[str, 'BenigetDef']] = {}
-        builtins_dict = self.builtins_dict
-        
-        for d in duc.locals[duc.module]:
-            name = d.name()
-            # we can't trust the islive flag here, but why?
-            if name in _default_builtins:
-                builtins_dict[name] = d
-                # If we have two (or more) definitions for this builtin name,
-                # we under-approximate by taking the last defined name.
-                # TODO: do better here, construct a single module state 
-                # and run reachability analysis
-
-        # link usages in the builtins module itself
-        for name, d in duc._builtins.items():
-            if name in builtins_dict:
-                new_d = builtins_dict[name]
-                for u in d.users():
-                    new_d.add_user(u)
 
 def defuse_chains_and_locals(
     node: ast.Module, 
@@ -210,12 +177,12 @@ def defuse_chains_and_locals(
     filename: str, 
     is_package: bool,
     builtins: Optional[Mapping[str, BenigetDef]]=None
-) -> Tuple[Chains, Locals, Mapping[BenigetDef, Optional[Def]]]:
+) -> Tuple[Chains, Locals, Mapping[BenigetDef, Optional[Def]], BuiltinsChains]:
     # create gast node as well as gast -> ast mapping
     gast_node, gast2ast = ast_to_gast(node)
 
     # - compute beniget def-use chains
-    defuse = DefUseChains(filename=filename, builtins=builtins)
+    defuse = DefUseChains(filename=filename)
     setattr(defuse, "future_annotations", True)
     setattr(defuse, "is_stub", True)
     defuse.visit(gast_node)
@@ -227,8 +194,8 @@ def defuse_chains_and_locals(
 
     # convert result into standard library
     converter = BenigetConverter(gast2ast, alias2importinfo)
-    chains, locals = converter.convert(defuse)
-    return chains, locals, converter.converted
+    chains, locals, builtins_defuse = converter.convert(defuse)
+    return chains, locals, converter.converted, builtins_defuse
 
 
 def usedef_chains(def_use_chains: Chains) -> UseChains:

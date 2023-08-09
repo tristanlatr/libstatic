@@ -1,19 +1,17 @@
 import ast
+from itertools import chain
 
-from typing import Any, Dict, Mapping, Optional, Union
+from typing import Any, Dict, Union
 
 from ..model import MutableState, Options, Mod, Def
-from .chains import defuse_chains_and_locals, usedef_chains, DefUseChains, ast_to_gast
+from .chains import defuse_chains_and_locals, usedef_chains, BuiltinsChains
 from .ancestors import Ancestors
 from .reachability import get_unreachable
 from .wildcards import compute_wildcards
 from ..exceptions import StaticException
 from .shared import StmtVisitor
-from .imports import ParseImportedNames
-from .chains import DefUseChains, BenigetConverterBuiltins
 
-import gast # type: ignore
-from beniget.beniget import Def as BenigetDef # type: ignore
+from beniget.beniget import BuiltinsSrc # type: ignore
 
 class ChainDefUseOfImports(StmtVisitor):
     """
@@ -62,9 +60,7 @@ class Analyzer:
     def __init__(self, state: MutableState, options: Options) -> None:
         self._options = options
         self._state = state
-
-        self._builtins_converter: Optional[BenigetConverterBuiltins] = None
-        self._converted: Dict[BenigetDef, Optional['Def']] = {}
+        self._builtins_dict: Dict[str, 'Def'] = {}
 
     def _compute_ancestors(self, mod:'Mod') -> None:
         # - compute ancestors
@@ -84,49 +80,41 @@ class Analyzer:
         
         if not builtins:
             return None
-        self._state.msg(f'analyzing the builtins module', thresh=1)
-
-        self._compute_ancestors(builtins)
         
-        # def-use
-        gastnode, gast2ast = ast_to_gast(builtins.node)
-        # if we'a analyzing the builtins module, we can't 
-        # use it to map the builtins usages yet.
-        duc = DefUseChains(self._state.get_filename(builtins.node))
-        # TODO: pass is_stub arround to add_module() 
-        # so we'll not draw inccorect conclusions by alalyzing all modules
-        # like if they were stubs :/
-        setattr(duc, "future_annotations", True)
-        setattr(duc, "is_stub", True)
-        duc.visit(gastnode)
+        self_chains = self._analyze_module_pass1(builtins, is_builtins=True)
+
+        for d in filter(None, chain.from_iterable(
+            self._state.get_locals(builtins).values())):
+            name = d.name()
+            # we can't trust the islive flag here, but why?
+            if name in BuiltinsSrc:
+                self._builtins_dict[name] = d
+                # If we have two (or more) definitions for this builtin name,
+                # we under-approximate by taking the last defined name.
+                # TODO: do better here, use reachability analysis
         
-        # parse imports
-        alias2importinfo = ParseImportedNames('builtins', is_package=False).visit_Module(
-            builtins.node
-        )
+        if len(self._builtins_dict) < len(BuiltinsSrc):
+            self._state.msg(f'missing builtin names: {sorted(set(BuiltinsSrc).difference(self._builtins_dict))}', thresh=1)
 
-        self._builtins_converter = BenigetConverterBuiltins(gast2ast, alias2importinfo, 
-                                                            duc, self._converted)
+        self._link_builtins_chains(self_chains)
 
-    def _finalize_builtin_module(self):
-        # basically connecting all uses of builtins into the converted module now
-        builtins = self._state.get_module('builtins')
-        if not builtins:
-            return
-    
-        # convert result into standard library
-        converter = self._builtins_converter
-        defuse, locals = converter.convert(converter.duc)
-        self._state.store_anaysis(defuse=defuse, locals=locals)
-        
-        usedef = usedef_chains(defuse)
-        self._state.store_anaysis(usedef=usedef)
+    def _link_builtins_chains(self, builtins_defuse: BuiltinsChains) -> None:
 
-        # : Reachability analysis
-        unreachable = get_unreachable(self._state, self._options, builtins.node)
-        self._state.store_anaysis(unreachable=unreachable)
-    
-    def _analyze_module_pass1(self, mod: "Mod") -> None:
+        # TODO: Does this needs to handle KeyError?
+        for name in self._builtins_dict:
+            definition = builtins_defuse[name]
+            try:
+                next(iter(definition.users()))
+            except StopIteration:
+                continue
+            proper_builtin_def = self._builtins_dict[name]
+            for u in definition.users():
+                self._state.add_user(proper_builtin_def, u)
+
+    def _analyze_module_pass1(self, mod: "Mod", is_builtins:bool=False) -> BuiltinsChains:
+        # Returns the builtins chains of the module, the return value is only used to
+        # process the builtins module itself.
+
         self._state.msg(f'analyzing {mod.name()}', thresh=1)
         module_node = mod.node
 
@@ -136,15 +124,13 @@ class Analyzer:
         # : Accumulate static analysis infos from beniget
         # - compute local def-use chains
         # - parsing imports
-        defuse, locals, converted_defs = defuse_chains_and_locals(
+        defuse, locals, _, builtins_defuse = defuse_chains_and_locals(
             module_node,
             filename=mod.filename(),
             modname=mod.name(),
             is_package=mod.is_package,
-            builtins=self._builtins_converter.builtins_dict if self._builtins_converter else None
         )
 
-        self._converted.update(converted_defs)
         self._state.store_anaysis(defuse=defuse, locals=locals)
 
         usedef = usedef_chains(defuse)
@@ -153,6 +139,11 @@ class Analyzer:
         # : Reachability analysis
         unreachable = get_unreachable(self._state, self._options, module_node)
         self._state.store_anaysis(unreachable=unreachable)
+        
+        if not is_builtins:
+            self._link_builtins_chains(builtins_defuse)
+        
+        return builtins_defuse
 
     def _analyzer_pass1(self) -> None:
         processed_modules = set()
@@ -178,18 +169,14 @@ class Analyzer:
 
                     # add dependencies
                     if iteration != self._options.nested_dependencies:
-                        if name != 'builtins':
-                            # TODO: this could use some fine tuning
-                            deps = [self._state.get_def(al).orgmodule
-                                for al in (
-                                    n
-                                    for n in ast.walk(mod.node)
-                                    if isinstance(n, ast.alias)
-                                )]
-                        else:
-                            assert self._builtins_converter is not None
-                            deps = [i.orgmodule for i in 
-                                    self._builtins_converter.alias2importinfo.values()]
+                        # TODO: this could use some fine tuning
+                        deps = [self._state.get_def(al).orgmodule
+                            for al in (
+                                n
+                                for n in ast.walk(mod.node)
+                                if isinstance(n, ast.alias)
+                            )]
+                        deps = [d for d in deps if d not in processed_modules]
                         
                         self._state.msg(f'collected {len(deps)} dependencies from module {mod.name()}', thresh=1)
                         to_process.extend(deps)
@@ -202,7 +189,6 @@ class Analyzer:
         """
         self._init_builtin_module()
         self._analyzer_pass1()
-        self._finalize_builtin_module()
 
         # after all modules have been analyzed once, we convert the builtins
         
