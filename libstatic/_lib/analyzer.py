@@ -1,9 +1,9 @@
 import ast
 from itertools import chain
 
-from typing import Any, Dict, Union
+from typing import Any, Dict, Set, Union, cast
 
-from ..model import MutableState, Options, Mod, Def
+from ..model import MutableState, NameDef, Options, Mod, Def
 from .chains import defuse_chains_and_locals, usedef_chains, BuiltinsChains
 from .ancestors import Ancestors
 from .reachability import get_unreachable
@@ -57,49 +57,42 @@ class ChainDefUseOfImports(StmtVisitor):
     visit_ImportFrom = visit_Import
 
 class Analyzer:
+    _recurse_up_to = 8
+
     def __init__(self, state: MutableState, options: Options) -> None:
         self._options = options
         self._state = state
         self._builtins_dict: Dict[str, 'Def'] = {}
 
-    def _compute_ancestors(self, mod:'Mod') -> None:
-        # - compute ancestors
-        ancestors_vis = Ancestors()
-        ancestors_vis.visit(mod.node)
-        ancestors = ancestors_vis.parents
-        self._state.store_anaysis(ancestors=ancestors)
-    
-    def _init_builtin_module(self) -> None:
+    def _analyze_builtin_module(self, mod:Mod) -> None:
         # the builtins module should always be processed first since all other modules
         # implicitly depends on it and def-use chains for builtins must be computed once we
         # have the defs in the builtins module of course.
         
         # - create the builtins mapping
         
-        builtins = self._state.get_module('builtins')
-        
-        if not builtins:
-            return None
-        
-        self_chains = self._analyze_module_pass1(builtins)
+        builtins_self_chains = self._analyze_module_pass1(mod)
 
-        for d in filter(None, chain.from_iterable(
-            self._state.get_locals(builtins).values())):
-            name = d.name()
-            # we can't trust the islive flag here, but why?
+        # use reachability analysis to only accounts for symbols 
+        # available for the right python version.
+        for d in filter(lambda l: l is not None and self._state.is_reachable(l), 
+                        chain.from_iterable(self._state.get_locals(mod).values())):
+            # Mypy is not smart enought yet to narrow the type of 'd' to NameDef.
+            name = cast(NameDef, d).name()
+            # we can't trust the islive flag here, because
+            # https://github.com/serge-sans-paille/beniget/pull/73
             if name in BuiltinsSrc:
-                self._builtins_dict[name] = d
+                self._builtins_dict[name] = cast(NameDef, d)
                 # If we have two (or more) definitions for this builtin name,
                 # we under-approximate by taking the last defined name.
-                # TODO: do better here, use reachability analysis
         
         if len(self._builtins_dict) < len(BuiltinsSrc):
             self._state.msg(f'missing builtin names: {sorted(set(BuiltinsSrc).difference(self._builtins_dict))}', thresh=1)
 
-        self._link_builtins_chains(self_chains)
+        self._link_builtins_chains(builtins_self_chains)
 
     def _link_builtins_chains(self, builtins_defuse: BuiltinsChains) -> None:
-        # If the buitlins module is not in the system, this is a no-op.
+        # If the builtins module is not in the system, this is a no-op.
 
         # TODO: Does this needs to handle KeyError?
         for name in self._builtins_dict:
@@ -119,8 +112,13 @@ class Analyzer:
         self._state.msg(f'analyzing {mod.name()}', thresh=1)
         module_node = mod.node
 
-        # - compute ancestors
-        self._compute_ancestors(mod)
+        # - compute ancestors, first thing to do because it's used
+        # to fetch the filename for all ast nodes, which might be useful
+        # for error/warning reporting.
+        ancestors_vis = Ancestors()
+        ancestors_vis.visit(mod.node)
+        ancestors = ancestors_vis.parents
+        self._state.store_anaysis(ancestors=ancestors)
 
         # : Accumulate static analysis infos from beniget
         # - compute local def-use chains
@@ -131,9 +129,9 @@ class Analyzer:
             modname=mod.name(),
             is_package=mod.is_package,
         )
-
         self._state.store_anaysis(defuse=defuse, locals=locals)
-
+        
+        # : Flip def def-use and generate the use-def chains
         usedef = usedef_chains(defuse)
         self._state.store_anaysis(usedef=usedef)
 
@@ -144,58 +142,87 @@ class Analyzer:
         return builtins_defuse
 
     def _analyzer_pass1(self) -> None:
-        processed_modules = set()
+        
         not_found = set()
         to_process = [mod.name() for mod in self._state.get_all_modules()]
+        processed_modules: Set[str] = set()
+        max_iterations = 1 if not self._options.dependencies else (
+            self._recurse_up_to+1 if isinstance(self._options.dependencies, bool) 
+            else int(self._options.dependencies)+1)
         iteration = 0
 
+        # builtins module should be processed first, otherwise insertion order
+        to_process.sort(key=lambda e:e!='builtins')
+
         while to_process:
+            iteration += 1
             for name in list(to_process):
                 to_process.remove(name)
                 if name not in processed_modules:
-                    # load dependency modules if nested_dependencies is not zero
+                    # load dependency modules if dependencies is True and we 
+                    # haven't reached the maximum number of iterations
                     mod = self._state.get_module(name)
                     if mod is None and name not in not_found:
                         mod = self._state.add_typeshed_module(name)
                     if mod is None:
                         not_found.add(name)
                         continue
+                    
+                    if name == 'builtins':
+                        assert iteration == 1, 'unexpected builtins module'
+                        self._analyze_builtin_module(mod)
+                    else:
+                        self._link_builtins_chains(
+                            self._analyze_module_pass1(mod))
 
-                    if name != 'builtins':
-                        # we handle the builtins module analysis elsewhere.
-                        b = self._analyze_module_pass1(mod)
-                        self._link_builtins_chains(b)
+                    # collect dependencies
+                    # TODO: this could use some fine tuning
+                    deps = [self._state.get_def(al).orgmodule
+                        for al in (
+                            n
+                            for n in ast.walk(mod.node)
+                            if isinstance(n, ast.alias)
+                        )]
+                    deps = [d for d in deps if d not in chain(processed_modules, to_process)]
 
-                    # add dependencies
-                    if iteration != self._options.nested_dependencies:
-                        # TODO: this could use some fine tuning
-                        deps = [self._state.get_def(al).orgmodule
-                            for al in (
-                                n
-                                for n in ast.walk(mod.node)
-                                if isinstance(n, ast.alias)
-                            )]
-                        deps = [d for d in deps if d not in processed_modules]
-                        
-                        self._state.msg(f'collected {len(deps)} dependencies from module {mod.name()}', thresh=1)
-                        to_process.extend(deps)
+                    # add dependency modules names to the process list.
+                    
+                    if deps:
+                        if iteration != max_iterations:
+                            self._state.msg(f'collected {len(deps)} dependencies from module {mod.name()}', thresh=1)
+                            to_process.extend(deps)
+                        elif max_iterations>1:
+                            self._state.msg(f'maximum number of iterations reached, skipping {len(deps)} dependencies from module {mod.name()}: {", ".join(deps)}')
+
                 processed_modules.add(name)
-            iteration += 1
-
+    
+    def _analyzer_pass2(self) -> None:
+        # : Imports analysis: complement def-use chains with import chains
+        # must be done after all modules have been analyzed 
+        for mod in self._state.get_all_modules():
+            ChainDefUseOfImports(self._state).visit(mod.node)
+    
+    def _analyzer_pass3(self) -> None:
+        # at this point goto definition is working, for non wildcard imports names
+        # : Compute __all__ and wildcard imports: fixup def-use chains for wildcard imports,
+        # the compute_wildcards() function will mutate the state chains to resolve all widlcard
+        # imported names.
+        self._state._dunder_all = compute_wildcards(self._state)
+    
     def analyze(self) -> None:
         """
         Initiate the project state.
         """
-        self._init_builtin_module()
-        self._analyzer_pass1()
 
-        # after all modules have been analyzed once, we convert the builtins
+        if ((self._options.dependencies or self._options.builtins)
+            and 'builtins' not in self._state._modules):
+            if not self._state.add_typeshed_module('builtins'):
+                raise RuntimeError('missing the builtins module :/')
+                
+        self._analyzer_pass1()
+        self._analyzer_pass2()
+        self._analyzer_pass3()
+
         
-        # : Imports analysis: complement def-use chains with import chains
-        # must be done after all modules have been added
-        for mod in self._state.get_all_modules():
-            ChainDefUseOfImports(self._state).visit(mod.node)
         
-        # at this point goto definition is working, for non wildcard imports names
-        # : Compute __all__ and wildcard imports and fixup def-use chains for wildcard imports
-        self._state._dunder_all = compute_wildcards(self._state)
+        

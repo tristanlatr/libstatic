@@ -45,6 +45,7 @@ from .exceptions import (
     StaticException,
     StaticValueError,
     StaticTypeError,
+    StaticAmbiguity, 
 )
 
 if TYPE_CHECKING:
@@ -61,7 +62,8 @@ class _Msg(Protocol):
     ) -> None:
         ...
 
-
+# TODO use frozen dataclasses
+# since ordered_set is not hashable we'll have to use unsafe_hash=True, eq=False, repr=False
 class Def:
     """
     Model a use or a definition, either named or unnamed, and its users.
@@ -157,7 +159,7 @@ class ClosedScope(Scope):
         ast.SetComp,
     ]
 
-
+# TODO: Replace this with Lamb and Comp
 class AnonymousScope(ClosedScope):
     node: Union[ast.Lambda, ast.GeneratorExp, ast.ListComp, ast.DictComp, ast.SetComp]
 
@@ -252,7 +254,6 @@ class Imp(NameDef):
 class _MinimalState(Protocol):
     msg: _Msg
     def get_filename(self, n:ast.AST)->'str|None':...
-
     def get_local(self, node:ast.AST, name:str) -> List[Optional[Def]]:... # can be empty
     # these returned lists should never be empty, raise exception instead.
     def get_attribute(self, node:ast.AST, name:str) -> List['Def']:...
@@ -261,7 +262,8 @@ class _MinimalState(Protocol):
         ...
     @overload
     def get_def(self, node:ast.AST) -> 'Def':...
-    def goto_defs(self, node:ast.AST) -> List['Def']:...
+    def goto_defs(self, node:ast.AST) -> Sequence['Def']:...
+    def goto_def(self, node: ast.AST, raise_on_ambiguity: bool = False) -> Def:...
     def get_parent_instance(
         self, node: ast.AST, cls: "Type[T]|Tuple[Type[T],...]"
     ) -> T:...
@@ -286,12 +288,12 @@ class State(_MinimalState):
         Set of unreachable nodes.
         """
 
-        self._locals: Dict[ast.AST, Dict[str, List[Optional[NameDef]]]] = {}
+        self._locals: Dict[ast.AST, Mapping[str, Sequence[Optional[NameDef]]]] = {}
         """
         Mapping of locals.
         """
 
-        self._ancestors: Dict[ast.AST, List[ast.AST]] = {}
+        self._ancestors: Dict[ast.AST, Sequence[ast.AST]] = {}
         """
         Mapping of AST nodes to the list of their parents.
         """
@@ -301,7 +303,7 @@ class State(_MinimalState):
         Def-Use chains.
         """
 
-        self._use_def_chains: Dict[ast.AST, List[Def]] = {}
+        self._use_def_chains: Dict[ast.AST, Sequence[Def]] = {}
         """
         Use-Def chains.
         """
@@ -385,7 +387,7 @@ class State(_MinimalState):
     # def goto_def(self, node: "ast.Name", noraise: "Literal[True]") -> Optional[NameDef]:
     #     ...
 
-    @overload
+    @overload # type:ignore [override]
     def goto_def(self, node: "ast.AST", noraise: "Literal[False]" = False) -> Def:
         ...
 
@@ -393,27 +395,41 @@ class State(_MinimalState):
     def goto_def(self, node: "ast.AST", noraise: "Literal[True]") -> Optional[Def]:
         ...
 
-    def goto_def(self, node: ast.AST, noraise: bool = False) -> Optional[Def]:
+    @overload
+    def goto_def(self, node: "ast.AST", *, raise_on_ambiguity: "Literal[True]") -> Def:
+        ...
+
+    def goto_def(self, node: ast.AST, noraise: bool = False, *, 
+                 raise_on_ambiguity: bool = False) -> Optional[Def]:
         """
         Use-Def chains accessor that returns only one L{Def}, or raise `StaticException`.
-        It returns the last def in the list. It does not ensure that the list is only
+        It returns the last reachable def in the list. It does not ensure that the list is only
         composed by one element.
         
         :see: `goto_defs`
         """
+        # TODO: Filter to return the first live and reachable Def.
+        # it's currently returning the first reachable def since the islive flag
+        # cannot be trusted at the moment https://github.com/serge-sans-paille/beniget/pull/73
+        if noraise and raise_on_ambiguity:
+            raise ValueError('Illegal arguments: noraise=True with raise_on_ambiguity=True')
         try:
-            return self.goto_defs(node)[-1]
+            defs = self.goto_defs(node)
+            if len(defs) > 1 and raise_on_ambiguity:
+                raise StaticAmbiguity(node, f"{len(defs)} potential definitions found")
+            defs = sorted(defs, key=lambda d:not self.is_reachable(d))
+            return defs[0]
         except StaticException:
             if noraise:
                 return None
             raise
 
-    def goto_defs(self, node: ast.AST, noraise: bool = False) -> List["Def"]:
+    def goto_defs(self, node: ast.AST, noraise: bool = False) -> Sequence["Def"]:
         """
         Use-Def chains accessor: returns the definition points of this use.
 
-        :note: It does not recurse on follow-up definitions in case of aliases
-            and it does not work for builtins at the moment.
+        :note: It does not recurse on follow-up definitions in case of aliases. 
+            Builtins are supported only if the ``builtins`` module has been added to the project.
 
         :raises StaticException: If the node is unbound or unknown.
         """
@@ -483,7 +499,7 @@ class State(_MinimalState):
 
     def get_locals(
         self, node: Union["Mod", "Def", ast.AST]
-    ) -> Mapping[str, List[Optional["NameDef"]]]:
+    ) -> Mapping[str, Sequence[Optional["NameDef"]]]:
         """
         Get the mapping of locals of the given ``node``.
         """
@@ -496,7 +512,7 @@ class State(_MinimalState):
 
     def get_local( #type:ignore[override]
         self, node: Union["Mod", "Def", ast.AST], name: str
-    ) -> List[Optional["NameDef"]]: 
+    ) -> Sequence[Optional["NameDef"]]: 
         """
         Get the definitions of the given ``name`` in scope ``node``.
         """
@@ -512,7 +528,7 @@ class State(_MinimalState):
         *,
         ignore_locals: bool = False,
         noraise: bool = False
-    ) -> List[NameDef]:
+    ) -> Sequence[NameDef]:
         """
         Get ``scope`` attributes definitions matching the ``name``.
         It calls both `get_local()` and `get_sub_module()`.
@@ -603,7 +619,7 @@ class State(_MinimalState):
                 ) from e
             raise StaticStateIncomplete(node, "missing parent") from e
 
-    def get_parents(self, node: ast.AST) -> List[ast.AST]:
+    def get_parents(self, node: ast.AST) -> Sequence[ast.AST]:
         """
         Returns all syntax tree parents of the node in the syntax tree up to the root module.
 
@@ -661,10 +677,12 @@ class State(_MinimalState):
         except StaticException:
             return None
 
-    def is_reachable(self, node: ast.AST) -> bool:
+    def is_reachable(self, node: Union[ast.AST, Def]) -> bool:
         """
         Whether the node is reachable.
         """
+        if isinstance(node, Def):
+            node = node.node
         return node not in self._unreachable
 
     # def dump(self) -> 'list[dict[str, Any]]':
@@ -679,7 +697,7 @@ class State(_MinimalState):
     def get_enclosing_scope(self, definition: Mod) -> None: # type:ignore[misc]
         ...
     @overload
-    def get_enclosing_scope(self, definition: Def) -> "Scope":
+    def get_enclosing_scope(self, definition: Def) -> "Scope|None":
         ...
     @overload
     def get_enclosing_scope(self, definition: ast.AST) -> "Scope":
@@ -720,6 +738,8 @@ class State(_MinimalState):
         """
         
         parent = self.get_enclosing_scope(definition)
+        if not parent:
+            return []
         scopes = [parent]
         while parent:
             scopes.append(parent)
@@ -747,7 +767,7 @@ class State(_MinimalState):
             return name
         return f"{self.get_qualname(scope)}.{name}"
 
-    def goto_symbol_def(self, scope: Scope, name:str, *, is_annotation:bool=False) -> List[NameDef]:
+    def goto_symbol_def(self, scope: Scope, name:str, *, is_annotation:bool=False) -> Sequence[NameDef]:
         """
         Simple, lazy identifier -> defs resolving.
 
@@ -760,7 +780,7 @@ class State(_MinimalState):
         >>> p.state.goto_symbol_def(m, 'T')
         [<Imp(name=T)>]
 
-        :raise StaticNameError: For builtin or unbound names.
+        :raise StaticNameError: For unbound names.
         """
         def _get_lookup_scopes() -> List[Scope]:
             # heads[-1] is the direct enclosing scope and heads[0] is the module.
@@ -980,9 +1000,23 @@ class State(_MinimalState):
         
         # determine if this definition can be the target of a resolvable attribute access.
         # definition might be inside a class that it killed
-        if not definition.islive or any(isinstance(e, 
-                (ClosedScope)) or not getattr(e, 'islive', True) for e 
-               in self.get_all_enclosing_scopes(definition)):
+        # Commented until https://github.com/serge-sans-paille/beniget/pull/73 is merged
+        # if not definition.islive:
+        #     self.msg('definition is killed, '
+        #              'no attribute reference possible', ctx=definition.node)
+        #     return
+        try:
+            _scope = next(e for e in self.get_all_enclosing_scopes(definition) 
+                          if isinstance(e, (ClosedScope))) # <same>: or not e.islive)
+        except StopIteration:
+            pass
+        else:
+            # if not _scope.islive:
+            #     self.msg(f'enclosing scope {_scope.name()!r} is killed, '
+            #              'no attribute reference possible', ctx=definition.node)
+            # else:
+            self.msg(f'enclosing scope is a {_scope.node.__class__.__name__.lower()}, '
+                         'no attribute reference possible')
             return
 
         if isinstance(definition, Mod):
@@ -995,7 +1029,9 @@ class State(_MinimalState):
             module = self.get_root(definition)
             if not module:
                 return
-            parent_qualname = self.get_qualname(self.get_enclosing_scope(definition))
+            # It cannot be a module, so the enclosing scope will exist
+            parent_qualname = self.get_qualname(
+                self.get_enclosing_scope(definition)) # type:ignore[arg-type]
             def_name = definition.name()
 
         # get_qualname returns the target name for imports, so we make sure 
@@ -1066,7 +1102,6 @@ class State(_MinimalState):
             else:
                 yield ref
         yield from self._goto_attr_references(definition, set())
-        # handle import aliases?
         for imp in imports_references:
             yield from self._goto_attr_references(imp, set())
 
@@ -1116,23 +1151,23 @@ class State(_MinimalState):
         else:
             raise StaticStateIncomplete(qualname, f'{qualname!r} not in the system')
 
-class SingleModuleState(State):
-    """
-    A state subclass that is internally used to run the reachability analysis.
-    """
+# class SingleModuleState(State):
+#     """
+#     A state subclass that is internally used to run the reachability analysis.
+#     """
     
-    def __init__(self, node:ast.Module, modname:str, filename:str, 
-                 defchains: Mapping[ast.AST, Def], 
-                 usechains: Mapping[ast.AST, Sequence[Def]], 
-                 locals: Mapping[ast.AST, Mapping[str, Sequence[Def]]], 
-                 ancestors: Mapping[ast.AST, List[ast.AST]]):
+#     def __init__(self, node:ast.Module, modname:str, filename:str, 
+#                  defchains: Mapping[ast.AST, Def], 
+#                  usechains: Mapping[ast.AST, List[Def]], 
+#                  locals: Mapping[ast.AST, Mapping[str, List[NameDef]]], 
+#                  ancestors: Mapping[ast.AST, List[ast.AST]]):
         
-        mod = Mod(node, modname, filename=filename)
-        self._modules[modname] = mod
-        self._def_use_chains.update(defchains)
-        self._use_def_chains.update(usechains)
-        self._locals.update(locals)
-        self._ancestors.update(ancestors)
+#         mod = Mod(node, modname, filename=filename)
+#         self._modules[modname] = mod
+#         self._def_use_chains.update(defchains)
+#         self._use_def_chains.update(usechains)
+#         self._locals.update(locals)
+#         self._ancestors.update(ancestors)
 
 def _load_typeshed_mod_spec(modname: str, search_context:Any) -> Tuple[Path, ast.Module, bool]:
     path = get_stub_file(modname, search_context=search_context)
@@ -1160,6 +1195,7 @@ class MutableState(State):
         search_context = self.search_context
         if search_context is None:
             # cache search_context
+            # TODO: Honnor options
             search_context = self.search_context = get_search_context()
         try:
             path, modast, is_pack = _load_typeshed_mod_spec(modname, search_context)
@@ -1194,7 +1230,7 @@ class MutableState(State):
     # use-def-use structure
 
     def _add_usedef(self, use: "Def", definition: "Def") -> None:
-        self._use_def_chains.setdefault(use.node, []).append(definition)
+        self._use_def_chains.setdefault(use.node, []).append(definition) # type: ignore
 
     def add_definition(self, definition: "Def") -> None:
         assert definition.node not in self._def_use_chains
@@ -1209,7 +1245,7 @@ class MutableState(State):
     def remove_user(self, definition: "Def", use: "Def") -> None:
         # TODO: use discard when the beniget version > 0.4.1
         definition._users.values.pop(use) # type: ignore
-        self._use_def_chains[use.node].remove(definition)
+        self._use_def_chains[use.node].remove(definition) # type: ignore
 
     def remove_definition(self, definition: "Def") -> None:
         del self._def_use_chains[definition.node]
@@ -1222,10 +1258,10 @@ class MutableState(State):
     def store_anaysis(
         self,
         *,
-        defuse: "Dict[ast.AST, Def]|None" = None,
-        locals: "Dict[ast.AST, Dict[str, List[NameDef|None]]]|None" = None,
-        ancestors: "Dict[ast.AST, List[ast.AST]]|None" = None,
-        usedef: "Dict[ast.AST, List[Def]]|None" = None,
+        defuse: "Mapping[ast.AST, Def]|None" = None,
+        locals: "Mapping[ast.AST, Mapping[str, Sequence[NameDef|None]]]|None" = None,
+        ancestors: "Mapping[ast.AST, Sequence[ast.AST]]|None" = None,
+        usedef: "Mapping[ast.AST, Sequence[Def]]|None" = None,
         unreachable: "Set[ast.AST]|None" = None,
     ) -> None:
         self._def_use_chains.update(defuse) if defuse else ...
@@ -1262,11 +1298,12 @@ class MutableState(State):
     #                        is_package=mod_spec['is_package'])
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class Options:
-    python_version: Optional[Tuple[int, int]] = None
-    platform: Optional[str] = None
-    nested_dependencies: int = 0
+    builtins: bool = False
+    dependencies: 'bool|int' = False
+    python_version: Tuple[int, int] = sys.version_info[:2]
+    platform: Optional[str] = sys.platform
     outstream: TextIO = sys.stdout
     verbosity: int = 0
 
@@ -1291,6 +1328,7 @@ class Project:
 
         .. note: This should only be called once.
         """
+        # TODO: Use a context mamager to report execution time
         t0 = time.time()
 
         from ._lib.analyzer import Analyzer

@@ -1,6 +1,7 @@
 import ast
 import numbers
 import sys
+import types
 from typing import (
     Any,
     Callable,
@@ -118,10 +119,9 @@ class _ASTEval:
     def visit_Name_Load(self, node: ast.Name, path: List[ast.AST]) -> ASTOrLiteralValue:
         # TODO: integrate with reachability analysis
         # Use goto to compute the value of this symbol
-        name_defs = self._state.goto_defs(node)
-        if len(name_defs) > 1 and self._raise_on_ambiguity:
-            raise StaticAmbiguity(node, f"{len(name_defs)} potential definitions found")
-        return self.visit(name_defs[-1].node, path)
+        name_def = self._state.goto_def(node,
+                        raise_on_ambiguity=self._raise_on_ambiguity)
+        return self.visit(name_def.node, path)
 
     def visit_Name_Store(
         self, node: ast.Name, path: List[ast.AST]
@@ -165,10 +165,10 @@ class _GotoDefinition(_ASTEval):
     def visit_alias(
         self: _ASTEval, node: ast.alias, path: List[ast.AST]
     ) -> ASTOrLiteralValue:
-        name_defs = self._state.goto_defs(node)
-        if len(name_defs) > 1 and self._raise_on_ambiguity:
-            raise StaticAmbiguity(node, f"{len(name_defs)} potential definitions found")
-        return self.visit(name_defs[0].node, path)
+        name_def = self._state.goto_def(node, 
+                    raise_on_ambiguity=self._raise_on_ambiguity)
+        
+        return self.visit(name_def.node, path)
 
     def visit_alias_DontFollowImports(
         self, node: ast.alias, path: List[ast.AST]

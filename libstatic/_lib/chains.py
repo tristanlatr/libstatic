@@ -2,7 +2,7 @@
 Wraps interface provided by ``beniget``, and make it work with the standard `ast` library.
 """
 import ast
-from typing import Any, Dict, List, Mapping, Optional, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Tuple, Sequence
 
 import gast  # type:ignore
 from gast.ast3 import Ast3ToGAst  # type:ignore
@@ -70,10 +70,10 @@ class DefUseChains(BenigetDefUseChains):
 
     # TODO: We really just want to map the names.
 
-BuiltinsChains = Dict[str, Def]
-Chains = Dict[ast.AST, Def]
-UseChains = Dict[ast.AST, List[Def]]
-Locals = Dict[ast.AST, Dict[str, List["NameDef|None"]]]
+BuiltinsChains = Mapping[str, Def]
+Chains = Mapping[ast.AST, Def]
+UseChains = Mapping[ast.AST, Sequence[Def]]
+Locals = Mapping[ast.AST, Mapping[str, Sequence["NameDef|None"]]]
 
 
 class BenigetConverter:

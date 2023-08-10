@@ -27,8 +27,7 @@ def main() -> None:
     args = parser.parse_args()
 
     proj = Project(verbosity=args.verbosity or 0, 
-                   nested_dependencies=16 if args.dependencies else 0, 
-                   python_version=tuple(sys.version_info[:2]))
+                   dependencies=bool(args.dependencies),)
 
     for path_or_modname in args.PATH_or_MODULE_NAME:
         p = Path(path_or_modname)
