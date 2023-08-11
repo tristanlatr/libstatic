@@ -1,7 +1,7 @@
 from setuptools import setup
 setup( 
     name = "libstatic",
-    version = "0.1",
+    version = "0.2.0.dev.0",
     description = "Static analysis library based on beginet",
     author = "Various Developers",
     url = "https://github.com/tristanlatr/libstatic",
@@ -10,7 +10,6 @@ setup(
         'attrs',
         'typeshed_client',
         'beniget',
-        'typing_extensions',
         'astor',
         ],
     python_requires='>=3.7',
