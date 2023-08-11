@@ -3,7 +3,7 @@ from typing import Optional
 from unittest import TestCase
 from textwrap import dedent
 
-from libstatic.model import Project
+from libstatic import Project
 
 class TestQualNames(TestCase):
     # the qualified name of Def 

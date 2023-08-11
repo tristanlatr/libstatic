@@ -2,11 +2,9 @@ import ast
 from unittest import TestCase
 from textwrap import dedent
 
-from libstatic.model import Project
-from libstatic.exceptions import StaticNameError
+from libstatic import Project
 
-def location(node:ast.AST, filename:str) -> str:
-    return StaticNameError(node, filename=filename).location()
+from . import location
 
 class TestReferences(TestCase):
     

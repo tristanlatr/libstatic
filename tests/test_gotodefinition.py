@@ -2,9 +2,7 @@ import ast
 from unittest import TestCase
 from textwrap import dedent
 
-from libstatic.model import Def, Project
-from libstatic.exceptions import StaticImportError, StaticAmbiguity
-
+from libstatic import Def, Project, StaticImportError, StaticAmbiguity
 
 class TestGotoDefinition(TestCase):
     def test_import(self,):

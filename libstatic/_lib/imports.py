@@ -1,5 +1,4 @@
 import ast
-import sys
 from typing import Any, Dict, Mapping, Optional, Tuple, NamedTuple, Union
 
 

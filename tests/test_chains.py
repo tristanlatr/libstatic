@@ -3,8 +3,7 @@ import sys
 from unittest import TestCase
 from textwrap import dedent
 
-from libstatic.model import Project
-from libstatic.exceptions import StaticNameError, NodeLocation
+from libstatic import Project, StaticNameError, NodeLocation
 
 class TestUseDefChains(TestCase):
     def test_simple(self):

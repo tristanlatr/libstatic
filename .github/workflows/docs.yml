@@ -25,7 +25,8 @@ jobs:
     - name: Install requirements
       run: |
         python -m pip install --upgrade pip setuptools wheel
-        python -m pip install pydoctor
+        # version of pydoctor that handles re-exports the way I want.
+        python -m pip install git+https://github.com/twisted/pydoctor.git@2807558653743b35b0279ac553cdf92d0253febd
 
     - name: Generate docs
       run: |

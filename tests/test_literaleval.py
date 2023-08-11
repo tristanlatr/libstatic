@@ -2,9 +2,8 @@ import ast
 import sys
 from unittest import TestCase
 
-from libstatic.model import Project
-from libstatic._lib.asteval import _LiteralEval, _ASTEval
-from libstatic.exceptions import StaticUnknownValue, StaticException
+from libstatic import Project, StaticUnknownValue, StaticException
+from libstatic._analyzer.asteval import _LiteralEval, _ASTEval
 
 
 class TestLiteralEval(TestCase):

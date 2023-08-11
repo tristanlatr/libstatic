@@ -3,7 +3,7 @@ from unittest import TestCase
 
 from libstatic._lib.assignment import get_stored_value
 from libstatic._lib.ancestors import Ancestors
-from libstatic.exceptions import StaticCodeUnsupported
+from libstatic import StaticCodeUnsupported
 
 class TestGetStoredValue(TestCase):
     def test_simple_assignment(self):

@@ -5,9 +5,10 @@ if TYPE_CHECKING:
 else:
     Protocol = object
 
-from ..exceptions import StaticException
-from ..model import State, Options
-from .shared import LocalStmtVisitor
+from .._lib.exceptions import StaticException
+from .._lib.shared import LocalStmtVisitor
+
+from .state import State, Options
 
 def get_unreachable(state: State, options: Options, mod: ast.Module) -> Set[ast.AST]:
     known_values: Dict[str, Any] = {}

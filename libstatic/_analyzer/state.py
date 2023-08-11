@@ -1,7 +1,6 @@
 """
-This module contains the def-use models, use to represent the code as well as project-wise objects.
+Project-wide objects.
 """
-
 import ast
 from itertools import chain
 import sys
@@ -16,7 +15,6 @@ from typing import (
     Iterable,
     List,
     Mapping,
-    MutableSet,
     Optional,
     Sequence,
     Set,
@@ -29,14 +27,12 @@ from typing import (
     overload,
 )
 import attr as attrs
-from beniget.beniget import ordered_set  # type: ignore
 from typeshed_client import get_stub_file, get_search_context
 from typeshed_client.finder import parse_stub_file
 
-from ._lib.shared import ast_node_name, node2dottedname
-from ._lib.transform import Transform
-from ._lib.asteval import LiteralValue, _LiteralEval, _GotoDefinition
-from .exceptions import (
+from .._lib.shared import node2dottedname
+from .._lib.transform import Transform
+from .._lib.exceptions import (
     StaticStateIncomplete,
     StaticNameError,
     StaticAttributeError,
@@ -47,6 +43,10 @@ from .exceptions import (
     StaticAmbiguity, 
     NodeLocation
 )
+from .._lib.model import Def, NameDef, Mod, Cls, Func, Imp, Scope, ClosedScope
+
+from .asteval import LiteralValue, _LiteralEval, _GotoDefinition
+
 
 if TYPE_CHECKING:
     from typing import Literal, NoReturn, Protocol
@@ -61,193 +61,6 @@ class _Msg(Protocol):
         self, msg: str, ctx: Optional[ast.AST] = None, thresh: int = 0
     ) -> None:
         ...
-
-# TODO use frozen dataclasses
-# since ordered_set is not hashable we'll have to use unsafe_hash=True, eq=False, repr=False
-class Def:
-    """
-    Model a use or a definition, either named or unnamed, and its users.
-    """
-    __slots__ = 'node', '_users', 'islive'
-
-    def __init__(self, node:ast.AST, islive:bool=True) -> None:
-        self.node = node
-        self.islive = islive
-        self._users: MutableSet["Def"] = ordered_set()
-
-    def add_user(self, node: "Def") -> None:
-        assert isinstance(node, Def)
-        self._users.add(node)
-
-    def name(self) -> Optional[str]:
-        """
-        If the node associated to this Def has a name, returns this name.
-        Otherwise returns None.
-        """
-        return None
-
-    def users(self) -> Collection["Def"]:
-        """
-        The list of ast entity that holds a reference to this node.
-        """
-        return self._users
-    
-    def __repr__(self) -> str:
-        clsname = self.__class__.__qualname__
-        name = self.name()
-        if name:
-            return f"<{clsname}(name={name})>"
-        else:
-            nodeclsname = self.node.__class__.__name__
-            return f"<{clsname}(node=<{nodeclsname}>)>"
-
-    def __str__(self) -> str:
-        return self._str({})
-
-    def _str(self, nodes: Dict["Def", int]) -> str:
-        if self in nodes:
-            return "(#{})".format(nodes[self])
-        else:
-            nodes[self] = len(nodes)
-            return "{} -> ({})".format(
-                self.name() or self.node.__class__.__name__,
-                ", ".join(u._str(nodes.copy()) for u in self._users),
-            )
-
-class NameDef(Def):
-    """
-    Model the definition of a name.
-    """
-
-    node: Union[
-        ast.Module,
-        ast.ClassDef,
-        ast.FunctionDef,
-        ast.AsyncFunctionDef,
-        ast.Name,
-        ast.arg,
-        ast.alias,
-    ]
-
-    def name(self) -> str:
-        assert not isinstance(self.node, ast.Module)
-        return ast_node_name(self.node)
-
-class Scope(Def):
-    """
-    Model a python scope.
-    """
-
-    def name(self) -> str:
-        raise NotImplementedError()
-
-class OpenScope(Scope):
-    node: Union[ast.Module, ast.ClassDef]
-
-class ClosedScope(Scope):
-    """
-    Closed scope have <locals>.
-    """
-
-    node: Union[
-        ast.FunctionDef,
-        ast.AsyncFunctionDef,
-        ast.Lambda,
-        ast.GeneratorExp,
-        ast.ListComp,
-        ast.DictComp,
-        ast.SetComp,
-    ]
-
-# TODO: Replace this with Lamb and Comp
-class AnonymousScope(ClosedScope):
-    node: Union[ast.Lambda, ast.GeneratorExp, ast.ListComp, ast.DictComp, ast.SetComp]
-
-    def name(self) -> str:
-        return f"<{type(self.node).__name__.lower()}>"
-
-
-class Mod(NameDef, OpenScope):
-    """
-    Model a module definition.
-    """
-    __slots__ = (*Def.__slots__, '_modname', 'is_package', '_filename')
-
-    node: ast.Module
-    def __init__(self, 
-                 node: ast.Module, 
-                 modname: str, 
-                 is_package: bool = False, 
-                 filename: Optional[str] = None) -> None:
-        super().__init__(node)
-        self._modname = modname
-        self.is_package = is_package
-        self._filename = filename
-
-    def name(self) -> str:
-        return self._modname
-
-    def filename(self) -> str:
-        return self._filename or self._modname
-
-
-class Cls(NameDef, OpenScope):
-    """
-    Model a class definition.
-    """
-
-    node: ast.ClassDef
-
-
-class Func(NameDef, ClosedScope):
-    """
-    Model a function definition.
-    """
-
-    node: Union[ast.FunctionDef, ast.AsyncFunctionDef]
-
-
-class Var(NameDef):
-    """
-    Model a variable definition.
-    """
-
-    node: ast.Name
-
-
-class Arg(NameDef):
-    """
-    Model a function argument definition.
-    """
-
-    node: ast.arg
-
-
-class Imp(NameDef):
-    """
-    Model an imported name definition.
-    """
-    __slots__ = (*Def.__slots__, 'orgmodule', 'orgname')
-    
-    node: ast.alias
-    def __init__(self, 
-                 node: ast.alias, 
-                 islive: bool, 
-                 orgmodule: str, 
-                 orgname: Optional[str] = None) -> None:
-        super().__init__(node, islive)
-        self.orgmodule = orgmodule
-        self.orgname = orgname
-
-    def target(self) -> str:
-        """
-        Returns the qualified name of the the imported symbol.
-        """
-        if self.orgname:
-            return f"{self.orgmodule}.{self.orgname}"
-        else:
-            return self.orgmodule
-
 
 ### Project-wide state and accessors
 
@@ -359,7 +172,7 @@ class State(_MinimalState):
         self, node: "ast.AST", noraise: bool = False
     ) -> Optional[Union["Def", "Mod"]]:
         """
-        Def-Use chains accessor: returns the L{Def} instance  for this node.
+        Def-Use chains accessor: returns the `Def` instance of this node.
 
         :raises StaticValueError: If the node is not a registered use or definition.
         """
@@ -1356,6 +1169,37 @@ class Options:
 class Project:
     """
     A project is a high-level class to analyze a collection of modules together.
+
+    Project instanciation example: 
+
+    >>> # Create the project instance
+    >>> p = Project(builtins=False, dependencies=False, 
+    ...             python_version=sys.version_info[:2], 
+    ...             platform=sys.platform, verbosity=1)
+    >>> # Add the modules
+    >>> src1 = p.add_module(ast.parse('''\\
+    ... from deprecated import deprecated
+    ... @deprecated
+    ... def f():...'''), 'src1')
+    >>> src2 = p.add_module(ast.parse('''\\
+    ... import src1
+    ... @src1.deprecated
+    ... class C:...'''), 'src2')
+    >>> # Call analyze_project()
+    >>> p.analyze_project()
+    >>> # Use State accessors to collect informations
+    >>> # about the definitions in the project and their relations.
+    >>> # The following code dumps the expanded name of all Name and Attribute loads in the project
+    >>> import itertools
+    >>> result = [f'{NodeLocation.make(node, p.state.get_filename(node))} -> {p.state.expand_expr(node)}' \
+    for node in (n for n in itertools.chain.from_iterable(ast.walk(m.node) for m in p.state.get_all_modules())) \
+    if isinstance(node, (ast.Name, ast.Attribute)) and type(node.ctx).__name__=='Load'] 
+    >>> print('\\n'.join(result))
+    ast.Name at src1:2:1 -> deprecated.deprecated
+    ast.Attribute at src2:2:1 -> src1.deprecated
+    ast.Name at src2:2:1 -> src1
+
+    :see: `State`
     """
 
     def __init__(self, **kw: Any) -> None:
@@ -1376,7 +1220,7 @@ class Project:
         # TODO: Use a context mamager to report execution time
         t0 = time.time()
 
-        from ._lib.analyzer import Analyzer
+        from .._analyzer.driver import Analyzer
 
         Analyzer(cast(MutableState, self.state), self.options).analyze()
 
@@ -1401,6 +1245,7 @@ class Project:
         )
 
     def add_typeshed_module(self, modname: str) -> "Mod|None":
+        __doc__ = MutableState.add_typeshed_module
         return cast(MutableState, self.state).add_typeshed_module(modname)
 
     # TODO: introduce a generic reporter object used by System.msg, Documentable.report and here.

@@ -3,13 +3,15 @@ from itertools import chain
 
 from typing import Any, Dict, Set, Union, cast
 
-from ..model import MutableState, NameDef, Options, Mod, Def
-from .chains import defuse_chains_and_locals, usedef_chains, BuiltinsChains
-from .ancestors import Ancestors
+from .._lib.model import NameDef, Mod, Def
+from .._lib.chains import defuse_chains_and_locals, usedef_chains, BuiltinsChains
+from .._lib.ancestors import Ancestors
+from .._lib.exceptions import StaticException
+from .._lib.shared import StmtVisitor
+
 from .reachability import get_unreachable
 from .wildcards import compute_wildcards
-from ..exceptions import StaticException
-from .shared import StmtVisitor
+from .state import MutableState, Options
 
 from beniget.beniget import BuiltinsSrc # type: ignore
 
