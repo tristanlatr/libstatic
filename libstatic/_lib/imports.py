@@ -118,7 +118,7 @@ class ParseImportedNames(ast.NodeVisitor):
 
         visit_Import_base = visit_Import
         def visit_Import(self, node: Union[ast.Import, ast.ImportFrom]) -> None:
-            visit_Import_base(self, node)
+            self.visit_Import_base(node)
             for al in node.names:
                 ast.copy_location(al, node)
 
