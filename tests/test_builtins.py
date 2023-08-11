@@ -19,7 +19,7 @@ class TestBuiltins(TestCase):
             proj.state.get_defs_from_qualname('builtins.str')[0])))>200
     
     def test_builtin_name_chains(self):
-        # we have a begniet bug here :/
+        # Test for 
         # https://github.com/serge-sans-paille/beniget/pull/73
         code = '''
         import sys
@@ -34,8 +34,7 @@ class TestBuiltins(TestCase):
                                     'builtins', 'buitlins', False)
         property_def = next(iter(locals[mod]['property']))
         assert isinstance(property_def, Def)
-        # TODO: Fix test when issue is fixed
-        assert not property_def.islive
+        assert property_def.islive
         assert bchains['property'].islive
 
     def test_builtin_name_chains_real_builtins(self):
@@ -44,7 +43,7 @@ class TestBuiltins(TestCase):
                                     'builtins', 'buitlins', False)
         property_def = next(iter(locals[mod]['property']))
         assert isinstance(property_def, Def)
-        assert not property_def.islive
+        assert property_def.islive
         assert bchains['property'].islive
 
     def test_references_builtins(self, ):
@@ -154,7 +153,7 @@ class TestBuiltins(TestCase):
         proj.add_module(ast.parse(dedent(builtins)), 'builtins')
         src1 = proj.add_module(ast.parse(dedent(src1)), 'src1')
         proj.analyze_project()
-        zip_Defs = proj.state.get_defs_from_qualname('builtins.zip')
+        zip_Defs = proj.state.get_local(proj.state.get_module('builtins'), 'zip')
         assert len(zip_Defs) == 2
         first_zip_new_def = zip_Defs[0]
         assert location(first_zip_new_def.node, proj.state.get_filename(first_zip_new_def.node)) == 'ast.ClassDef at builtins:6:4'

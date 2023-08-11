@@ -109,7 +109,8 @@ class _ASTEval:
             attribs = self._state.get_attribute(namespace, node.attr)
             if len(attribs) > 1 and self._raise_on_ambiguity:
                 raise StaticAmbiguity(
-                    node, f"{len(attribs)} potential definitions found"
+                    node, f"{len(attribs)} potential definitions found",
+                    filename=self._state.get_filename(node)
                 )
             return self.visit(attribs[-1].node, path)
         else:

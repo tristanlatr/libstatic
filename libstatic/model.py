@@ -46,6 +46,7 @@ from .exceptions import (
     StaticValueError,
     StaticTypeError,
     StaticAmbiguity, 
+    NodeLocation
 )
 
 if TYPE_CHECKING:
@@ -324,7 +325,8 @@ class State(_MinimalState):
             # like ast.Return/Delete/While/For and many others, to get the full list of
             # beniget visit_ methods that do not instanciate a new Def use:
             # pyastgrep './/FunctionDef[contains(@name, "visit_")][not(contains(body//Call/func/Name/@id, "Def"))]'
-            raise StaticValueError(node, "node is not a use or a definition") from e
+            raise StaticValueError(node, "node is not a use or a definition",
+                                   filename=self.get_filename(node)) from e
 
     @overload # type: ignore[override]
     def get_def(self, node: "ast.alias") -> Imp:
@@ -408,16 +410,16 @@ class State(_MinimalState):
         
         :see: `goto_defs`
         """
-        # TODO: Filter to return the first live and reachable Def.
-        # it's currently returning the first reachable def since the islive flag
-        # cannot be trusted at the moment https://github.com/serge-sans-paille/beniget/pull/73
+        # it's returning the first reachable def.
         if noraise and raise_on_ambiguity:
             raise ValueError('Illegal arguments: noraise=True with raise_on_ambiguity=True')
         try:
-            defs = self.goto_defs(node)
+            defs = self._softfilter_defs(
+                self.goto_defs(node), unreachable=True, killed=False)
+            
             if len(defs) > 1 and raise_on_ambiguity:
-                raise StaticAmbiguity(node, f"{len(defs)} potential definitions found")
-            defs = sorted(defs, key=lambda d:not self.is_reachable(d))
+                raise StaticAmbiguity(node, f"{len(defs)} potential definitions found", 
+                                      filename=self.get_filename(node))
             return defs[0]
         except StaticException:
             if noraise:
@@ -508,7 +510,8 @@ class State(_MinimalState):
         try:
             return self._locals[node]
         except KeyError as e:
-            raise StaticValueError(node, "node has no locals") from e
+            raise StaticValueError(node, "node has no locals", 
+                                   filename=self.get_filename(node)) from e
 
     def get_local( #type:ignore[override]
         self, node: Union["Mod", "Def", ast.AST], name: str
@@ -521,13 +524,53 @@ class State(_MinimalState):
         except KeyError:
             return []
 
+    def _softfilter_killed_defs(self, defs:Sequence[Def]) -> Sequence[Def]:
+        live_defs = [d for d in defs if d.islive]
+        if len(live_defs)==0:
+            # probably a bug in beniget again
+            if __debug__:
+                msg = f'all {len(defs)} definitions of {" and ".join(sorted(set(d.name() for d in defs)))} are killed :/'
+                for d in defs:
+                    msg += (f'\n - {NodeLocation.make(d, self.get_filename(d))} is killed')
+                raise RuntimeError(msg)
+            
+            live_defs = [defs[-1]]
+        return live_defs
+
+    def _softfilter_unreachable_defs(self, defs:Sequence[Def]) -> Sequence[Def]:
+        reachable_defs = list(filter(self.is_reachable, defs))
+        if len(reachable_defs)==0:
+            # this can happen when there is no declaration of the name we're looking for
+            # in a specific python version or we're calling goto_def() with a use
+            # that is already unreachable.
+            reachable_defs = defs
+        return reachable_defs
+
+    def _softfilter_defs(self, defs:Sequence[Def], *,
+                     unreachable:bool, killed:bool) -> Sequence[Def]:
+        # The filter is 'soft' because it falls back to unfiltered 
+        # list if all the elements have been filtered. 
+        # Basically we're trying to give more precise results by filtering
+        # killed or unreachable defs in some specific conditions, 
+        # if these conditions are not met, the entire list of definitions 
+        # might be filtered out. In order to still give over-approximated
+        # retsults, we fallback to the unfiltered list in such scenarios.
+        if len(defs)<=1:
+            return defs
+        if killed:
+            defs = self._softfilter_killed_defs(defs)
+        if unreachable:
+            defs = self._softfilter_unreachable_defs(defs)
+        return defs
+
     def get_attribute( # type: ignore[override]
         self,
         node: Union[ast.ClassDef, ast.Module, Mod, Cls],
         name: str,
         *,
         ignore_locals: bool = False,
-        noraise: bool = False
+        noraise: bool = False, 
+        filter_unreachable: bool = True
     ) -> Sequence[NameDef]:
         """
         Get ``scope`` attributes definitions matching the ``name``.
@@ -548,6 +591,8 @@ class State(_MinimalState):
             raise StaticTypeError(node, expected='Module or Class')
         if not ignore_locals:
             values = [v for v in self.get_local(node, name) if v]
+            values = self._softfilter_defs(values, unreachable=filter_unreachable, 
+                                            killed=True)
         else:
             values = []
         if not values and isinstance(node, Mod) and node.is_package:
@@ -559,7 +604,8 @@ class State(_MinimalState):
             return values
         if noraise:
             return []
-        raise StaticAttributeError(node, attr=name)
+        raise StaticAttributeError(node, attr=name, 
+                                   filename=self.get_filename(node))
 
     def get_dunder_all(self, mod: "Mod") -> "Collection[str]|None":
         """
@@ -572,7 +618,7 @@ class State(_MinimalState):
         try:
             return self._dunder_all[mod]
         except KeyError as e:
-            raise StaticStateIncomplete(mod, "not information in the system") from e
+            raise StaticStateIncomplete(mod, "no information in the system") from e
 
     def _get_public_names(self, mod: Union["Mod", ast.Module]) -> Collection[str]:
         """
@@ -667,7 +713,7 @@ class State(_MinimalState):
         return self.get_def(
             self.get_parent_instance(node, ast.Module))
 
-    def get_filename(self, node: ast.AST) -> Optional[str]:
+    def get_filename(self, node: 'ast.AST|Def') -> Optional[str]:
         """
         Returns the filename of the given ast node.
         If the node does not exist in the system, it returns None.
@@ -970,7 +1016,8 @@ class State(_MinimalState):
         definition = visitor.visit(node, [])
         return self.get_def(definition)
 
-    def _goto_references(self, definition:NameDef, seen:Set[Def]) -> Iterator[Def]:
+    def _goto_references(self, definition:NameDef, seen:Set[Def], 
+                         filter_unreachable:bool) -> Iterator[Def]:
         """
         Finds all Name or Import references, it follows imports, but bot aliases.
         """
@@ -978,7 +1025,8 @@ class State(_MinimalState):
             if dnode in seen:
                 return
             seen.add(dnode)
-            if isinstance(dnode, Imp):
+            if isinstance(dnode, Imp) and (not filter_unreachable or (
+                self.is_reachable(definition) and self.is_reachable(dnode))):
                 # follow imports
                 yield dnode
                 for u in dnode.users():
@@ -989,7 +1037,7 @@ class State(_MinimalState):
         for u in definition.users():
             yield from _refs(u)
     
-    def _goto_attr_references(self, definition:NameDef, seen:Set[Def]) -> Iterator[Def]:
+    def _goto_attr_references(self, definition:NameDef, seen:Set[Def], filter_unreachable:bool) -> Iterator[Def]:
         """
         Find attribute refernces. 
 
@@ -999,24 +1047,18 @@ class State(_MinimalState):
         seen.add(definition)
         
         # determine if this definition can be the target of a resolvable attribute access.
-        # definition might be inside a class that it killed
-        # Commented until https://github.com/serge-sans-paille/beniget/pull/73 is merged
-        # if not definition.islive:
-        #     self.msg('definition is killed, '
-        #              'no attribute reference possible', ctx=definition.node)
-        #     return
         try:
-            _scope = next(e for e in self.get_all_enclosing_scopes(definition) 
-                          if isinstance(e, (ClosedScope))) # <same>: or not e.islive)
+            next(e for e in self.get_all_enclosing_scopes(definition) 
+                          if isinstance(e, (ClosedScope)))
         except StopIteration:
             pass
         else:
-            # if not _scope.islive:
-            #     self.msg(f'enclosing scope {_scope.name()!r} is killed, '
-            #              'no attribute reference possible', ctx=definition.node)
-            # else:
-            self.msg(f'enclosing scope is a {_scope.node.__class__.__name__.lower()}, '
-                         'no attribute reference possible')
+            # an enclosing scope is a closed scope: no attribute reference possible
+            # this is typically an import inside a function.
+            return
+        
+        if not definition.islive or (filter_unreachable and not self.is_reachable(definition)):
+            # definition might be killed or unreachable.
             return
 
         if isinstance(definition, Mod):
@@ -1042,11 +1084,11 @@ class State(_MinimalState):
         # it raises a runtime error if the module has not been imported, it still counts as references.
         while module:
             seen.add(module)
-            for ref in self._goto_references(module, seen.copy()):
+            for ref in self._goto_references(module, seen.copy(), filter_unreachable):
                 refs = [ref]
                 if isinstance(ref, Imp):
                     if ref not in seen:
-                        refs = list(self._goto_attr_references(ref, seen))
+                        refs = list(self._goto_attr_references(ref, seen, filter_unreachable))
                 for ref in refs:                    
                     attr_node = parent_node = self.get_parent(ref.node)
                     index = 0
@@ -1070,7 +1112,8 @@ class State(_MinimalState):
             if module:
                 diffnames = [module.name().split('.')[-1], *diffnames]
         
-    def goto_references(self, definition:Union[NameDef, ast.AST]) -> Iterator[Def]:
+    def goto_references(self, definition:Union[NameDef, ast.AST], 
+                        filter_unreachable:bool = False) -> Iterator[Def]:
         r"""
         Finds all ``Name`` and ``Attribute`` references pointing to the given definition.
 
@@ -1094,16 +1137,18 @@ class State(_MinimalState):
             definition = self.get_def(definition) # type:ignore
         if not isinstance(definition, NameDef):
             raise StaticTypeError(definition, expected='NameDef')
-        name_references = self._goto_references(definition, set())
+        name_references = self._goto_references(definition, set(), filter_unreachable)
         imports_references = []
         for ref in name_references:
             if isinstance(ref, Imp):
                 imports_references.append(ref)
             else:
                 yield ref
-        yield from self._goto_attr_references(definition, set())
+        if not definition.islive or (filter_unreachable and self.is_reachable(definition)):
+            return
+        yield from self._goto_attr_references(definition, set(), filter_unreachable)
         for imp in imports_references:
-            yield from self._goto_attr_references(imp, set())
+            yield from self._goto_attr_references(imp, set(), filter_unreachable)
 
     def get_defs_from_qualname(self, qualname:str) -> List[Def]:
         r"""

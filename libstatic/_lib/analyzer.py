@@ -40,7 +40,7 @@ class ChainDefUseOfImports(StmtVisitor):
                         continue
                     try:
                         defs = self._state.get_attribute(
-                            orgmodule, orgname
+                            orgmodule, orgname, filter_unreachable=False
                         )  # todo: handle ignore locals
                     except StaticException:
                         continue
@@ -79,8 +79,6 @@ class Analyzer:
                         chain.from_iterable(self._state.get_locals(mod).values())):
             # Mypy is not smart enought yet to narrow the type of 'd' to NameDef.
             name = cast(NameDef, d).name()
-            # we can't trust the islive flag here, because
-            # https://github.com/serge-sans-paille/beniget/pull/73
             if name in BuiltinsSrc:
                 self._builtins_dict[name] = cast(NameDef, d)
                 # If we have two (or more) definitions for this builtin name,

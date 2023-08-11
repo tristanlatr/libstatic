@@ -13,11 +13,12 @@ def get_unreachable(state: State, options: Options, mod: ast.Module) -> Set[ast.
     known_values: Dict[str, Any] = {}
     version = options.python_version
     if version:
-        assert isinstance(version, tuple)
-        assert len(version) >= 2
-        assert all(isinstance(p, int) for p in version[0:2])
+        assert isinstance(version, tuple), f'expected tuple[int, int], got {type(version).__name__}'
+        assert len(version) >= 2, f'expected tuple of at least 2 elements, got {len(version)} elements'
+        version = version[0:2]
+        assert all(isinstance(p, int) for p in version), f'expected tuple[int, int], got tuple[{",".join(type(p).__name__ for p in version)}]'
 
-        known_values["sys.version_info"] = version[0:2]
+        known_values["sys.version_info"] = version
         known_values["sys.version_info.major"] = version[0]
         known_values["sys.version_info.minor"] = version[1]
 

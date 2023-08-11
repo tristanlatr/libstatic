@@ -3,7 +3,7 @@ from unittest import TestCase
 from textwrap import dedent
 
 from libstatic.model import Project
-from libstatic.exceptions import StaticNameError
+from libstatic.exceptions import StaticNameError, NodeLocation
 
 class TestUseDefChains(TestCase):
     def test_simple(self):
@@ -58,6 +58,70 @@ class TestUseDefChains(TestCase):
         major_def = proj.state.goto_def(node.body[-1].value)
         assert isinstance(major_def.node, ast.Attribute)
         assert major_def.node.attr=='version_info'
+    
+    def test_goto_def_no_ambiguity(self):
+        code = '''
+        import sys
+        if sys.version_info > (3,11):
+            def f():...
+        else:
+            def f():...
+        f
+        '''
+        node = ast.parse(dedent(code))
+        proj = Project(python_version=(3,12), )
+        proj.add_module(node, 'mod1')
+        proj.analyze_project()
+        assert str(NodeLocation.make(proj.state.goto_def(node.body[-1].value, 
+                                   raise_on_ambiguity=True), 'mod1')) == 'ast.FunctionDef at mod1:4:4'
+    
+    def test_get_attribute_no_ambiguity(self):
+        code = '''
+        import sys
+        class c:
+            if sys.version_info > (3,11):
+                def f():...
+            else:
+                def f():...
+        c.f
+        '''
+        node = ast.parse(dedent(code))
+        proj = Project(python_version=(3,12), )
+        proj.add_module(node, 'mod1')
+        proj.analyze_project()
+        assert str(NodeLocation.make(proj.state.get_attribute(node.body[1], 'f')[-1], 'mod1')) == 'ast.FunctionDef at mod1:5:8'
+        assert str(NodeLocation.make(proj.state.goto_definition(node.body[-1].value, 
+                                   raise_on_ambiguity=True), 'mod1')) == 'ast.FunctionDef at mod1:5:8'
+
+    def test_get_attribute_overloads(self):
+        code = '''
+        import sys
+        from typing import overload
+        class c:
+            if sys.version_info > (3,11):
+                @overload
+                def f():...
+                @overload
+                def f():...
+            else:
+                @overload
+                def f():...
+                @overload
+                def f():...
+            
+            f
+        c.f
+        '''
+        node = ast.parse(dedent(code))
+        proj = Project(python_version=(3,12), )
+        proj.add_module(node, 'mod1')
+        proj.analyze_project()
+        assert str(NodeLocation.make(proj.state.goto_def(node.body[-2].body[-1].value, 
+                                   raise_on_ambiguity=True), 'mod1')) == 'ast.FunctionDef at mod1:9:8'
+        attrib, = proj.state.get_attribute(node.body[-2], 'f')
+        assert str(NodeLocation.make(attrib, 'mod1')) == 'ast.FunctionDef at mod1:9:8'
+        assert str(NodeLocation.make(proj.state.goto_definition(node.body[-1].value, 
+                                   raise_on_ambiguity=True), 'mod1')) == 'ast.FunctionDef at mod1:9:8'
 
     def test_annassign(self):
         typing = '''
