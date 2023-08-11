@@ -13,9 +13,10 @@ def get_unreachable(state: State, options: Options, mod: ast.Module) -> Set[ast.
     known_values: Dict[str, Any] = {}
     version = options.python_version
     if version:
-        assert isinstance(version, tuple)
-        assert len(version) >= 2
-        assert all(isinstance(p, int) for p in version)
+        assert isinstance(version, tuple), f'expected tuple[int, int], got {type(version).__name__}'
+        assert len(version) >= 2, f'expected tuple of at least 2 elements, got {len(version)} elements'
+        version = version[0:2]
+        assert all(isinstance(p, int) for p in version), f'expected tuple[int, int], got tuple[{",".join(type(p).__name__ for p in version)}]'
 
         known_values["sys.version_info"] = version
         known_values["sys.version_info.major"] = version[0]
@@ -48,7 +49,7 @@ class _Unreachable(LocalStmtVisitor):
             reachable = node.body if testval else node.orelse
             mark_unreachable = _MarkUnreachable(self._unreachable_nodes)
             for n in unreachable:
-                self._state.msg(f"is unreachable.", ctx=n, thresh=1)
+                self._state.msg(f"is unreachable.", ctx=n, thresh=2)
                 mark_unreachable.visit(n)
             for n in reachable:
                 self.generic_visit(n)
@@ -67,6 +68,10 @@ class _Unreachable(LocalStmtVisitor):
     def visit_Module(self, node: ast.Module) -> Set[ast.AST]:
         self.generic_visit(node)
         return self._unreachable_nodes
+    
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        for stmt in node.body:
+            self.visit(stmt)
 
 
 class _MarkUnreachable(ast.NodeVisitor):

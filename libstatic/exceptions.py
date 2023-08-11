@@ -8,6 +8,42 @@ if TYPE_CHECKING:
 
 from ._lib.shared import ast_node_name
 
+@attrs.s(auto_attribs=True, kw_only=True, str=False)
+class NodeLocation:
+    filename:'str|None' = None
+    nodecls:'str|None' = None
+    lineno:'int|None' = None
+    col_offset:'int|None' = None
+
+    @classmethod
+    def make(cls, thing:object, filename:'str|None'=None) -> 'NodeLocation':
+        node = getattr(thing, 'node', thing)
+        if not isinstance(node, ast.AST):
+            return NodeLocation(filename=filename)
+        lineno = getattr(node, "lineno", None)
+        col_offset = getattr(node, "col_offset", None)
+        nodecls = f'ast.{node.__class__.__name__}'
+        return NodeLocation(filename=filename, 
+                            nodecls=nodecls, 
+                            lineno=lineno, col_offset=col_offset)
+
+    def __str__(self):
+        if self.nodecls is None:
+            if self.filename:
+                return f"{self.filename}:?"
+            return '?'
+        lineno = self.lineno if self.lineno is not None else "?"
+        if self.col_offset:
+            if self.filename:
+                return f"{self.nodecls} at {self.filename}:{lineno}:{self.col_offset}"
+            else:
+                return f"{self.nodecls} at ?:{lineno}:{self.col_offset}"
+        else:
+            if self.filename:
+                return f"{self.nodecls} at {self.filename}:{lineno}"
+            else:
+                return f"{self.nodecls} at ?:{lineno}"
+            
 @attrs.s(auto_attribs=True)
 class StaticException(Exception, abc.ABC):
     """
@@ -19,23 +55,7 @@ class StaticException(Exception, abc.ABC):
     filename: Optional[str] = attrs.ib(kw_only=True, default=None)
 
     def location(self) -> str:
-        node = getattr(self.node, 'node', self.node)
-        if not isinstance(node, ast.AST):
-            if self.filename:
-                return f"{self.filename}:?"
-            return '?'
-        lineno = getattr(node, "lineno", "?")
-        col_offset = getattr(node, "col_offset", None)
-        if col_offset:
-            if self.filename:
-                return f"{self.filename}:{lineno}:{col_offset}"
-            else:
-                return f"?:{lineno}:{col_offset}"
-        else:
-            if self.filename:
-                return f"{self.filename}:{lineno}"
-            else:
-                return f"?:{lineno}"
+        return str(NodeLocation.make(self.node, self.filename))
 
     @abc.abstractmethod
     def msg(self) -> str:
@@ -80,7 +100,7 @@ class StaticTypeError(StaticException):
     desrc: None = attrs.ib(init=False, default=None)
 
     def msg(self) -> str:
-        return f"Expected {self.expected}, got: {type(self.node)}"
+        return f"Expected {self.expected}, got: {type(self.node).__name__}"
 
 
 class StaticImportError(StaticException):
@@ -119,7 +139,7 @@ class StaticCodeUnsupported(StaticException):
     """
 
     def msg(self) -> str:
-        return f"Unsupported {self.desrc}: {self.node}"
+        return f"Unsupported {self.desrc}"
 
 
 class StaticAmbiguity(StaticException):
@@ -129,7 +149,7 @@ class StaticAmbiguity(StaticException):
     node: ast.AST
 
     def msg(self) -> str:
-        return f"Ambiguous definition, {ast_node_name(self.node) or self.node}: {self.desrc}"
+        return f"Ambiguous definition: {self.desrc}"
 
 
 class StaticEvaluationError(StaticException):

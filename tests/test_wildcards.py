@@ -72,8 +72,9 @@ class TestWildcardParsing(TestCase):
         m3 = proj.add_module(ast.parse(dedent(mod3)), 'mod3')
         proj.analyze_project()
 
-        assert out.getvalue().replace('_ast', 'ast').startswith("mod1:4:16: Cannot evaluate tuple element at index 1: ?:2: Expected literal, got: <class 'ast.ClassDef'>\n"
-                                  "mod1:4:19: Cannot evaluate tuple element at index 2: mod1:4:19: Unsupported node type: <ast.Call object ")
+        assert out.getvalue().replace('_ast', 'ast') == ("mod1:4:16: Cannot evaluate tuple element at index 1: ast.ClassDef at ?:2: Expected literal, got: ClassDef\n"
+                                                         "mod1:4:19: Cannot evaluate tuple element at index 2: ast.Call at mod1:4:19: Unsupported node type\n")
+
 
         assert proj.state.get_all_names(m3)==('z', 'b',)
         assert proj.state.get_all_names(m2)==('b', )

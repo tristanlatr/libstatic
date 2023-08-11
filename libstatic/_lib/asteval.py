@@ -7,7 +7,6 @@ from typing import (
     Callable,
     List,
     Mapping,
-    Optional,
     Type,
     Union,
     overload,
@@ -16,7 +15,7 @@ from typing import (
 
 if TYPE_CHECKING:
     from typing import TypeAlias
-    from ..model import State, Def
+    from ..model import _MinimalState
 
 from .shared import node2dottedname
 from .assignment import get_stored_value
@@ -53,7 +52,7 @@ class _ASTEval:
     _MAX_JUMPS = int(sys.getrecursionlimit() / 1.5)
     # each visited ast node counts for one jump.
 
-    def __init__(self, state: 'State', raise_on_ambiguity: bool = False) -> None:
+    def __init__(self, state: '_MinimalState', raise_on_ambiguity: bool = False) -> None:
         self._state = state
         self._raise_on_ambiguity = raise_on_ambiguity
 
@@ -110,7 +109,8 @@ class _ASTEval:
             attribs = self._state.get_attribute(namespace, node.attr)
             if len(attribs) > 1 and self._raise_on_ambiguity:
                 raise StaticAmbiguity(
-                    node, f"{len(attribs)} potential definitions found"
+                    node, f"{len(attribs)} potential definitions found",
+                    filename=self._state.get_filename(node)
                 )
             return self.visit(attribs[-1].node, path)
         else:
@@ -120,10 +120,9 @@ class _ASTEval:
     def visit_Name_Load(self, node: ast.Name, path: List[ast.AST]) -> ASTOrLiteralValue:
         # TODO: integrate with reachability analysis
         # Use goto to compute the value of this symbol
-        name_defs = self._state.goto_defs(node)
-        if len(name_defs) > 1 and self._raise_on_ambiguity:
-            raise StaticAmbiguity(node, f"{len(name_defs)} potential definitions found")
-        return self.visit(name_defs[-1].node, path)
+        name_def = self._state.goto_def(node,
+                        raise_on_ambiguity=self._raise_on_ambiguity)
+        return self.visit(name_def.node, path)
 
     def visit_Name_Store(
         self, node: ast.Name, path: List[ast.AST]
@@ -145,7 +144,7 @@ class _ASTEval:
 class _GotoDefinition(_ASTEval):
     def __init__(
         self,
-        state: 'State',
+        state: '_MinimalState',
         raise_on_ambiguity: bool = False,
         follow_aliases: bool = False,
         follow_imports: bool = True,
@@ -167,10 +166,10 @@ class _GotoDefinition(_ASTEval):
     def visit_alias(
         self: _ASTEval, node: ast.alias, path: List[ast.AST]
     ) -> ASTOrLiteralValue:
-        name_defs = self._state.goto_defs(node)
-        if len(name_defs) > 1 and self._raise_on_ambiguity:
-            raise StaticAmbiguity(node, f"{len(name_defs)} potential definitions found")
-        return self.visit(name_defs[0].node, path)
+        name_def = self._state.goto_def(node, 
+                    raise_on_ambiguity=self._raise_on_ambiguity)
+        
+        return self.visit(name_def.node, path)
 
     def visit_alias_DontFollowImports(
         self, node: ast.alias, path: List[ast.AST]
@@ -322,7 +321,7 @@ def ensure_literal(o: ASTOrLiteralValue) -> LiteralValue:
 class _LiteralEval(_ASTEval):
     def __init__(
         self,
-        state: 'State',
+        state: '_MinimalState',
         *,
         known_values: Mapping[str, LiteralValue],
         raise_on_ambiguity: bool = False,

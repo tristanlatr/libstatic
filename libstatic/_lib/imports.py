@@ -1,8 +1,14 @@
 import ast
+import sys
 from typing import Any, Dict, Mapping, Optional, Tuple, NamedTuple, Union
 
 
 class ImportInfo(NamedTuple):
+    """
+    Complement an `ast.alias` node with resolved origin module and name.
+
+    :note: `orgname` will be ``*`` for wildcard imports.
+    """
     orgmodule: str
     orgname: Optional[str] = None
 
@@ -24,6 +30,11 @@ class ImportParser(ast.NodeVisitor):
         raise TypeError()
 
     def visit(self, node: ast.AST) -> Mapping[ast.alias, ImportInfo]:
+        """
+        Parse this import node into a mapping of aliases to `ImportInfo`.
+
+        :raises ValueError: If it runs into a relative import with a non-sensical level.
+        """
         return super().visit(node)  # type: ignore
 
     def visit_Import(self, node: ast.Import) -> Mapping[ast.alias, ImportInfo]:
@@ -76,7 +87,7 @@ class ImportParser(ast.NodeVisitor):
 
 class ParseImportedNames(ast.NodeVisitor):
     """
-    Maps each `ast.alias` to their `ImportInfo` counterpart.
+    Maps each `ast.alias` in the module to their `ImportInfo` counterpart.
     """
 
     def __init__(self, modname: str, *, is_package: bool) -> None:
@@ -99,7 +110,16 @@ class ParseImportedNames(ast.NodeVisitor):
             imports = self._import_parser.visit(node)
         except ValueError:
             return
-        for al, info in imports.items():
-            self._result[al] = info
+        self._result.update(imports)
+
+    # if sys.version_info < (3,10):
+    #     # This seems to be the most resonable place to fix the ast.alias node not having
+    #     # proper line number information on python3.9 and before.
+
+    #     visit_Import_base = visit_Import
+    #     def visit_Import(self, node: Union[ast.Import, ast.ImportFrom]) -> None:
+    #         self.visit_Import_base(node)
+    #         for al in node.names:
+    #             ast.copy_location(al, node)
 
     visit_ImportFrom = visit_Import
