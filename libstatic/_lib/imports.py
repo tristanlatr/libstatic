@@ -1,4 +1,5 @@
 import ast
+import sys
 from typing import Any, Dict, Mapping, Optional, Tuple, NamedTuple, Union
 
 
@@ -110,5 +111,15 @@ class ParseImportedNames(ast.NodeVisitor):
         except ValueError:
             return
         self._result.update(imports)
+
+    if sys.version_info < (3,10):
+        # This seems to be the most resonable place to fix the ast.alias node not having
+        # proper line number information on python3.9 and before.
+
+        visit_Import_base = visit_Import
+        def visit_Import(self, node: Union[ast.Import, ast.ImportFrom]) -> None:
+            visit_Import_base(self, node)
+            for al in node.names:
+                ast.copy_location(al, node)
 
     visit_ImportFrom = visit_Import
