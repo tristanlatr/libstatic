@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Optional
 if TYPE_CHECKING:
     from .model import Scope
 
-from ._lib.shared import ast_node_name
+from .shared import ast_node_name
 
 @attrs.s(auto_attribs=True, kw_only=True, str=False)
 class NodeLocation:
@@ -17,6 +17,9 @@ class NodeLocation:
 
     @classmethod
     def make(cls, thing:object, filename:'str|None'=None) -> 'NodeLocation':
+        """
+        :param thing: A definition or an ast node.
+        """
         node = getattr(thing, 'node', thing)
         if not isinstance(node, ast.AST):
             return NodeLocation(filename=filename)
@@ -54,8 +57,8 @@ class StaticException(Exception, abc.ABC):
     desrc: Optional[str] = None
     filename: Optional[str] = attrs.ib(kw_only=True, default=None)
 
-    def location(self) -> str:
-        return str(NodeLocation.make(self.node, self.filename))
+    def location(self) -> NodeLocation:
+        return NodeLocation.make(self.node, self.filename)
 
     @abc.abstractmethod
     def msg(self) -> str:
@@ -72,11 +75,7 @@ class StaticNameError(StaticException):
     desrc: None = attrs.ib(init=False, default=None)
     def msg(self) -> str:
         name = ast_node_name(self.node)
-        if name:
-            return f"Unbound name {name!r}"
-        else:
-            return f"Unbound node {self.node}"
-
+        return f"Unbound name {name!r}"
 
 @attrs.s
 class StaticAttributeError(StaticException):

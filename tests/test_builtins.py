@@ -3,12 +3,11 @@ import sys
 from unittest import TestCase
 from textwrap import dedent
 
-from libstatic.model import Project, Def, _load_typeshed_mod_spec
-from libstatic.exceptions import StaticNameError
+from libstatic._analyzer.state import _load_typeshed_mod_spec
 from libstatic._lib.chains import defuse_chains_and_locals
+from libstatic import Project, Def
 
-def location(node:ast.AST, filename:str) -> str:
-    return StaticNameError(node, filename=filename).location()
+from . import location
 
 class TestBuiltins(TestCase):
     def test_real_builtins_module(self, ):
@@ -39,7 +38,7 @@ class TestBuiltins(TestCase):
         assert bchains['property'].islive
 
     def test_builtin_name_chains_real_builtins(self):
-        path,mod,_ = _load_typeshed_mod_spec('builtins', None)
+        path, mod, _ = _load_typeshed_mod_spec('builtins', None)
         chains, locals, bchains, = defuse_chains_and_locals(mod, 
                                     'builtins', 'buitlins', False)
         property_def = next(iter(locals[mod]['property']))

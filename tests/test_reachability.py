@@ -2,7 +2,7 @@ import ast
 from unittest import TestCase
 from textwrap import dedent
 
-from libstatic.model import Project
+from libstatic import Project
 
 class TestUnreachable(TestCase):
     def test_simple_version_info_variable(self):

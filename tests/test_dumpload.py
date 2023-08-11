@@ -3,7 +3,7 @@ import ast
 from unittest import TestCase
 from textwrap import dedent
 
-from libstatic.model import Project, State
+from libstatic import Project, State
 
 # class TestDumpProject(TestCase):
 #     def test_dump_load(self):

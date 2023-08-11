@@ -15,11 +15,11 @@ from typing import (
 
 if TYPE_CHECKING:
     from typing import TypeAlias
-    from ..model import _MinimalState
+    from .state import _MinimalState
 
-from .shared import node2dottedname
-from .assignment import get_stored_value
-from ..exceptions import (
+from .._lib.shared import node2dottedname
+from .._lib.assignment import get_stored_value
+from .._lib.exceptions import (
     StaticValueError,
     StaticCodeUnsupported,
     StaticException,

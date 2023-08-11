@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from libstatic.model import Project
+from libstatic import Project
 
 class TestTypeshedLoading(TestCase):
     

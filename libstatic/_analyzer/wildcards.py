@@ -1,5 +1,5 @@
 """
-Technically, this is part of the `analyzer`.
+Technically, this is part of the analyzer.
 """
 
 import ast
@@ -9,11 +9,13 @@ from typing import Any, Dict, Mapping, Optional, Collection, TYPE_CHECKING, Unio
 if TYPE_CHECKING:
     from typing import TypeGuard
 
-from ..process import Processor
-from ..model import MutableState, Def, State, Mod, Imp, Var
-from .assignment import get_stored_value
-from ..exceptions import StaticException
-from .shared import LocalStmtVisitor
+from .._lib.process import TopologicalProcessor
+from .._lib.model import  Def, Mod, Imp, Var
+from .._lib.exceptions import StaticException
+from .._lib.assignment import get_stored_value
+from .._lib.shared import LocalStmtVisitor
+
+from .state import MutableState, State
 
 class _VisitDunderAllAssignment(ast.NodeVisitor):
     """
@@ -28,7 +30,7 @@ class _VisitDunderAllAssignment(ast.NodeVisitor):
     """
 
     def __init__(
-        self, state: State, builder: Processor[Mod, Optional["Collection[str]"]]
+        self, state: State, builder: TopologicalProcessor[Mod, Optional["Collection[str]"]]
     ) -> None:
         self._state = state
         self._builder = builder
@@ -50,7 +52,7 @@ class _VisitDunderAllAssignment(ast.NodeVisitor):
 
 class _VisitWildcardImports(LocalStmtVisitor):
     def __init__(
-        self, state: State, builder: Processor[Mod, Optional["Collection[str]"]]
+        self, state: State, builder: TopologicalProcessor[Mod, Optional["Collection[str]"]]
     ) -> None:
         self._state = state
         self._builder = builder
@@ -92,7 +94,7 @@ class _ComputeWildcards:
     def __init__(
         self, 
         state: MutableState, 
-        builder: Processor[Mod, "Collection[str] | None"]
+        builder: TopologicalProcessor[Mod, "Collection[str] | None"]
     ) -> None:
         self._state = state
         self._builder = builder
@@ -222,7 +224,7 @@ def compute_wildcards(state: MutableState) -> Mapping[Mod, "Collection[str] | No
     to the collection of names they are actually importing.
     """
 
-    class WildcardsProcessor(Processor[Mod, Optional[Collection[str]]]):
+    class WildcardsProcessor(TopologicalProcessor[Mod, Optional[Collection[str]]]):
         def getModule(self, name: str) -> Optional[Mod]:
             return state.get_module(name)
 

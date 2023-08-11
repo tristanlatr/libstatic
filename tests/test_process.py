@@ -2,14 +2,13 @@ import ast
 from typing import Optional
 from unittest import TestCase
 
-from libstatic.model import Project, State
-from libstatic.process import Processor, _ProcessingState
+from libstatic import Project, State, TopologicalProcessor
 from libstatic._lib.imports import ParseImportedNames
 from libstatic._lib.ancestors import Ancestors
 
 class Cycle(Exception):...
 
-class ImportProcessor(Processor[ast.Module, ast.Module]):
+class ImportProcessor(TopologicalProcessor[ast.Module, ast.Module]):
 
     def __init__(self, state:State) -> None:
         super().__init__()
@@ -35,7 +34,8 @@ class ImportProcessor(Processor[ast.Module, ast.Module]):
             if any(isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) for node in ancestors.parents[al]):
                 pass
             else:
-                if self.state[self.getProcessedModule(imp.orgmodule)] is _ProcessingState.PROCESSING:
+                if self.processing_state[
+                    self.getProcessedModule(imp.orgmodule)] is TopologicalProcessor.PROCESSING:
                     raise Cycle(f'{modname} <-> {imp.orgmodule}')
         return astmod
 

@@ -4,7 +4,7 @@ import ast
 from unittest import TestCase
 from textwrap import dedent
 
-from libstatic.model import Project
+from libstatic import Project
 
 class TestWildcardParsing(TestCase):
     def test_simple(self):

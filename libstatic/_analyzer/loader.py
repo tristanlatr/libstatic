@@ -1,14 +1,16 @@
 """
 Load a project form a python package/module path in the filesystem.
 """
+from __future__ import annotations
+
 from functools import partial
 from pathlib import Path
 import ast
 import sys
-from typing import Set, Tuple
+from typing import Set, Tuple, TYPE_CHECKING
 
-
-from libstatic.model import Project
+if TYPE_CHECKING:
+    from .state import Project
 
 def _parse_file(path: Path) -> ast.Module:
     """Parse the contents of a Python source file."""
@@ -49,10 +51,11 @@ def load_path(project:Project, path:Path) -> None:
     """
     Load a project form a python package/module path in the filesystem.
     Project.analyze_project() must still be called after loading a path into the project.
-
+    
+    >>> from libstatic import Project
     >>> p = Project()
     >>> load_path(p, Path('./libstatic'))
-    >>> p.analyze_project()
-    ... ...
+    >>> # then call p.analyze_project()
+
     """
     _load_path(project, path, set(), ())

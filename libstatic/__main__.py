@@ -5,12 +5,12 @@ import argparse
 import time
 from typing import Optional
 
-from .model import Project
-from .loader import load_path
-from .exceptions import StaticNameError
+from . import Project
+from ._analyzer.loader import load_path
+from ._lib.exceptions import NodeLocation
 
-def location(node:ast.AST, filename:Optional[str]) -> str:
-    return StaticNameError(node, filename=filename).location()
+def location(node:ast.AST, filename:'str|None') -> str:
+    return str(NodeLocation.make(node, filename=filename))
 
 def main() -> None:
     parser = argparse.ArgumentParser(description='Playground frontend for the library.',

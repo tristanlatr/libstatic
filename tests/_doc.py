@@ -1,13 +1,11 @@
 import doctest
 import unittest
 import os
-from importlib import import_module
-
-import libstatic.model
+import libstatic
 
 class TestDoctest(unittest.TestCase):
     def test_lib_doctests(self):
-        failed, _ = doctest.testmod(libstatic.model, optionflags=doctest.ELLIPSIS|doctest.IGNORE_EXCEPTION_DETAIL)
+        failed, _ = doctest.testmod(libstatic, optionflags=doctest.ELLIPSIS|doctest.IGNORE_EXCEPTION_DETAIL)
         self.assertEqual(failed, 0)
 
     def test_readme(self):
