@@ -3,7 +3,6 @@ This module contains the def-use models, use to represent the code as well as pr
 """
 
 import ast
-from dataclasses import dataclass
 from itertools import chain
 import sys
 import time
@@ -29,7 +28,7 @@ from typing import (
     cast,
     overload,
 )
-
+import attr as attrs
 from beniget.beniget import ordered_set  # type: ignore
 from typeshed_client import get_stub_file, get_search_context
 from typeshed_client.finder import parse_stub_file
@@ -1344,7 +1343,7 @@ class MutableState(State):
     #                        is_package=mod_spec['is_package'])
 
 
-@dataclass(frozen=True, kw_only=True)
+@attrs.s(auto_attribs=True, frozen=True, kw_only=True)
 class Options:
     builtins: bool = False
     dependencies: 'bool|int' = False
