@@ -529,7 +529,7 @@ class State(_MinimalState):
         if len(live_defs)==0:
             # probably a bug in beniget again
             if __debug__:
-                msg = f'all {len(defs)} definitions of {" and ".join(sorted(set(d.name() for d in defs)))} are killed :/'
+                msg = f'all {len(defs)} definitions of {" and ".join(sorted(set(repr(d.name()) for d in defs)))} are killed :/'
                 for d in defs:
                     msg += (f'\n - {NodeLocation.make(d, self.get_filename(d))} is killed')
                 raise RuntimeError(msg)
@@ -538,7 +538,7 @@ class State(_MinimalState):
         return live_defs
 
     def _softfilter_unreachable_defs(self, defs:Sequence[Def]) -> Sequence[Def]:
-        reachable_defs = list(filter(self.is_reachable, defs))
+        reachable_defs:Sequence[Def] = list(filter(self.is_reachable, defs))
         if len(reachable_defs)==0:
             # this can happen when there is no declaration of the name we're looking for
             # in a specific python version or we're calling goto_def() with a use
@@ -590,9 +590,10 @@ class State(_MinimalState):
                 return []
             raise StaticTypeError(node, expected='Module or Class')
         if not ignore_locals:
-            values = [v for v in self.get_local(node, name) if v]
-            values = self._softfilter_defs(values, unreachable=filter_unreachable, 
-                                            killed=True)
+            values: Sequence[NameDef] = [v for v in self.get_local(node, name) if v]
+            values = self._softfilter_defs(values, # type:ignore
+                                           unreachable=filter_unreachable, 
+                                           killed=True)
         else:
             values = []
         if not values and isinstance(node, Mod) and node.is_package:
