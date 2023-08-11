@@ -514,6 +514,36 @@
             </div>
         
 
+    </li><li class="private">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic.model.State.html#_softfilter_defs" class="internal-link" title="libstatic.model.State._softfilter_defs">_softfilter<wbr></wbr>_defs</a></code>
+            </div>
+        
+
+    </li><li class="private">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic.model.State.html#_softfilter_killed_defs" class="internal-link" title="libstatic.model.State._softfilter_killed_defs">_softfilter<wbr></wbr>_killed<wbr></wbr>_defs</a></code>
+            </div>
+        
+
+    </li><li class="private">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic.model.State.html#_softfilter_unreachable_defs" class="internal-link" title="libstatic.model.State._softfilter_unreachable_defs">_softfilter<wbr></wbr>_unreachable<wbr></wbr>_defs</a></code>
+            </div>
+        
+
     </li>
 </ul> 
 
@@ -802,6 +832,16 @@
         
 
         
+            <div class="itemName"><code><a href="libstatic.model._MinimalState.html" class="internal-link" title="libstatic.model._MinimalState">_<wbr></wbr>Minimal<wbr></wbr>State</a></code>
+            </div>
+        
+
+    </li><li class="private">
+        
+        
+        
+
+        
             <div class="itemName"><code><a href="libstatic.model._Msg.html" class="internal-link" title="libstatic.model._Msg">_<wbr></wbr>Msg</a></code>
             </div>
         
@@ -942,7 +982,7 @@
         </div>
 
         <div class="extrasDocstring">
-          <p class="class-signature"><code><span class="py-keyword">class</span> <span class="py-defname">MutableState</span>(<a href="libstatic.model.State.html" class="internal-link" title="libstatic.model.State">State</a>): <a href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L1100" class="sourceLink">(source)</a></code></p><p>Constructor: <code><a href="libstatic.model.State.html#__init__" class="internal-link" title="libstatic.model.State.__init__">MutableState(msg)</a></code></p>
+          <p class="class-signature"><code><span class="py-keyword">class</span> <span class="py-defname">MutableState</span>(<a href="libstatic.model.State.html" class="internal-link" title="libstatic.model.State">State</a>): <a href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L1225" class="sourceLink">(source)</a></code></p><p>Constructor: <code><a href="libstatic.model.State.html#__init__" class="internal-link" title="libstatic.model.State.__init__">MutableState(msg)</a></code></p>
           <p><a href="classIndex.html#libstatic.model.MutableState">View In Hierarchy</a></p>
         </div>
 
@@ -955,7 +995,7 @@ data structure.</p>
         </div>
 
         <div id="splitTables">
-          <table class="children sortable" id="id95">
+          <table class="children sortable" id="id97">
   
   
   <tr class="method">
@@ -1014,7 +1054,7 @@ data structure.</p>
             <p class="inheritedFrom">
               Inherited from <code><a href="libstatic.model.State.html" class="internal-link" title="libstatic.model.State">State</a></code>:
             </p>
-            <table class="children sortable" id="id96">
+            <table class="children sortable" id="id98">
   
   
   <tr class="basemethod">
@@ -1131,7 +1171,7 @@ data structure.</p>
     
     <td>Method</td>
     <td><code><a href="libstatic.model.State.html#goto_def" class="internal-link" title="libstatic.model.State.goto_def">goto<wbr></wbr>_def</a></code></td>
-    <td>Use-Def chains accessor that returns only one L{Def}, or raise <code><a href="libstatic.exceptions.StaticException.html" class="internal-link" title="libstatic.exceptions.StaticException">StaticException</a></code>. It returns the last def in the list. It does not ensure that the list is only composed by one element.</td>
+    <td>Use-Def chains accessor that returns only one L{Def}, or raise <code><a href="libstatic.exceptions.StaticException.html" class="internal-link" title="libstatic.exceptions.StaticException">StaticException</a></code>. It returns the last reachable def in the list. It does not ensure that the list is only composed by one element.</td>
   </tr><tr class="basemethod">
     
     <td>Method</td>
@@ -1186,6 +1226,21 @@ data structure.</p>
     
     <td>Method</td>
     <td><code><a href="libstatic.model.State.html#_raise_node_not_in_chains" class="internal-link" title="libstatic.model.State._raise_node_not_in_chains">_raise<wbr></wbr>_node<wbr></wbr>_not<wbr></wbr>_in<wbr></wbr>_chains</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="basemethod private">
+    
+    <td>Method</td>
+    <td><code><a href="libstatic.model.State.html#_softfilter_defs" class="internal-link" title="libstatic.model.State._softfilter_defs">_softfilter<wbr></wbr>_defs</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="basemethod private">
+    
+    <td>Method</td>
+    <td><code><a href="libstatic.model.State.html#_softfilter_killed_defs" class="internal-link" title="libstatic.model.State._softfilter_killed_defs">_softfilter<wbr></wbr>_killed<wbr></wbr>_defs</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="basemethod private">
+    
+    <td>Method</td>
+    <td><code><a href="libstatic.model.State.html#_softfilter_unreachable_defs" class="internal-link" title="libstatic.model.State._softfilter_unreachable_defs">_softfilter<wbr></wbr>_unreachable<wbr></wbr>_defs</a></code></td>
     <td><span class="undocumented">Undocumented</span></td>
   </tr><tr class="baseinstancevariable private">
     
@@ -1243,7 +1298,7 @@ data structure.</p>
     
     
     <span class="py-keyword">def</span> <span class="py-defname">add_definition</span><span class="function-signature">(self, definition: <code><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a></code>)</span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L1154">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L1280">
       
       (source)
     </a>
@@ -1270,7 +1325,7 @@ data structure.</p>
     
     
     <span class="py-keyword">def</span> <span class="py-defname">add_module</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.Module" class="intersphinx-link">ast.Module</a></code>, name: <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code>, *, is_package: <code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code>, filename: <code><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>]</code> = <a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a>) -&gt; <code><a href="libstatic.model.Mod.html" class="internal-link" title="libstatic.model.Mod">Mod</a></code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L1129">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L1255">
       
       (source)
     </a>
@@ -1299,7 +1354,7 @@ This will slightly transform the AST... see <code><a href="libstatic._lib.transf
     
     
     <span class="py-keyword">def</span> <span class="py-defname">add_typeshed_module</span><span class="function-signature">(self, modname: <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code>) -&gt; <code><a href="libstatic.model.Mod.html" class="internal-link" title="libstatic.model.Mod">Mod</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L1111">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L1236">
       
       (source)
     </a>
@@ -1326,7 +1381,7 @@ This will slightly transform the AST... see <code><a href="libstatic._lib.transf
     
     
     <span class="py-keyword">def</span> <span class="py-defname">add_user</span><span class="function-signature">(self, definition: <code><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a></code>, use: <code><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a></code>)</span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L1160">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L1286">
       
       (source)
     </a>
@@ -1353,7 +1408,7 @@ This will slightly transform the AST... see <code><a href="libstatic._lib.transf
     
     
     <span class="py-keyword">def</span> <span class="py-defname">adopt_expression</span><span class="function-signature">(self, expr: <code>ast.expr</code>, ctx: <code><a href="libstatic.model.Scope.html" class="internal-link" title="libstatic.model.Scope">Scope</a></code>)</span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L1193">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L1320">
       
       (source)
     </a>
@@ -1387,7 +1442,7 @@ not supported: the expression should be pure.</p>
     
     
     <span class="py-keyword">def</span> <span class="py-defname">remove_definition</span><span class="function-signature">(self, definition: <code><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a></code>)</span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L1168">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L1295">
       
       (source)
     </a>
@@ -1414,7 +1469,7 @@ not supported: the expression should be pure.</p>
     
     
     <span class="py-keyword">def</span> <span class="py-defname">remove_user</span><span class="function-signature">(self, definition: <code><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a></code>, use: <code><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a></code>)</span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L1164">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L1290">
       
       (source)
     </a>
@@ -1440,8 +1495,8 @@ not supported: the expression should be pure.</p>
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">store_anaysis</span><span class="function-signature">(self, *, defuse: <code><a href="https://docs.python.org/3/library/typing.html#typing.Dict" class="intersphinx-link">Dict</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>, <wbr></wbr><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a>]|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code> = <a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a>, locals: <code><a href="https://docs.python.org/3/library/typing.html#typing.Dict" class="intersphinx-link">Dict</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>, <wbr></wbr><a href="https://docs.python.org/3/library/typing.html#typing.Dict" class="intersphinx-link">Dict</a>[<wbr></wbr><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>, <wbr></wbr><a href="https://docs.python.org/3/library/typing.html#typing.List" class="intersphinx-link">List</a>[<wbr></wbr><a href="libstatic.model.NameDef.html" class="internal-link" title="libstatic.model.NameDef">NameDef</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a>]]]|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code> = <a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a>, ancestors: <code><a href="https://docs.python.org/3/library/typing.html#typing.Dict" class="intersphinx-link">Dict</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>, <wbr></wbr><a href="https://docs.python.org/3/library/typing.html#typing.List" class="intersphinx-link">List</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]]|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code> = <a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a>, usedef: <code><a href="https://docs.python.org/3/library/typing.html#typing.Dict" class="intersphinx-link">Dict</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>, <wbr></wbr><a href="https://docs.python.org/3/library/typing.html#typing.List" class="intersphinx-link">List</a>[<wbr></wbr><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a>]]|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code> = <a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a>, unreachable: <code><a href="https://docs.python.org/3/library/typing.html#typing.Set" class="intersphinx-link">Set</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code> = <a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a>)</span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L1176">
+    <span class="py-keyword">def</span> <span class="py-defname">store_anaysis</span><span class="function-signature">(self, *, defuse: <code><a href="https://docs.python.org/3/library/typing.html#typing.Mapping" class="intersphinx-link">Mapping</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>, <wbr></wbr><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a>]|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code> = <a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a>, locals: <code><a href="https://docs.python.org/3/library/typing.html#typing.Mapping" class="intersphinx-link">Mapping</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>, <wbr></wbr><a href="https://docs.python.org/3/library/typing.html#typing.Mapping" class="intersphinx-link">Mapping</a>[<wbr></wbr><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>, <wbr></wbr><a href="https://docs.python.org/3/library/typing.html#typing.Sequence" class="intersphinx-link">Sequence</a>[<wbr></wbr><a href="libstatic.model.NameDef.html" class="internal-link" title="libstatic.model.NameDef">NameDef</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a>]]]|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code> = <a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a>, ancestors: <code><a href="https://docs.python.org/3/library/typing.html#typing.Mapping" class="intersphinx-link">Mapping</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>, <wbr></wbr><a href="https://docs.python.org/3/library/typing.html#typing.Sequence" class="intersphinx-link">Sequence</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]]|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code> = <a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a>, usedef: <code><a href="https://docs.python.org/3/library/typing.html#typing.Mapping" class="intersphinx-link">Mapping</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>, <wbr></wbr><a href="https://docs.python.org/3/library/typing.html#typing.Sequence" class="intersphinx-link">Sequence</a>[<wbr></wbr><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a>]]|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code> = <a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a>, unreachable: <code><a href="https://docs.python.org/3/library/typing.html#typing.Set" class="intersphinx-link">Set</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code> = <a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a>)</span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L1303">
       
       (source)
     </a>
@@ -1467,7 +1522,7 @@ not supported: the expression should be pure.</p>
   <div class="functionHeader">
     
     <span class="py-defname">search_context</span> =
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L1108">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L1233">
       
       (source)
     </a>
@@ -1495,7 +1550,7 @@ not supported: the expression should be pure.</p>
     
     
     <span class="py-keyword">def</span> <span class="py-defname">_add_usedef</span><span class="function-signature">(self, use: <code><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a></code>, definition: <code><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a></code>)</span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L1151">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L1277">
       
       (source)
     </a>
@@ -1522,7 +1577,7 @@ not supported: the expression should be pure.</p>
     <div class="container">
       <a href="index.html">API Documentation</a> for <a href="https://github.com/tristanlatr/libstatic" class="projecthome">libstatic</a>,
     generated by <a href="https://github.com/twisted/pydoctor/">pydoctor</a>
-      23.4.1 at 2023-08-02 01:10:37.
+      23.4.1 at 2023-08-11 14:33:18.
     </div>
     
     <script src="ajax.js" type="text/javascript"></script>

@@ -6,7 +6,7 @@
 
   <head>
     
-    <title>libstatic.exceptions.StaticAmbiguity</title>
+    <title>libstatic.exceptions.NodeLocation</title>
     <meta name="generator" content="pydoctor 23.4.1"> 
         
     </meta>
@@ -72,8 +72,8 @@
   <div>
 
       <div class="thingTitle">
-        <span>Exception</span>
-        <code class="thisobject"><a href="libstatic.exceptions.StaticAmbiguity.html" class="internal-link" title="This exception"><wbr></wbr>Static<wbr></wbr>Ambiguity</a></code> 
+        <span>Class</span>
+        <code class="thisobject"><a href="libstatic.exceptions.NodeLocation.html" class="internal-link" title="This class"><wbr></wbr>Node<wbr></wbr>Location</a></code> 
       </div>
       
       <div>
@@ -94,23 +94,7 @@
         
 
         
-            <div class="itemName"><code><a href="#msg" class="internal-link" title="libstatic.exceptions.StaticAmbiguity.msg">msg</a></code>
-            </div>
-        
-
-    </li>
-</ul> 
-
-        <div class="childrenKindTitle">Inherited Methods</div>
-        <ul>
-    
-    <li class="">
-        
-        
-        
-
-        
-            <div class="itemName"><code><a href="libstatic.exceptions.StaticException.html#__str__" class="internal-link" title="libstatic.exceptions.StaticException.__str__">__str__</a></code>
+            <div class="itemName"><code><a href="#make" class="internal-link" title="libstatic.exceptions.NodeLocation.make">make</a></code>
             </div>
         
 
@@ -120,12 +104,15 @@
         
 
         
-            <div class="itemName"><code><a href="libstatic.exceptions.StaticException.html#location" class="internal-link" title="libstatic.exceptions.StaticException.location">location</a></code>
+            <div class="itemName"><code><a href="#__str__" class="internal-link" title="libstatic.exceptions.NodeLocation.__str__">__str__</a></code>
             </div>
         
 
     </li>
 </ul> 
+
+        
+         
 
         <div class="childrenKindTitle">Attributes</div>
         <ul>
@@ -136,23 +123,7 @@
         
 
         
-            <div class="itemName"><code><a href="#node" class="internal-link" title="libstatic.exceptions.StaticAmbiguity.node">node</a></code>
-            </div>
-        
-
-    </li>
-</ul> 
-
-        <div class="childrenKindTitle">Inherited Attributes</div>
-        <ul>
-    
-    <li class="">
-        
-        
-        
-
-        
-            <div class="itemName"><code><a href="libstatic.exceptions.StaticException.html#desrc" class="internal-link" title="libstatic.exceptions.StaticException.desrc">desrc</a></code>
+            <div class="itemName"><code><a href="#col_offset" class="internal-link" title="libstatic.exceptions.NodeLocation.col_offset">col<wbr></wbr>_offset</a></code>
             </div>
         
 
@@ -162,19 +133,42 @@
         
 
         
-            <div class="itemName"><code><a href="libstatic.exceptions.StaticException.html#filename" class="internal-link" title="libstatic.exceptions.StaticException.filename">filename</a></code>
+            <div class="itemName"><code><a href="#filename" class="internal-link" title="libstatic.exceptions.NodeLocation.filename">filename</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#lineno" class="internal-link" title="libstatic.exceptions.NodeLocation.lineno">lineno</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#nodecls" class="internal-link" title="libstatic.exceptions.NodeLocation.nodecls">nodecls</a></code>
             </div>
         
 
     </li>
 </ul> 
+
+        
+         
         
       </div>
   </div><div>
 
       <div class="thingTitle">
         <span>Module</span>
-        <code><a href="libstatic.exceptions.html" class="internal-link" title="The parent of this exception">exceptions</a></code> 
+        <code><a href="libstatic.exceptions.html" class="internal-link" title="The parent of this class">exceptions</a></code> 
       </div>
       
       <div>
@@ -186,7 +180,7 @@
         <div class="childrenKindTitle">Classes</div>
         <ul>
     
-    <li class="">
+    <li class=" thisobject">
         
         
         
@@ -196,7 +190,7 @@
             </div>
         
 
-    </li><li class=" thisobject">
+    </li><li class="">
         
         
         
@@ -405,127 +399,226 @@
         </div>
 
         <div class="page-header">
-          <h1 class="exception"><code><code><a href="index.html" class="internal-link">libstatic</a></code><wbr></wbr>.<code><a href="libstatic.exceptions.html" class="internal-link" title="libstatic.exceptions">exceptions</a></code><wbr></wbr>.<code><a href="libstatic.exceptions.StaticAmbiguity.html" class="internal-link" title="libstatic.exceptions.StaticAmbiguity">StaticAmbiguity</a></code></code></h1>
+          <h1 class="class"><code><code><a href="index.html" class="internal-link">libstatic</a></code><wbr></wbr>.<code><a href="libstatic.exceptions.html" class="internal-link" title="libstatic.exceptions">exceptions</a></code><wbr></wbr>.<code><a href="libstatic.exceptions.NodeLocation.html" class="internal-link" title="libstatic.exceptions.NodeLocation">NodeLocation</a></code></code></h1>
           <div id="showPrivate">
             <button class="btn btn-link" onclick="togglePrivate()">Toggle Private API</button>
           </div>
         </div>
 
         <div class="categoryHeader">
-          exception documentation
+          class documentation
         </div>
 
         <div class="extrasDocstring">
-          <p class="class-signature"><code><span class="py-keyword">class</span> <span class="py-defname">StaticAmbiguity</span>(<a href="libstatic.exceptions.StaticException.html" class="internal-link" title="libstatic.exceptions.StaticException">StaticException</a>): <a href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/exceptions.py#L145" class="sourceLink">(source)</a></code></p>
-          <p><a href="classIndex.html#libstatic.exceptions.StaticAmbiguity">View In Hierarchy</a></p>
+          <p class="class-signature"><code><span class="py-keyword">class</span> <span class="py-defname">NodeLocation</span>: <a href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/exceptions.py#L11" class="sourceLink">(source)</a></code></p><p>Constructor: <code><a href="#make" class="internal-link" title="libstatic.exceptions.NodeLocation.make">NodeLocation.make(thing, filename)</a></code></p>
+          <p><a href="classIndex.html#libstatic.exceptions.NodeLocation">View In Hierarchy</a></p>
         </div>
 
         <div class="moduleDocstring">
-          <div><p>Definition is ambiguous.</p></div>
+          <div><p class="undocumented">Undocumented</p></div>
         </div>
 
         <div id="splitTables">
-          <table class="children sortable" id="id56">
+          <table class="children sortable" id="id40">
   
   
-  <tr class="method">
+  <tr class="classmethod">
+    
+    <td>Class Method</td>
+    <td><code><a href="#make" class="internal-link" title="libstatic.exceptions.NodeLocation.make">make</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="method">
     
     <td>Method</td>
-    <td><code><a href="#msg" class="internal-link" title="libstatic.exceptions.StaticAmbiguity.msg">msg</a></code></td>
+    <td><code><a href="#__str__" class="internal-link" title="libstatic.exceptions.NodeLocation.__str__">__str__</a></code></td>
     <td><span class="undocumented">Undocumented</span></td>
-  </tr><tr class="classvariable">
+  </tr><tr class="instancevariable">
     
-    <td>Class Variable</td>
-    <td><code><a href="#node" class="internal-link" title="libstatic.exceptions.StaticAmbiguity.node">node</a></code></td>
+    <td>Instance Variable</td>
+    <td><code><a href="#col_offset" class="internal-link" title="libstatic.exceptions.NodeLocation.col_offset">col<wbr></wbr>_offset</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="instancevariable">
+    
+    <td>Instance Variable</td>
+    <td><code><a href="#filename" class="internal-link" title="libstatic.exceptions.NodeLocation.filename">filename</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="instancevariable">
+    
+    <td>Instance Variable</td>
+    <td><code><a href="#lineno" class="internal-link" title="libstatic.exceptions.NodeLocation.lineno">lineno</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="instancevariable">
+    
+    <td>Instance Variable</td>
+    <td><code><a href="#nodecls" class="internal-link" title="libstatic.exceptions.NodeLocation.nodecls">nodecls</a></code></td>
     <td><span class="undocumented">Undocumented</span></td>
   </tr>
 </table>
           
-            <p class="inheritedFrom">
-              Inherited from <code><a href="libstatic.exceptions.StaticException.html" class="internal-link" title="libstatic.exceptions.StaticException">StaticException</a></code>:
-            </p>
-            <table class="children sortable" id="id57">
-  
-  
-  <tr class="basemethod">
-    
-    <td>Method</td>
-    <td><code><a href="libstatic.exceptions.StaticException.html#__str__" class="internal-link" title="libstatic.exceptions.StaticException.__str__">__str__</a></code></td>
-    <td><span class="undocumented">Undocumented</span></td>
-  </tr><tr class="basemethod">
-    
-    <td>Method</td>
-    <td><code><a href="libstatic.exceptions.StaticException.html#location" class="internal-link" title="libstatic.exceptions.StaticException.location">location</a></code></td>
-    <td><span class="undocumented">Undocumented</span></td>
-  </tr><tr class="baseinstancevariable">
-    
-    <td>Instance Variable</td>
-    <td><code><a href="libstatic.exceptions.StaticException.html#desrc" class="internal-link" title="libstatic.exceptions.StaticException.desrc">desrc</a></code></td>
-    <td><span class="undocumented">Undocumented</span></td>
-  </tr><tr class="baseinstancevariable">
-    
-    <td>Instance Variable</td>
-    <td><code><a href="libstatic.exceptions.StaticException.html#filename" class="internal-link" title="libstatic.exceptions.StaticException.filename">filename</a></code></td>
-    <td><span class="undocumented">Undocumented</span></td>
-  </tr>
-</table>
-            
 
             
         </div>
 
         <div id="childList">
-          <div class="basemethod">
+          <div class="baseclassmethod">
   
   
-  <a name="libstatic.exceptions.StaticAmbiguity.msg">
+  <a name="libstatic.exceptions.NodeLocation.make">
     
   </a>
-  <a name="msg">
+  <a name="make">
     
   </a>
   <div class="functionHeader">
     
-    
-    <span class="py-keyword">def</span> <span class="py-defname">msg</span><span class="function-signature">(self) -&gt; <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/exceptions.py#L151">
+    @<a href="https://docs.python.org/3/library/functions.html#classmethod" class="intersphinx-link">classmethod</a><br />
+    <span class="py-keyword">def</span> <span class="py-defname">make</span><span class="function-signature">(cls, thing: <code><a href="https://docs.python.org/3/library/functions.html#object" class="intersphinx-link">object</a></code>, filename: <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code> = <a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a>) -&gt; <code><a href="libstatic.exceptions.NodeLocation.html" class="internal-link" title="libstatic.exceptions.NodeLocation">NodeLocation</a></code></span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/exceptions.py#L18">
       
       (source)
     </a>
-    <a class="headerLink" href="#msg" title="libstatic.exceptions.StaticAmbiguity.msg">
+    <a class="headerLink" href="#make" title="libstatic.exceptions.NodeLocation.make">
       
       
       ¶
     </a>
   </div>
   <div class="docstring functionBody">
-    <div class="interfaceinfo">overrides <code><a href="libstatic.exceptions.StaticException.html#msg" class="internal-link">libstatic.exceptions.StaticException.msg</a></code></div>
+    
     <div><p class="undocumented">Undocumented</p></div>
   </div>
-</div><div class="baseclassvariable">
+</div><div class="basemethod">
   
   
-  <a name="libstatic.exceptions.StaticAmbiguity.node">
+  <a name="libstatic.exceptions.NodeLocation.__str__">
     
   </a>
-  <a name="node">
+  <a name="__str__">
     
   </a>
   <div class="functionHeader">
     
-    <span class="py-defname">node</span>: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code> =
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/exceptions.py#L149">
+    
+    <span class="py-keyword">def</span> <span class="py-defname">__str__</span><span class="function-signature">(self)</span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/exceptions.py#L30">
       
       (source)
     </a>
-    <a class="headerLink" href="#node" title="libstatic.exceptions.StaticAmbiguity.node">
+    <a class="headerLink" href="#__str__" title="libstatic.exceptions.NodeLocation.__str__">
+      
+      
+      ¶
+    </a>
+  </div>
+  <div class="docstring functionBody">
+    
+    <div><p class="undocumented">Undocumented</p></div>
+  </div>
+</div><div class="baseinstancevariable">
+  
+  
+  <a name="libstatic.exceptions.NodeLocation.col_offset">
+    
+  </a>
+  <a name="col_offset">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-defname">col_offset</span>: <code><a href="https://docs.python.org/3/library/functions.html#int" class="intersphinx-link">int</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code> =
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/exceptions.py#L16">
+      
+      (source)
+    </a>
+    <a class="headerLink" href="#col_offset" title="libstatic.exceptions.NodeLocation.col_offset">
       
       
       ¶
     </a>
   </div>
   <div class="functionBody">
-    <div class="interfaceinfo">overrides <code><a href="libstatic.exceptions.StaticException.html#node" class="internal-link">libstatic.exceptions.StaticException.node</a></code></div>
+    
+    <div><p class="undocumented">Undocumented</p></div>
+    
+  </div>
+</div><div class="baseinstancevariable">
+  
+  
+  <a name="libstatic.exceptions.NodeLocation.filename">
+    
+  </a>
+  <a name="filename">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-defname">filename</span>: <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code> =
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/exceptions.py#L13">
+      
+      (source)
+    </a>
+    <a class="headerLink" href="#filename" title="libstatic.exceptions.NodeLocation.filename">
+      
+      
+      ¶
+    </a>
+  </div>
+  <div class="functionBody">
+    
+    <div><p class="undocumented">Undocumented</p></div>
+    
+  </div>
+</div><div class="baseinstancevariable">
+  
+  
+  <a name="libstatic.exceptions.NodeLocation.lineno">
+    
+  </a>
+  <a name="lineno">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-defname">lineno</span>: <code><a href="https://docs.python.org/3/library/functions.html#int" class="intersphinx-link">int</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code> =
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/exceptions.py#L15">
+      
+      (source)
+    </a>
+    <a class="headerLink" href="#lineno" title="libstatic.exceptions.NodeLocation.lineno">
+      
+      
+      ¶
+    </a>
+  </div>
+  <div class="functionBody">
+    
+    <div><p class="undocumented">Undocumented</p></div>
+    
+  </div>
+</div><div class="baseinstancevariable">
+  
+  
+  <a name="libstatic.exceptions.NodeLocation.nodecls">
+    
+  </a>
+  <a name="nodecls">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-defname">nodecls</span>: <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code> =
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/exceptions.py#L14">
+      
+      (source)
+    </a>
+    <a class="headerLink" href="#nodecls" title="libstatic.exceptions.NodeLocation.nodecls">
+      
+      
+      ¶
+    </a>
+  </div>
+  <div class="functionBody">
+    
     <div><p class="undocumented">Undocumented</p></div>
     
   </div>

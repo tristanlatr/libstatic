@@ -226,7 +226,17 @@
         <div class="childrenKindTitle">Inherited Attributes</div>
         <ul>
     
-    <li class="private">
+    <li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic.model.Def.html#islive" class="internal-link" title="libstatic.model.Def.islive">islive</a></code>
+            </div>
+        
+
+    </li><li class="private">
         
         
         
@@ -422,6 +432,16 @@
         
 
         
+            <div class="itemName"><code><a href="libstatic.model._MinimalState.html" class="internal-link" title="libstatic.model._MinimalState">_<wbr></wbr>Minimal<wbr></wbr>State</a></code>
+            </div>
+        
+
+    </li><li class="private">
+        
+        
+        
+
+        
             <div class="itemName"><code><a href="libstatic.model._Msg.html" class="internal-link" title="libstatic.model._Msg">_<wbr></wbr>Msg</a></code>
             </div>
         
@@ -562,7 +582,7 @@
         </div>
 
         <div class="extrasDocstring">
-          <p class="class-signature"><code><span class="py-keyword">class</span> <span class="py-defname">Imp</span>(<a href="libstatic.model.NameDef.html" class="internal-link" title="libstatic.model.NameDef">NameDef</a>): <a href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L224" class="sourceLink">(source)</a></code></p><p>Constructor: <code><a href="#__init__" class="internal-link" title="libstatic.model.Imp.__init__">Imp(node, orgmodule, orgname)</a></code></p>
+          <p class="class-signature"><code><span class="py-keyword">class</span> <span class="py-defname">Imp</span>(<a href="libstatic.model.NameDef.html" class="internal-link" title="libstatic.model.NameDef">NameDef</a>): <a href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L226" class="sourceLink">(source)</a></code></p><p>Constructor: <code><a href="#__init__" class="internal-link" title="libstatic.model.Imp.__init__">Imp(node, islive, orgmodule, orgname)</a></code></p>
           <p><a href="classIndex.html#libstatic.model.Imp">View In Hierarchy</a></p>
         </div>
 
@@ -571,7 +591,7 @@
         </div>
 
         <div id="splitTables">
-          <table class="children sortable" id="id91">
+          <table class="children sortable" id="id92">
   
   
   <tr class="method">
@@ -610,7 +630,7 @@
             <p class="inheritedFrom">
               Inherited from <code><a href="libstatic.model.NameDef.html" class="internal-link" title="libstatic.model.NameDef">NameDef</a></code>:
             </p>
-            <table class="children sortable" id="id92">
+            <table class="children sortable" id="id93">
   
   
   <tr class="basemethod">
@@ -624,7 +644,7 @@
             <p class="inheritedFrom">
               Inherited from <code><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a></code> (via <code><a href="libstatic.model.NameDef.html" class="internal-link" title="libstatic.model.NameDef">NameDef</a></code>):
             </p>
-            <table class="children sortable" id="id93">
+            <table class="children sortable" id="id94">
   
   
   <tr class="basemethod">
@@ -647,6 +667,11 @@
     <td>Method</td>
     <td><code><a href="libstatic.model.Def.html#users" class="internal-link" title="libstatic.model.Def.users">users</a></code></td>
     <td>The list of ast entity that holds a reference to this node.</td>
+  </tr><tr class="baseinstancevariable">
+    
+    <td>Instance Variable</td>
+    <td><code><a href="libstatic.model.Def.html#islive" class="internal-link" title="libstatic.model.Def.islive">islive</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
   </tr><tr class="basemethod private">
     
     <td>Method</td>
@@ -677,8 +702,8 @@
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">__init__</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.alias" class="intersphinx-link">ast.alias</a></code>, orgmodule: <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code>, orgname: <code><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>]</code> = <a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a>)</span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L231">
+    <span class="py-keyword">def</span> <span class="py-defname">__init__</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.alias" class="intersphinx-link">ast.alias</a></code>, islive: <code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code>, orgmodule: <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code>, orgname: <code><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>]</code> = <a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a>)</span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L233">
       
       (source)
     </a>
@@ -705,7 +730,7 @@
     
     
     <span class="py-keyword">def</span> <span class="py-defname">target</span><span class="function-signature">(self) -&gt; <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L239">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L242">
       
       (source)
     </a>
@@ -731,7 +756,7 @@
   <div class="functionHeader">
     
     <span class="py-defname">__slots__</span> =
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L228">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L230">
       
       (source)
     </a>
@@ -758,7 +783,7 @@
   <div class="functionHeader">
     
     <span class="py-defname">node</span>: <code><a href="https://docs.python.org/3/library/ast.html#ast.alias" class="intersphinx-link">ast.alias</a></code> =
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L230">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L232">
       
       (source)
     </a>
@@ -785,7 +810,7 @@
   <div class="functionHeader">
     
     <span class="py-defname">orgmodule</span> =
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L236">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L239">
       
       (source)
     </a>
@@ -812,7 +837,7 @@
   <div class="functionHeader">
     
     <span class="py-defname">orgname</span> =
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L237">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L240">
       
       (source)
     </a>
@@ -840,7 +865,7 @@
     <div class="container">
       <a href="index.html">API Documentation</a> for <a href="https://github.com/tristanlatr/libstatic" class="projecthome">libstatic</a>,
     generated by <a href="https://github.com/twisted/pydoctor/">pydoctor</a>
-      23.4.1 at 2023-08-02 01:10:37.
+      23.4.1 at 2023-08-11 14:33:18.
     </div>
     
     <script src="ajax.js" type="text/javascript"></script>

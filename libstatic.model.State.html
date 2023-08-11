@@ -418,6 +418,36 @@
             </div>
         
 
+    </li><li class="private">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#_softfilter_defs" class="internal-link" title="libstatic.model.State._softfilter_defs">_softfilter<wbr></wbr>_defs</a></code>
+            </div>
+        
+
+    </li><li class="private">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#_softfilter_killed_defs" class="internal-link" title="libstatic.model.State._softfilter_killed_defs">_softfilter<wbr></wbr>_killed<wbr></wbr>_defs</a></code>
+            </div>
+        
+
+    </li><li class="private">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#_softfilter_unreachable_defs" class="internal-link" title="libstatic.model.State._softfilter_unreachable_defs">_softfilter<wbr></wbr>_unreachable<wbr></wbr>_defs</a></code>
+            </div>
+        
+
     </li>
 </ul> 
 
@@ -696,6 +726,16 @@
         
 
         
+            <div class="itemName"><code><a href="libstatic.model._MinimalState.html" class="internal-link" title="libstatic.model._MinimalState">_<wbr></wbr>Minimal<wbr></wbr>State</a></code>
+            </div>
+        
+
+    </li><li class="private">
+        
+        
+        
+
+        
             <div class="itemName"><code><a href="libstatic.model._Msg.html" class="internal-link" title="libstatic.model._Msg">_<wbr></wbr>Msg</a></code>
             </div>
         
@@ -836,7 +876,7 @@
         </div>
 
         <div class="extrasDocstring">
-          <p class="class-signature"><code><span class="py-keyword">class</span> <span class="py-defname">State</span>: <a href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L252" class="sourceLink">(source)</a></code></p><p>Known subclasses: <code><a href="libstatic.model.MutableState.html" class="internal-link">libstatic.model.MutableState</a></code></p><p>Constructor: <code><a href="#__init__" class="internal-link" title="libstatic.model.State.__init__">State(msg)</a></code></p>
+          <p class="class-signature"><code><span class="py-keyword">class</span> <span class="py-defname">State</span>(<a href="libstatic.model._MinimalState.html" class="internal-link" title="libstatic.model._MinimalState">_MinimalState</a>): <a href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L273" class="sourceLink">(source)</a></code></p><p>Known subclasses: <code><a href="libstatic.model.MutableState.html" class="internal-link">libstatic.model.MutableState</a></code></p><p>Constructor: <code><a href="#__init__" class="internal-link" title="libstatic.model.State.__init__">State(msg)</a></code></p>
           <p><a href="classIndex.html#libstatic.model.State">View In Hierarchy</a></p>
         </div>
 
@@ -845,7 +885,7 @@
         </div>
 
         <div id="splitTables">
-          <table class="children sortable" id="id94">
+          <table class="children sortable" id="id96">
   
   
   <tr class="method">
@@ -962,7 +1002,7 @@
     
     <td>Method</td>
     <td><code><a href="#goto_def" class="internal-link" title="libstatic.model.State.goto_def">goto<wbr></wbr>_def</a></code></td>
-    <td>Use-Def chains accessor that returns only one L{Def}, or raise <code><a href="libstatic.exceptions.StaticException.html" class="internal-link" title="libstatic.exceptions.StaticException">StaticException</a></code>. It returns the last def in the list. It does not ensure that the list is only composed by one element.</td>
+    <td>Use-Def chains accessor that returns only one L{Def}, or raise <code><a href="libstatic.exceptions.StaticException.html" class="internal-link" title="libstatic.exceptions.StaticException">StaticException</a></code>. It returns the last reachable def in the list. It does not ensure that the list is only composed by one element.</td>
   </tr><tr class="method">
     
     <td>Method</td>
@@ -1017,6 +1057,21 @@
     
     <td>Method</td>
     <td><code><a href="#_raise_node_not_in_chains" class="internal-link" title="libstatic.model.State._raise_node_not_in_chains">_raise<wbr></wbr>_node<wbr></wbr>_not<wbr></wbr>_in<wbr></wbr>_chains</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="method private">
+    
+    <td>Method</td>
+    <td><code><a href="#_softfilter_defs" class="internal-link" title="libstatic.model.State._softfilter_defs">_softfilter<wbr></wbr>_defs</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="method private">
+    
+    <td>Method</td>
+    <td><code><a href="#_softfilter_killed_defs" class="internal-link" title="libstatic.model.State._softfilter_killed_defs">_softfilter<wbr></wbr>_killed<wbr></wbr>_defs</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="method private">
+    
+    <td>Method</td>
+    <td><code><a href="#_softfilter_unreachable_defs" class="internal-link" title="libstatic.model.State._softfilter_unreachable_defs">_softfilter<wbr></wbr>_unreachable<wbr></wbr>_defs</a></code></td>
     <td><span class="undocumented">Undocumented</span></td>
   </tr><tr class="instancevariable private">
     
@@ -1074,7 +1129,7 @@
     
     
     <span class="py-keyword">def</span> <span class="py-defname">__init__</span><span class="function-signature">(self, msg: <code><a href="libstatic.model._Msg.html" class="internal-link" title="libstatic.model._Msg">_Msg</a></code>)</span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L257">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L278">
       
       (source)
     </a>
@@ -1100,8 +1155,8 @@
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">expand_expr</span><span class="function-signature">(self, node: <code>ast.expr</code>) -&gt; <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L808">
+    <span class="py-keyword">def</span> <span class="py-defname">expand_expr</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L901">
       
       (source)
     </a>
@@ -1112,7 +1167,7 @@
     </a>
   </div>
   <div class="docstring functionBody">
-    
+    <div class="interfaceinfo">overrides <code><a href="libstatic.model._MinimalState.html#expand_expr" class="internal-link">libstatic.model._MinimalState.expand_expr</a></code></div>
     <div><p>Resove a name expression to it's qualified name.
 by using information only available in the current module.</p>
 <p>Only the first name in the expression is resolved,
@@ -1143,7 +1198,7 @@ simply append the rest of the names at the end.</p>
     
     
     <span class="py-keyword">def</span> <span class="py-defname">expand_name</span><span class="function-signature">(self, scope: <code><a href="libstatic.model.Scope.html" class="internal-link" title="libstatic.model.Scope">Scope</a></code>, name: <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code>, is_annotation: <code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code> = <a href="https://docs.python.org/3/library/constants.html#False" class="intersphinx-link">False</a>) -&gt; <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L783">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L876">
       
       (source)
     </a>
@@ -1182,7 +1237,7 @@ simply append the rest of the names at the end.</p>
     
     
     <span class="py-keyword">def</span> <span class="py-defname">get_all_enclosing_scopes</span><span class="function-signature">(self, definition: <code><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Sequence" class="intersphinx-link">Sequence</a>[<wbr></wbr><a href="libstatic.model.Scope.html" class="internal-link" title="libstatic.model.Scope">Scope</a>]</code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L690">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L781">
       
       (source)
     </a>
@@ -1209,7 +1264,7 @@ simply append the rest of the names at the end.</p>
     
     
     <span class="py-keyword">def</span> <span class="py-defname">get_all_modules</span><span class="function-signature">(self) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Iterable" class="intersphinx-link">Iterable</a>[<wbr></wbr><a href="libstatic.model.Mod.html" class="internal-link" title="libstatic.model.Mod">Mod</a>]</code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L431">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L467">
       
       (source)
     </a>
@@ -1236,7 +1291,7 @@ simply append the rest of the names at the end.</p>
     
     
     <span class="py-keyword">def</span> <span class="py-defname">get_all_names</span><span class="function-signature">(self, mod: <code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr><a href="libstatic.model.Mod.html" class="internal-link" title="libstatic.model.Mod">Mod</a>, <wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.Module" class="intersphinx-link">ast.Module</a>]</code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Collection" class="intersphinx-link">Collection</a>[<wbr></wbr><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>]</code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L557">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L638">
       
       (source)
     </a>
@@ -1263,8 +1318,8 @@ No checks is done to verify if names are actually defined.</td></tr></table></di
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">get_attribute</span><span class="function-signature">(self, namespace: <code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.ClassDef" class="intersphinx-link">ast.ClassDef</a>, <wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.Module" class="intersphinx-link">ast.Module</a>, <wbr></wbr><a href="libstatic.model.Mod.html" class="internal-link" title="libstatic.model.Mod">Mod</a>, <wbr></wbr><a href="libstatic.model.Cls.html" class="internal-link" title="libstatic.model.Cls">Cls</a>]</code>, name: <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code>, *, ignore_locals: <code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code> = <a href="https://docs.python.org/3/library/constants.html#False" class="intersphinx-link">False</a>, noraise: <code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code> = <a href="https://docs.python.org/3/library/constants.html#False" class="intersphinx-link">False</a>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.List" class="intersphinx-link">List</a>[<wbr></wbr><a href="libstatic.model.NameDef.html" class="internal-link" title="libstatic.model.NameDef">NameDef</a>]</code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L489">
+    <span class="py-keyword">def</span> <span class="py-defname">get_attribute</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.ClassDef" class="intersphinx-link">ast.ClassDef</a>, <wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.Module" class="intersphinx-link">ast.Module</a>, <wbr></wbr><a href="libstatic.model.Mod.html" class="internal-link" title="libstatic.model.Mod">Mod</a>, <wbr></wbr><a href="libstatic.model.Cls.html" class="internal-link" title="libstatic.model.Cls">Cls</a>]</code>, name: <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code>, *, ignore_locals: <code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code> = <a href="https://docs.python.org/3/library/constants.html#False" class="intersphinx-link">False</a>, noraise: <code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code> = <a href="https://docs.python.org/3/library/constants.html#False" class="intersphinx-link">False</a>, filter_unreachable: <code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code> = <a href="https://docs.python.org/3/library/constants.html#True" class="intersphinx-link">True</a>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Sequence" class="intersphinx-link">Sequence</a>[<wbr></wbr><a href="libstatic.model.NameDef.html" class="internal-link" title="libstatic.model.NameDef">NameDef</a>]</code></span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L565">
       
       (source)
     </a>
@@ -1275,7 +1330,7 @@ No checks is done to verify if names are actually defined.</td></tr></table></di
     </a>
   </div>
   <div class="docstring functionBody">
-    
+    <div class="interfaceinfo">overrides <code><a href="libstatic.model._MinimalState.html#get_attribute" class="internal-link">libstatic.model._MinimalState.get_attribute</a></code></div>
     <div><p>Get <tt class="rst-docutils literal">scope</tt> attributes definitions matching the <tt class="rst-docutils literal">name</tt>.
 It calls both <code><a href="#get_local" class="internal-link" title="libstatic.model.State.get_local">get_local()</a></code> and <code><a href="#get_sub_module" class="internal-link" title="libstatic.model.State.get_sub_module">get_sub_module()</a></code>.</p><table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Raises</td></tr><tr><td class="fieldArgContainer"><code><a href="libstatic.exceptions.StaticAttributeError.html" class="internal-link" title="libstatic.exceptions.StaticAttributeError">StaticAttributeError</a></code></td><td>If the attribute is not found.</td></tr></table></div>
   </div>
@@ -1292,7 +1347,7 @@ It calls both <code><a href="#get_local" class="internal-link" title="libstatic.
     @<a href="https://docs.python.org/3/library/typing.html#typing.overload" class="intersphinx-link">overload</a><br /><div><span class="py-keyword">def</span> <span class="py-defname">get_def</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.alias" class="intersphinx-link">ast.alias</a></code>) -&gt; <code><a href="libstatic.model.Imp.html" class="internal-link" title="libstatic.model.Imp">Imp</a></code></span>:</div>@<a href="https://docs.python.org/3/library/typing.html#typing.overload" class="intersphinx-link">overload</a><br /><div><span class="py-keyword">def</span> <span class="py-defname">get_def</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.Module" class="intersphinx-link">ast.Module</a></code>) -&gt; <code><a href="libstatic.model.Mod.html" class="internal-link" title="libstatic.model.Mod">Mod</a></code></span>:</div>@<a href="https://docs.python.org/3/library/typing.html#typing.overload" class="intersphinx-link">overload</a><br /><div><span class="py-keyword">def</span> <span class="py-defname">get_def</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.FunctionDef" class="intersphinx-link">ast.FunctionDef</a></code>) -&gt; <code><a href="libstatic.model.Func.html" class="internal-link" title="libstatic.model.Func">Func</a></code></span>:</div>@<a href="https://docs.python.org/3/library/typing.html#typing.overload" class="intersphinx-link">overload</a><br /><div><span class="py-keyword">def</span> <span class="py-defname">get_def</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.AsyncFunctionDef" class="intersphinx-link">ast.AsyncFunctionDef</a></code>) -&gt; <code><a href="libstatic.model.Func.html" class="internal-link" title="libstatic.model.Func">Func</a></code></span>:</div>@<a href="https://docs.python.org/3/library/typing.html#typing.overload" class="intersphinx-link">overload</a><br /><div><span class="py-keyword">def</span> <span class="py-defname">get_def</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.ClassDef" class="intersphinx-link">ast.ClassDef</a></code>) -&gt; <code><a href="libstatic.model.Cls.html" class="internal-link" title="libstatic.model.Cls">Cls</a></code></span>:</div>@<a href="https://docs.python.org/3/library/typing.html#typing.overload" class="intersphinx-link">overload</a><br /><div><span class="py-keyword">def</span> <span class="py-defname">get_def</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code>, noraise: <code><a href="https://docs.python.org/3/library/typing.html#typing.Literal" class="intersphinx-link">Literal</a>[<wbr></wbr><a href="https://docs.python.org/3/library/constants.html#False" class="intersphinx-link">False</a>]</code> = <a href="https://docs.python.org/3/library/constants.html#False" class="intersphinx-link">False</a>) -&gt; <code><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a></code></span>:</div>@<a href="https://docs.python.org/3/library/typing.html#typing.overload" class="intersphinx-link">overload</a><br /><div><span class="py-keyword">def</span> <span class="py-defname">get_def</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code>, noraise: <code><a href="https://docs.python.org/3/library/typing.html#typing.Literal" class="intersphinx-link">Literal</a>[<wbr></wbr><a href="https://docs.python.org/3/library/constants.html#True" class="intersphinx-link">True</a>]</code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a>]</code></span>:</div>
     
     
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L308">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L330">
       
       (source)
     </a>
@@ -1303,7 +1358,7 @@ It calls both <code><a href="#get_local" class="internal-link" title="libstatic.
     </a>
   </div>
   <div class="docstring functionBody">
-    
+    <div class="interfaceinfo">overrides <code><a href="libstatic.model._MinimalState.html#get_def" class="internal-link">libstatic.model._MinimalState.get_def</a></code></div>
     <div><p>Def-Use chains accessor: returns the L{Def} instance  for this node.</p><table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Raises</td></tr><tr><td class="fieldArgContainer"><code><a href="libstatic.exceptions.StaticValueError.html" class="internal-link" title="libstatic.exceptions.StaticValueError">StaticValueError</a></code></td><td>If the node is not a registered use or definition.</td></tr></table></div>
   </div>
 </div><div class="basemethod">
@@ -1319,7 +1374,7 @@ It calls both <code><a href="#get_local" class="internal-link" title="libstatic.
     
     
     <span class="py-keyword">def</span> <span class="py-defname">get_defs_from_qualname</span><span class="function-signature">(self, qualname: <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.List" class="intersphinx-link">List</a>[<wbr></wbr><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a>]</code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L1046">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L1153">
       
       (source)
     </a>
@@ -1355,7 +1410,7 @@ It calls both <code><a href="#get_local" class="internal-link" title="libstatic.
     
     
     <span class="py-keyword">def</span> <span class="py-defname">get_dunder_all</span><span class="function-signature">(self, mod: <code><a href="libstatic.model.Mod.html" class="internal-link" title="libstatic.model.Mod">Mod</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Collection" class="intersphinx-link">Collection</a>[<wbr></wbr><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>]|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L529">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L610">
       
       (source)
     </a>
@@ -1381,10 +1436,10 @@ It calls both <code><a href="#get_local" class="internal-link" title="libstatic.
     
   </a>
   <div class="functionHeader">
-    @<a href="https://docs.python.org/3/library/typing.html#typing.overload" class="intersphinx-link">overload</a><br /><div><span class="py-keyword">def</span> <span class="py-defname">get_enclosing_scope</span><span class="function-signature">(self, definition: <code><a href="libstatic.model.Mod.html" class="internal-link" title="libstatic.model.Mod">Mod</a></code>)</span>:</div>@<a href="https://docs.python.org/3/library/typing.html#typing.overload" class="intersphinx-link">overload</a><br /><div><span class="py-keyword">def</span> <span class="py-defname">get_enclosing_scope</span><span class="function-signature">(self, definition: <code><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a></code>) -&gt; <code><a href="libstatic.model.Scope.html" class="internal-link" title="libstatic.model.Scope">Scope</a></code></span>:</div>
+    @<a href="https://docs.python.org/3/library/typing.html#typing.overload" class="intersphinx-link">overload</a><br /><div><span class="py-keyword">def</span> <span class="py-defname">get_enclosing_scope</span><span class="function-signature">(self, definition: <code><a href="libstatic.model.Mod.html" class="internal-link" title="libstatic.model.Mod">Mod</a></code>)</span>:</div>@<a href="https://docs.python.org/3/library/typing.html#typing.overload" class="intersphinx-link">overload</a><br /><div><span class="py-keyword">def</span> <span class="py-defname">get_enclosing_scope</span><span class="function-signature">(self, definition: <code><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a></code>) -&gt; <code><a href="libstatic.model.Scope.html" class="internal-link" title="libstatic.model.Scope">Scope</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:</div>@<a href="https://docs.python.org/3/library/typing.html#typing.overload" class="intersphinx-link">overload</a><br /><div><span class="py-keyword">def</span> <span class="py-defname">get_enclosing_scope</span><span class="function-signature">(self, definition: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code>) -&gt; <code><a href="libstatic.model.Scope.html" class="internal-link" title="libstatic.model.Scope">Scope</a></code></span>:</div>@<a href="https://docs.python.org/3/library/typing.html#typing.overload" class="intersphinx-link">overload</a><br /><div><span class="py-keyword">def</span> <span class="py-defname">get_enclosing_scope</span><span class="function-signature">(self, definition: <code><a href="https://docs.python.org/3/library/ast.html#ast.Module" class="intersphinx-link">ast.Module</a></code>)</span>:</div>
     
     
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L659">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L742">
       
       (source)
     </a>
@@ -1411,8 +1466,8 @@ Returns None only of the definition is a Module.</p></div>
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">get_filename</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>]</code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L635">
+    <span class="py-keyword">def</span> <span class="py-defname">get_filename</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>|<a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>]</code></span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L716">
       
       (source)
     </a>
@@ -1423,7 +1478,7 @@ Returns None only of the definition is a Module.</p></div>
     </a>
   </div>
   <div class="docstring functionBody">
-    
+    <div class="interfaceinfo">overrides <code><a href="libstatic.model._MinimalState.html#get_filename" class="internal-link">libstatic.model._MinimalState.get_filename</a></code></div>
     <div><p>Returns the filename of the given ast node.
 If the node does not exist in the system, it returns None.</p></div>
   </div>
@@ -1439,8 +1494,8 @@ If the node does not exist in the system, it returns None.</p></div>
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">get_local</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr><a href="libstatic.model.Mod.html" class="internal-link" title="libstatic.model.Mod">Mod</a>, <wbr></wbr><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a>, <wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>, name: <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.List" class="intersphinx-link">List</a>[<wbr></wbr><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr><a href="libstatic.model.NameDef.html" class="internal-link" title="libstatic.model.NameDef">NameDef</a>]]</code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L478">
+    <span class="py-keyword">def</span> <span class="py-defname">get_local</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr><a href="libstatic.model.Mod.html" class="internal-link" title="libstatic.model.Mod">Mod</a>, <wbr></wbr><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a>, <wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>, name: <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Sequence" class="intersphinx-link">Sequence</a>[<wbr></wbr><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr><a href="libstatic.model.NameDef.html" class="internal-link" title="libstatic.model.NameDef">NameDef</a>]]</code></span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L515">
       
       (source)
     </a>
@@ -1451,7 +1506,7 @@ If the node does not exist in the system, it returns None.</p></div>
     </a>
   </div>
   <div class="docstring functionBody">
-    
+    <div class="interfaceinfo">overrides <code><a href="libstatic.model._MinimalState.html#get_local" class="internal-link">libstatic.model._MinimalState.get_local</a></code></div>
     <div><p>Get the definitions of the given <tt class="rst-docutils literal">name</tt> in scope <tt class="rst-docutils literal">node</tt>.</p></div>
   </div>
 </div><div class="basemethod">
@@ -1466,8 +1521,8 @@ If the node does not exist in the system, it returns None.</p></div>
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">get_locals</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr><a href="libstatic.model.Mod.html" class="internal-link" title="libstatic.model.Mod">Mod</a>, <wbr></wbr><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a>, <wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Mapping" class="intersphinx-link">Mapping</a>[<wbr></wbr><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>, <wbr></wbr><a href="https://docs.python.org/3/library/typing.html#typing.List" class="intersphinx-link">List</a>[<wbr></wbr><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr><a href="libstatic.model.NameDef.html" class="internal-link" title="libstatic.model.NameDef">NameDef</a>]]]</code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L465">
+    <span class="py-keyword">def</span> <span class="py-defname">get_locals</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr><a href="libstatic.model.Mod.html" class="internal-link" title="libstatic.model.Mod">Mod</a>, <wbr></wbr><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a>, <wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Mapping" class="intersphinx-link">Mapping</a>[<wbr></wbr><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>, <wbr></wbr><a href="https://docs.python.org/3/library/typing.html#typing.Sequence" class="intersphinx-link">Sequence</a>[<wbr></wbr><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr><a href="libstatic.model.NameDef.html" class="internal-link" title="libstatic.model.NameDef">NameDef</a>]]]</code></span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L501">
       
       (source)
     </a>
@@ -1494,7 +1549,7 @@ If the node does not exist in the system, it returns None.</p></div>
     
     
     <span class="py-keyword">def</span> <span class="py-defname">get_module</span><span class="function-signature">(self, name: <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr><a href="libstatic.model.Mod.html" class="internal-link" title="libstatic.model.Mod">Mod</a>]</code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L424">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L460">
       
       (source)
     </a>
@@ -1522,7 +1577,7 @@ the system, else None.</p></div>
     
     
     <span class="py-keyword">def</span> <span class="py-defname">get_parent</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L572">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L653">
       
       (source)
     </a>
@@ -1549,7 +1604,7 @@ the system, else None.</p></div>
     
     
     <span class="py-keyword">def</span> <span class="py-defname">get_parent_instance</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code>, cls: <code><a href="https://docs.python.org/3/library/typing.html#typing.Type" class="intersphinx-link">Type</a>[<wbr></wbr><a href="libstatic.model.html#T" class="internal-link" title="libstatic.model.T">T</a>]|<a href="https://docs.python.org/3/library/typing.html#typing.Tuple" class="intersphinx-link">Tuple</a>[<wbr></wbr><a href="https://docs.python.org/3/library/typing.html#typing.Type" class="intersphinx-link">Type</a>[<wbr></wbr><a href="libstatic.model.html#T" class="internal-link" title="libstatic.model.T">T</a>], <wbr></wbr><span class="rst-variable-ellipsis">...</span>]</code>) -&gt; <code><a href="libstatic.model.html#T" class="internal-link" title="libstatic.model.T">T</a></code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L598">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L679">
       
       (source)
     </a>
@@ -1560,7 +1615,7 @@ the system, else None.</p></div>
     </a>
   </div>
   <div class="docstring functionBody">
-    
+    <div class="interfaceinfo">overrides <code><a href="libstatic.model._MinimalState.html#get_parent_instance" class="internal-link">libstatic.model._MinimalState.get_parent_instance</a></code></div>
     <div><p>Returns the first parent of the node in the syntax tree matching the given type info.</p><table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Raises</td></tr><tr><td class="fieldArgContainer"><code><a href="libstatic.exceptions.StaticValueError.html" class="internal-link" title="libstatic.exceptions.StaticValueError">StaticValueError</a></code></td><td>If the the node has no parents of the requested type.</td></tr></table></div>
   </div>
 </div><div class="basemethod">
@@ -1576,7 +1631,7 @@ the system, else None.</p></div>
     
     
     <span class="py-keyword">def</span> <span class="py-defname">get_parent_module</span><span class="function-signature">(self, mod: <code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr><a href="libstatic.model.Mod.html" class="internal-link" title="libstatic.model.Mod">Mod</a>, <wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.Module" class="intersphinx-link">ast.Module</a>]</code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr><a href="libstatic.model.Mod.html" class="internal-link" title="libstatic.model.Mod">Mod</a>]</code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L449">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L485">
       
       (source)
     </a>
@@ -1605,8 +1660,8 @@ module or the parent package is not found in the system.</p>
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">get_parents</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.List" class="intersphinx-link">List</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L587">
+    <span class="py-keyword">def</span> <span class="py-defname">get_parents</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Sequence" class="intersphinx-link">Sequence</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code></span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L668">
       
       (source)
     </a>
@@ -1633,7 +1688,7 @@ module or the parent package is not found in the system.</p>
     
     
     <span class="py-keyword">def</span> <span class="py-defname">get_qualname</span><span class="function-signature">(self, definition: <code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr><a href="libstatic.model.NameDef.html" class="internal-link" title="libstatic.model.NameDef">NameDef</a>, <wbr></wbr><a href="libstatic.model.Scope.html" class="internal-link" title="libstatic.model.Scope">Scope</a>]</code>) -&gt; <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L702">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L795">
       
       (source)
     </a>
@@ -1666,7 +1721,7 @@ named depending on where it's imported.</p>
     
     
     <span class="py-keyword">def</span> <span class="py-defname">get_root</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>, <wbr></wbr><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a>]</code>) -&gt; <code><a href="libstatic.model.Mod.html" class="internal-link" title="libstatic.model.Mod">Mod</a></code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L621">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L702">
       
       (source)
     </a>
@@ -1694,7 +1749,7 @@ else find the parent Module and return it's <code><a href="libstatic.model.Mod.h
     
     
     <span class="py-keyword">def</span> <span class="py-defname">get_sub_module</span><span class="function-signature">(self, mod: <code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr><a href="libstatic.model.Mod.html" class="internal-link" title="libstatic.model.Mod">Mod</a>, <wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.Module" class="intersphinx-link">ast.Module</a>]</code>, name: <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr><a href="libstatic.model.Mod.html" class="internal-link" title="libstatic.model.Mod">Mod</a>]</code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L437">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L473">
       
       (source)
     </a>
@@ -1718,10 +1773,10 @@ else find the parent Module and return it's <code><a href="libstatic.model.Mod.h
     
   </a>
   <div class="functionHeader">
-    @<a href="https://docs.python.org/3/library/typing.html#typing.overload" class="intersphinx-link">overload</a><br /><div><span class="py-keyword">def</span> <span class="py-defname">goto_def</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code>, noraise: <code><a href="https://docs.python.org/3/library/typing.html#typing.Literal" class="intersphinx-link">Literal</a>[<wbr></wbr><a href="https://docs.python.org/3/library/constants.html#False" class="intersphinx-link">False</a>]</code> = <a href="https://docs.python.org/3/library/constants.html#False" class="intersphinx-link">False</a>) -&gt; <code><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a></code></span>:</div>@<a href="https://docs.python.org/3/library/typing.html#typing.overload" class="intersphinx-link">overload</a><br /><div><span class="py-keyword">def</span> <span class="py-defname">goto_def</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code>, noraise: <code><a href="https://docs.python.org/3/library/typing.html#typing.Literal" class="intersphinx-link">Literal</a>[<wbr></wbr><a href="https://docs.python.org/3/library/constants.html#True" class="intersphinx-link">True</a>]</code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a>]</code></span>:</div>
+    @<a href="https://docs.python.org/3/library/typing.html#typing.overload" class="intersphinx-link">overload</a><br /><div><span class="py-keyword">def</span> <span class="py-defname">goto_def</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code>, noraise: <code><a href="https://docs.python.org/3/library/typing.html#typing.Literal" class="intersphinx-link">Literal</a>[<wbr></wbr><a href="https://docs.python.org/3/library/constants.html#False" class="intersphinx-link">False</a>]</code> = <a href="https://docs.python.org/3/library/constants.html#False" class="intersphinx-link">False</a>) -&gt; <code><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a></code></span>:</div>@<a href="https://docs.python.org/3/library/typing.html#typing.overload" class="intersphinx-link">overload</a><br /><div><span class="py-keyword">def</span> <span class="py-defname">goto_def</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code>, noraise: <code><a href="https://docs.python.org/3/library/typing.html#typing.Literal" class="intersphinx-link">Literal</a>[<wbr></wbr><a href="https://docs.python.org/3/library/constants.html#True" class="intersphinx-link">True</a>]</code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a>]</code></span>:</div>@<a href="https://docs.python.org/3/library/typing.html#typing.overload" class="intersphinx-link">overload</a><br /><div><span class="py-keyword">def</span> <span class="py-defname">goto_def</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code>, *, raise_on_ambiguity: <code><a href="https://docs.python.org/3/library/typing.html#typing.Literal" class="intersphinx-link">Literal</a>[<wbr></wbr><a href="https://docs.python.org/3/library/constants.html#True" class="intersphinx-link">True</a>]</code>) -&gt; <code><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a></code></span>:</div>
     
     
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L369">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L391">
       
       (source)
     </a>
@@ -1732,9 +1787,9 @@ else find the parent Module and return it's <code><a href="libstatic.model.Mod.h
     </a>
   </div>
   <div class="docstring functionBody">
-    
+    <div class="interfaceinfo">overrides <code><a href="libstatic.model._MinimalState.html#goto_def" class="internal-link">libstatic.model._MinimalState.goto_def</a></code></div>
     <div><p>Use-Def chains accessor that returns only one L{Def}, or raise <code><a href="libstatic.exceptions.StaticException.html" class="internal-link" title="libstatic.exceptions.StaticException">StaticException</a></code>.
-It returns the last def in the list. It does not ensure that the list is only
+It returns the last reachable def in the list. It does not ensure that the list is only
 composed by one element.</p><table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">See Also</td></tr><tr><td colspan="2"><code><a href="#goto_defs" class="internal-link" title="libstatic.model.State.goto_defs">goto_defs</a></code></td></tr></table></div>
   </div>
 </div><div class="basemethod">
@@ -1750,7 +1805,7 @@ composed by one element.</p><table class="fieldTable"><tr class="fieldStart"><td
     
     
     <span class="py-keyword">def</span> <span class="py-defname">goto_definition</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code>, *, raise_on_ambiguity: <code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code> = <a href="https://docs.python.org/3/library/constants.html#False" class="intersphinx-link">False</a>, follow_aliases: <code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code> = <a href="https://docs.python.org/3/library/constants.html#False" class="intersphinx-link">False</a>, follow_imports: <code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code> = <a href="https://docs.python.org/3/library/constants.html#True" class="intersphinx-link">True</a>) -&gt; <code><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a></code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L885">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L978">
       
       (source)
     </a>
@@ -1797,8 +1852,8 @@ By default it follows imports but not aliases.</p>
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">goto_defs</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code>, noraise: <code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code> = <a href="https://docs.python.org/3/library/constants.html#False" class="intersphinx-link">False</a>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.List" class="intersphinx-link">List</a>[<wbr></wbr><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a>]</code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L392">
+    <span class="py-keyword">def</span> <span class="py-defname">goto_defs</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code>, noraise: <code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code> = <a href="https://docs.python.org/3/library/constants.html#False" class="intersphinx-link">False</a>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Sequence" class="intersphinx-link">Sequence</a>[<wbr></wbr><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a>]</code></span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L428">
       
       (source)
     </a>
@@ -1809,9 +1864,9 @@ By default it follows imports but not aliases.</p>
     </a>
   </div>
   <div class="docstring functionBody">
-    
-    <div><p>Use-Def chains accessor: returns the definition points of this use.</p><table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Raises</td></tr><tr><td class="fieldArgContainer"><code><a href="libstatic.exceptions.StaticException.html" class="internal-link" title="libstatic.exceptions.StaticException">StaticException</a></code></td><td>If the node is unbound or unknown.</td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Note</td></tr><tr><td colspan="2">It does not recurse on follow-up definitions in case of aliases
-and it does not work for builtins at the moment.</td></tr></table></div>
+    <div class="interfaceinfo">overrides <code><a href="libstatic.model._MinimalState.html#goto_defs" class="internal-link">libstatic.model._MinimalState.goto_defs</a></code></div>
+    <div><p>Use-Def chains accessor: returns the definition points of this use.</p><table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Raises</td></tr><tr><td class="fieldArgContainer"><code><a href="libstatic.exceptions.StaticException.html" class="internal-link" title="libstatic.exceptions.StaticException">StaticException</a></code></td><td>If the node is unbound or unknown.</td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Note</td></tr><tr><td colspan="2">It does not recurse on follow-up definitions in case of aliases.
+Builtins are supported only if the <tt class="rst-docutils literal">builtins</tt> module has been added to the project.</td></tr></table></div>
   </div>
 </div><div class="basemethod">
   
@@ -1825,8 +1880,8 @@ and it does not work for builtins at the moment.</td></tr></table></div>
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">goto_references</span><span class="function-signature">(self, definition: <code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr><a href="libstatic.model.NameDef.html" class="internal-link" title="libstatic.model.NameDef">NameDef</a>, <wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Iterator" class="intersphinx-link">Iterator</a>[<wbr></wbr><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a>]</code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L1010">
+    <span class="py-keyword">def</span> <span class="py-defname">goto_references</span><span class="function-signature">(self, definition: <code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr><a href="libstatic.model.NameDef.html" class="internal-link" title="libstatic.model.NameDef">NameDef</a>, <wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>, filter_unreachable: <code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code> = <a href="https://docs.python.org/3/library/constants.html#False" class="intersphinx-link">False</a>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Iterator" class="intersphinx-link">Iterator</a>[<wbr></wbr><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a>]</code></span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L1115">
       
       (source)
     </a>
@@ -1868,8 +1923,8 @@ and it does not work for builtins at the moment.</td></tr></table></div>
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">goto_symbol_def</span><span class="function-signature">(self, scope: <code><a href="libstatic.model.Scope.html" class="internal-link" title="libstatic.model.Scope">Scope</a></code>, name: <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code>, *, is_annotation: <code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code> = <a href="https://docs.python.org/3/library/constants.html#False" class="intersphinx-link">False</a>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.List" class="intersphinx-link">List</a>[<wbr></wbr><a href="libstatic.model.NameDef.html" class="internal-link" title="libstatic.model.NameDef">NameDef</a>]</code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L723">
+    <span class="py-keyword">def</span> <span class="py-defname">goto_symbol_def</span><span class="function-signature">(self, scope: <code><a href="libstatic.model.Scope.html" class="internal-link" title="libstatic.model.Scope">Scope</a></code>, name: <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code>, *, is_annotation: <code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code> = <a href="https://docs.python.org/3/library/constants.html#False" class="intersphinx-link">False</a>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Sequence" class="intersphinx-link">Sequence</a>[<wbr></wbr><a href="libstatic.model.NameDef.html" class="internal-link" title="libstatic.model.NameDef">NameDef</a>]</code></span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L816">
       
       (source)
     </a>
@@ -1890,7 +1945,7 @@ Note that nonlocal and global keywords are ignored by this function.</p>
 <span class="py-prompt">&gt;&gt;&gt; </span>p.analyze_project()
 <span class="py-prompt">&gt;&gt;&gt; </span>p.state.goto_symbol_def(m, <span class="py-string">'T'</span>)
 <span class="py-output">[&lt;Imp(name=T)&gt;]</span>
-</pre><table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Raises</td></tr><tr><td class="fieldArgContainer"><code><a href="libstatic.exceptions.StaticNameError.html" class="internal-link" title="libstatic.exceptions.StaticNameError">StaticNameError</a></code></td><td>For builtin or unbound names.</td></tr></table></div>
+</pre><table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Raises</td></tr><tr><td class="fieldArgContainer"><code><a href="libstatic.exceptions.StaticNameError.html" class="internal-link" title="libstatic.exceptions.StaticNameError">StaticNameError</a></code></td><td>For unbound names.</td></tr></table></div>
   </div>
 </div><div class="basemethod">
   
@@ -1904,8 +1959,8 @@ Note that nonlocal and global keywords are ignored by this function.</p>
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">is_reachable</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L645">
+    <span class="py-keyword">def</span> <span class="py-defname">is_reachable</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>, <wbr></wbr><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a>]</code>) -&gt; <code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code></span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L726">
       
       (source)
     </a>
@@ -1932,7 +1987,7 @@ Note that nonlocal and global keywords are ignored by this function.</p>
     
     
     <span class="py-keyword">def</span> <span class="py-defname">literal_eval</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code>, *, known_values: <code><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr><a href="https://docs.python.org/3/library/typing.html#typing.Mapping" class="intersphinx-link">Mapping</a>[<wbr></wbr><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>, <wbr></wbr><a href="https://docs.python.org/3/library/typing.html#typing.Any" class="intersphinx-link">Any</a>]]</code> = <a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a>, raise_on_ambiguity: <code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code> = <a href="https://docs.python.org/3/library/constants.html#False" class="intersphinx-link">False</a>, follow_imports: <code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code> = <a href="https://docs.python.org/3/library/constants.html#False" class="intersphinx-link">False</a>) -&gt; <code><a href="libstatic._lib.asteval.html#LiteralValue" class="internal-link" title="libstatic._lib.asteval.LiteralValue">LiteralValue</a></code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L844">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L937">
       
       (source)
     </a>
@@ -1977,7 +2032,7 @@ Note that nonlocal and global keywords are ignored by this function.</p>
   <div class="functionHeader">
     
     <span class="py-defname">msg</span> =
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L258">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L279">
       
       (source)
     </a>
@@ -1988,7 +2043,7 @@ Note that nonlocal and global keywords are ignored by this function.</p>
     </a>
   </div>
   <div class="functionBody">
-    
+    <div class="interfaceinfo">overrides <code><a href="libstatic.model._MinimalState.html#msg" class="internal-link">libstatic.model._MinimalState.msg</a></code></div>
     <div><p class="undocumented">Undocumented</p></div>
     
   </div>
@@ -2005,7 +2060,7 @@ Note that nonlocal and global keywords are ignored by this function.</p>
     
     
     <span class="py-keyword">def</span> <span class="py-defname">_get_public_names</span><span class="function-signature">(self, mod: <code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr><a href="libstatic.model.Mod.html" class="internal-link" title="libstatic.model.Mod">Mod</a>, <wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.Module" class="intersphinx-link">ast.Module</a>]</code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Collection" class="intersphinx-link">Collection</a>[<wbr></wbr><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>]</code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L542">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L623">
       
       (source)
     </a>
@@ -2032,8 +2087,8 @@ compute names bound when wildcard importing the given module.</p></div>
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">_goto_attr_references</span><span class="function-signature">(self, definition: <code><a href="libstatic.model.NameDef.html" class="internal-link" title="libstatic.model.NameDef">NameDef</a></code>, seen: <code><a href="https://docs.python.org/3/library/typing.html#typing.Set" class="intersphinx-link">Set</a>[<wbr></wbr><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a>]</code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Iterator" class="intersphinx-link">Iterator</a>[<wbr></wbr><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a>]</code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L945">
+    <span class="py-keyword">def</span> <span class="py-defname">_goto_attr_references</span><span class="function-signature">(self, definition: <code><a href="libstatic.model.NameDef.html" class="internal-link" title="libstatic.model.NameDef">NameDef</a></code>, seen: <code><a href="https://docs.python.org/3/library/typing.html#typing.Set" class="intersphinx-link">Set</a>[<wbr></wbr><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a>]</code>, filter_unreachable: <code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Iterator" class="intersphinx-link">Iterator</a>[<wbr></wbr><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a>]</code></span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L1040">
       
       (source)
     </a>
@@ -2067,8 +2122,8 @@ compute names bound when wildcard importing the given module.</p></div>
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">_goto_references</span><span class="function-signature">(self, definition: <code><a href="libstatic.model.NameDef.html" class="internal-link" title="libstatic.model.NameDef">NameDef</a></code>, seen: <code><a href="https://docs.python.org/3/library/typing.html#typing.Set" class="intersphinx-link">Set</a>[<wbr></wbr><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a>]</code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Iterator" class="intersphinx-link">Iterator</a>[<wbr></wbr><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a>]</code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L926">
+    <span class="py-keyword">def</span> <span class="py-defname">_goto_references</span><span class="function-signature">(self, definition: <code><a href="libstatic.model.NameDef.html" class="internal-link" title="libstatic.model.NameDef">NameDef</a></code>, seen: <code><a href="https://docs.python.org/3/library/typing.html#typing.Set" class="intersphinx-link">Set</a>[<wbr></wbr><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a>]</code>, filter_unreachable: <code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Iterator" class="intersphinx-link">Iterator</a>[<wbr></wbr><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a>]</code></span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L1019">
       
       (source)
     </a>
@@ -2095,11 +2150,92 @@ compute names bound when wildcard importing the given module.</p></div>
     
     
     <span class="py-keyword">def</span> <span class="py-defname">_raise_node_not_in_chains</span><span class="function-signature">(self, e: <code><a href="https://docs.python.org/3/library/exceptions.html#KeyError" class="intersphinx-link">KeyError</a></code>, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.NoReturn" class="intersphinx-link">NoReturn</a></code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L295">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L316">
       
       (source)
     </a>
     <a class="headerLink" href="#_raise_node_not_in_chains" title="libstatic.model.State._raise_node_not_in_chains">
+      
+      
+      ¶
+    </a>
+  </div>
+  <div class="docstring functionBody">
+    
+    <div><p class="undocumented">Undocumented</p></div>
+  </div>
+</div><div class="basemethod private">
+  
+  
+  <a name="libstatic.model.State._softfilter_defs">
+    
+  </a>
+  <a name="_softfilter_defs">
+    
+  </a>
+  <div class="functionHeader">
+    
+    
+    <span class="py-keyword">def</span> <span class="py-defname">_softfilter_defs</span><span class="function-signature">(self, defs: <code><a href="https://docs.python.org/3/library/typing.html#typing.Sequence" class="intersphinx-link">Sequence</a>[<wbr></wbr><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a>]</code>, *, unreachable: <code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code>, killed: <code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Sequence" class="intersphinx-link">Sequence</a>[<wbr></wbr><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a>]</code></span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L548">
+      
+      (source)
+    </a>
+    <a class="headerLink" href="#_softfilter_defs" title="libstatic.model.State._softfilter_defs">
+      
+      
+      ¶
+    </a>
+  </div>
+  <div class="docstring functionBody">
+    
+    <div><p class="undocumented">Undocumented</p></div>
+  </div>
+</div><div class="basemethod private">
+  
+  
+  <a name="libstatic.model.State._softfilter_killed_defs">
+    
+  </a>
+  <a name="_softfilter_killed_defs">
+    
+  </a>
+  <div class="functionHeader">
+    
+    
+    <span class="py-keyword">def</span> <span class="py-defname">_softfilter_killed_defs</span><span class="function-signature">(self, defs: <code><a href="https://docs.python.org/3/library/typing.html#typing.Sequence" class="intersphinx-link">Sequence</a>[<wbr></wbr><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a>]</code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Sequence" class="intersphinx-link">Sequence</a>[<wbr></wbr><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a>]</code></span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L526">
+      
+      (source)
+    </a>
+    <a class="headerLink" href="#_softfilter_killed_defs" title="libstatic.model.State._softfilter_killed_defs">
+      
+      
+      ¶
+    </a>
+  </div>
+  <div class="docstring functionBody">
+    
+    <div><p class="undocumented">Undocumented</p></div>
+  </div>
+</div><div class="basemethod private">
+  
+  
+  <a name="libstatic.model.State._softfilter_unreachable_defs">
+    
+  </a>
+  <a name="_softfilter_unreachable_defs">
+    
+  </a>
+  <div class="functionHeader">
+    
+    
+    <span class="py-keyword">def</span> <span class="py-defname">_softfilter_unreachable_defs</span><span class="function-signature">(self, defs: <code><a href="https://docs.python.org/3/library/typing.html#typing.Sequence" class="intersphinx-link">Sequence</a>[<wbr></wbr><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a>]</code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Sequence" class="intersphinx-link">Sequence</a>[<wbr></wbr><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a>]</code></span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L539">
+      
+      (source)
+    </a>
+    <a class="headerLink" href="#_softfilter_unreachable_defs" title="libstatic.model.State._softfilter_unreachable_defs">
       
       
       ¶
@@ -2120,8 +2256,8 @@ compute names bound when wildcard importing the given module.</p></div>
   </a>
   <div class="functionHeader">
     
-    <span class="py-defname">_ancestors</span>: <code><a href="https://docs.python.org/3/library/typing.html#typing.Dict" class="intersphinx-link">Dict</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>, <wbr></wbr><a href="https://docs.python.org/3/library/typing.html#typing.List" class="intersphinx-link">List</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]]</code> =
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L275">
+    <span class="py-defname">_ancestors</span>: <code><a href="https://docs.python.org/3/library/typing.html#typing.Dict" class="intersphinx-link">Dict</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>, <wbr></wbr><a href="https://docs.python.org/3/library/typing.html#typing.Sequence" class="intersphinx-link">Sequence</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]]</code> =
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L296">
       
       (source)
     </a>
@@ -2148,7 +2284,7 @@ compute names bound when wildcard importing the given module.</p></div>
   <div class="functionHeader">
     
     <span class="py-defname">_def_use_chains</span>: <code><a href="https://docs.python.org/3/library/typing.html#typing.Dict" class="intersphinx-link">Dict</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>, <wbr></wbr><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a>]</code> =
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L280">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L301">
       
       (source)
     </a>
@@ -2175,7 +2311,7 @@ compute names bound when wildcard importing the given module.</p></div>
   <div class="functionHeader">
     
     <span class="py-defname">_dunder_all</span>: <code><a href="https://docs.python.org/3/library/typing.html#typing.Mapping" class="intersphinx-link">Mapping</a>[<wbr></wbr><a href="libstatic.model.Mod.html" class="internal-link" title="libstatic.model.Mod">Mod</a>, <wbr></wbr><a href="https://docs.python.org/3/library/typing.html#typing.Collection" class="intersphinx-link">Collection</a>[<wbr></wbr><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>]|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a>]</code> =
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L290">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L311">
       
       (source)
     </a>
@@ -2201,8 +2337,8 @@ compute names bound when wildcard importing the given module.</p></div>
   </a>
   <div class="functionHeader">
     
-    <span class="py-defname">_locals</span>: <code><a href="https://docs.python.org/3/library/typing.html#typing.Dict" class="intersphinx-link">Dict</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>, <wbr></wbr><a href="https://docs.python.org/3/library/typing.html#typing.Dict" class="intersphinx-link">Dict</a>[<wbr></wbr><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>, <wbr></wbr><a href="https://docs.python.org/3/library/typing.html#typing.List" class="intersphinx-link">List</a>[<wbr></wbr><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr><a href="libstatic.model.NameDef.html" class="internal-link" title="libstatic.model.NameDef">NameDef</a>]]]]</code> =
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L270">
+    <span class="py-defname">_locals</span>: <code><a href="https://docs.python.org/3/library/typing.html#typing.Dict" class="intersphinx-link">Dict</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>, <wbr></wbr><a href="https://docs.python.org/3/library/typing.html#typing.Mapping" class="intersphinx-link">Mapping</a>[<wbr></wbr><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>, <wbr></wbr><a href="https://docs.python.org/3/library/typing.html#typing.Sequence" class="intersphinx-link">Sequence</a>[<wbr></wbr><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr><a href="libstatic.model.NameDef.html" class="internal-link" title="libstatic.model.NameDef">NameDef</a>]]]]</code> =
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L291">
       
       (source)
     </a>
@@ -2229,7 +2365,7 @@ compute names bound when wildcard importing the given module.</p></div>
   <div class="functionHeader">
     
     <span class="py-defname">_modules</span>: <code><a href="https://docs.python.org/3/library/typing.html#typing.Dict" class="intersphinx-link">Dict</a>[<wbr></wbr><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>, <wbr></wbr><a href="libstatic.model.Mod.html" class="internal-link" title="libstatic.model.Mod">Mod</a>]</code> =
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L260">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L281">
       
       (source)
     </a>
@@ -2256,7 +2392,7 @@ compute names bound when wildcard importing the given module.</p></div>
   <div class="functionHeader">
     
     <span class="py-defname">_unreachable</span>: <code><a href="https://docs.python.org/3/library/typing.html#typing.Set" class="intersphinx-link">Set</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code> =
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L265">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L286">
       
       (source)
     </a>
@@ -2282,8 +2418,8 @@ compute names bound when wildcard importing the given module.</p></div>
   </a>
   <div class="functionHeader">
     
-    <span class="py-defname">_use_def_chains</span>: <code><a href="https://docs.python.org/3/library/typing.html#typing.Dict" class="intersphinx-link">Dict</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>, <wbr></wbr><a href="https://docs.python.org/3/library/typing.html#typing.List" class="intersphinx-link">List</a>[<wbr></wbr><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a>]]</code> =
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L285">
+    <span class="py-defname">_use_def_chains</span>: <code><a href="https://docs.python.org/3/library/typing.html#typing.Dict" class="intersphinx-link">Dict</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>, <wbr></wbr><a href="https://docs.python.org/3/library/typing.html#typing.Sequence" class="intersphinx-link">Sequence</a>[<wbr></wbr><a href="libstatic.model.Def.html" class="internal-link" title="libstatic.model.Def">Def</a>]]</code> =
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/model.py#L306">
       
       (source)
     </a>
@@ -2311,7 +2447,7 @@ compute names bound when wildcard importing the given module.</p></div>
     <div class="container">
       <a href="index.html">API Documentation</a> for <a href="https://github.com/tristanlatr/libstatic" class="projecthome">libstatic</a>,
     generated by <a href="https://github.com/twisted/pydoctor/">pydoctor</a>
-      23.4.1 at 2023-08-02 01:10:37.
+      23.4.1 at 2023-08-11 14:33:18.
     </div>
     
     <script src="ajax.js" type="text/javascript"></script>
