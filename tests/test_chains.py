@@ -1,4 +1,5 @@
 import ast
+import sys
 from unittest import TestCase
 from textwrap import dedent
 
@@ -116,12 +117,16 @@ class TestUseDefChains(TestCase):
         proj = Project(python_version=(3,12), )
         proj.add_module(node, 'mod1')
         proj.analyze_project()
+        expected = 'ast.FunctionDef at mod1:9:8'
+        if sys.version_info < (3,8):
+            # lineno from first decorator in older python versions
+            expected = 'ast.FunctionDef at mod1:8:8'
         assert str(NodeLocation.make(proj.state.goto_def(node.body[-2].body[-1].value, 
-                                   raise_on_ambiguity=True), 'mod1')) == 'ast.FunctionDef at mod1:9:8'
+                                   raise_on_ambiguity=True), 'mod1')) == expected
         attrib, = proj.state.get_attribute(node.body[-2], 'f')
-        assert str(NodeLocation.make(attrib, 'mod1')) == 'ast.FunctionDef at mod1:9:8'
+        assert str(NodeLocation.make(attrib, 'mod1')) == expected
         assert str(NodeLocation.make(proj.state.goto_definition(node.body[-1].value, 
-                                   raise_on_ambiguity=True), 'mod1')) == 'ast.FunctionDef at mod1:9:8'
+                                   raise_on_ambiguity=True), 'mod1')) == expected
 
     def test_annassign(self):
         typing = '''
