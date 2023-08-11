@@ -2,7 +2,6 @@
 
 Static analysis library based on [beginet](https://github.com/serge-sans-paille/beniget/).
 
-The purpose of this package is to provide a simple and easy to 
-use library that helps with analyzing a collection of python modules.
+The purpose of this package is to provide a simple library that helps with analyzing a collection of related python modules.
 
-See ``Project`` and ``State`` classes for frontend API reference.
+[Read the documentation](https://tristanlatr.github.io/libstatic) for frontend API reference.
