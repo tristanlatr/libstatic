@@ -70,9 +70,10 @@ class ImportParser(ast.NodeVisitor):
                     relative_module = current_module[: -node.level]
 
             if not relative_module:
-                raise ValueError(
-                    "relative import level (%d) too high" % node.level,
-                )
+                relative_module = ("",) * node.level
+                # We don't raise when an relative import makes no sens at the moment. 
+                # But it would be good that this behaviour can be customized with options.
+                # raise ValueError("relative import level (%d) too high" % node.level,)
 
             source_module = relative_module + module
 
