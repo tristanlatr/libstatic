@@ -19,6 +19,42 @@ class TestUseDefChains(TestCase):
         sys_def = proj.state.goto_def(node.body[-1].value)
         assert isinstance(sys_def.node, ast.alias)
     
+    def test_invalid_relative_import(self):
+        # should still be part of the chains!
+        code = '''
+        from .. import core   
+        from ...thing import stuff 
+        core;stuff
+        '''
+        node = ast.parse(dedent(code))
+        proj = Project()
+        proj.add_module(node, 'mod1')
+        proj.analyze_project()
+
+        for imp in node.body[:-2]:
+            imp = imp.names[0]
+            imp_def = proj.state.get_def(imp)
+            assert imp_def.target() in ('..core', '...thing.stuff')
+            assert len(imp_def.users())==1
+            assert imp in [l.node for l in proj.state.get_local(node, imp_def.name())]
+
+    def test_classes(self):
+        code = """
+            class MyError1:
+                pass
+            class MyError3(RuntimeError):
+                pass
+            class MyError4(RuntimeError, object, metaclass=ABCMeta):
+                pass
+            """
+        node = ast.parse(dedent(code))
+        proj = Project()
+        proj.add_module(node, 'mod1')
+        proj.analyze_project()
+        for cls in node.body:
+            assert cls in [l.node for l in proj.state.get_local(node, cls.name)]
+            assert proj.state.get_locals(cls) == {}
+    
     def test_arg(self):
         src = '''
         # uncomment me when https://github.com/serge-sans-paille/beniget/pull/70 is fixed
