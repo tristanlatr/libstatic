@@ -259,7 +259,7 @@ class State(_MinimalState):
                 # but still fallback to '*' when the name is not explicitely bound to a fictional ast.alias.
                 def filter_defs(d:Def) -> bool:
                     name = d.name()
-                    if name == node.id:
+                    if name == node.id: # type:ignore[attr-defined]
                         return True
                     elif include_wildcards and name == '*':
                         return True

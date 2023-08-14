@@ -140,7 +140,7 @@ class _ComputeWildcards:
                 for unbound_name in list(u for u in old_def.users() 
                                          if isinstance(u.node, ast.Name) 
                                          if isinstance(u.node.ctx, ast.Load)):
-                    if unbound_name.node.id == resolved_def.name():
+                    if unbound_name.node.id == resolved_def.name(): # type:ignore[attr-defined]
                         # cleanup (needed) over-approximations of beniget
                         for d in self._state.goto_defs(unbound_name.node):
                             self._state.remove_user(d, unbound_name)
