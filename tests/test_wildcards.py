@@ -4,18 +4,23 @@ import ast
 from unittest import TestCase
 from textwrap import dedent
 
-from libstatic import Project
+from libstatic import Project, NodeLocation
 
 class TestWildcardParsing(TestCase):
     def test_simple(self):
         mod1 = '''
         __all__ = []
         __all__ = __all__ + ['a', 'b'] 
+        def a():...
+        class b:...
         '''
         mod2 = '''
         from mod1 import *
         from mod1 import __all__ as _mod1all
         __all__ = _mod1all + ['c']
+        a
+        b
+        c
         '''
         proj = Project()
         m1 = proj.add_module(ast.parse(dedent(mod1)), 'mod1')
@@ -24,6 +29,19 @@ class TestWildcardParsing(TestCase):
 
         assert proj.state.get_dunder_all(m1)==['a', 'b']
         assert proj.state.get_dunder_all(m2)==['a', 'b', 'c']
+
+        a_import, = proj.state.get_local(m2, 'a')
+        assert len(list(a_import.users())) == 1
+
+        *_, expr_a, exprb_b, exprb_c = m2.node.body
+        expr_a_def = proj.state.goto_def(expr_a.value)
+        assert f'{expr_a_def.name()}: {NodeLocation.make(expr_a_def, proj.state.get_filename(expr_a_def))}'.startswith('a: ast.alias at mod2:2')
+
+        exprb_b_def = proj.state.goto_def(exprb_b.value)
+        assert f'{exprb_b_def.name()}: {NodeLocation.make(exprb_b_def, proj.state.get_filename(exprb_b_def))}'.startswith('b: ast.alias at mod2:2')
+
+        exprb_c_def = proj.state.goto_def(exprb_c.value)
+        assert f'{exprb_c_def.name()}: {NodeLocation.make(exprb_c_def, proj.state.get_filename(exprb_c_def))}'.startswith('*: ast.alias at mod2:2')
 
     def test_defined_from_wildcard_import(self):
         mod1 = '''

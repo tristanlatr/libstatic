@@ -1,4 +1,5 @@
 import ast
+import sys
 from typing import Any, Dict, Mapping, Optional, Tuple, NamedTuple, Union
 
 
@@ -11,7 +12,7 @@ class ImportInfo(NamedTuple):
     orgmodule: str
     orgname: Optional[str] = None
 
-
+_alias_needs_lineno = sys.version_info < (3,10)
 class ImportParser(ast.NodeVisitor):
     """
     Transform import statements into a mapping from `ast.alias` to `ImportInfo`.
@@ -44,6 +45,8 @@ class ImportParser(ast.NodeVisitor):
             else:
                 # here, we're lossng the dependency on "driver" of "import pydoctor.driver" in 'orgmodule',
                 self._result[al] = ImportInfo(orgmodule=al.name.split(".", 1)[0])
+            if _alias_needs_lineno:
+                al.lineno = node.lineno
         return self._result
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> Mapping[ast.alias, ImportInfo]:
@@ -81,6 +84,8 @@ class ImportParser(ast.NodeVisitor):
             self._result[alias] = ImportInfo(
                 orgmodule=".".join(source_module), orgname=alias.name
             )
+            if _alias_needs_lineno:
+                alias.lineno = node.lineno
 
         return self._result
 
