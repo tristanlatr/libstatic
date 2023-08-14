@@ -123,30 +123,36 @@ class _ComputeWildcards:
                 # no need to report failed wildcards here.
                 continue
             old_def = self._state.get_def(alias)
-            self._state.remove_definition(old_def)
             # for each bounded names, replaces it's usages by
             # a special Def that represent a specific name.
             for name in bnames:
-                # A fictional ast node to represent a particular name wildcard imports are binding.
+                # A fictional ast node to represent a particular 
+                # name wildcard imports are binding.
                 new_node = ast.copy_location(ast.alias(
                     name,
                     asname=None
                 ), alias)
                 resolved_def = Imp(new_node, islive=True, orgmodule=old_def.orgmodule, orgname=name)
-                self._state.add_definition(resolved_def)
+                
                 # TODO: We should use the modifiers for the following lines:
                 self._state._locals[node].setdefault(name, []).append(resolved_def) # type: ignore
                 self._state._ancestors[new_node] = self._state._ancestors[alias]
 
-                for unbound_name in list(old_def.users()):
-                    if unbound_name.name() == resolved_def.name():
+                for unbound_name in list(u for u in old_def.users() 
+                                         if isinstance(u.node, ast.Name) 
+                                         if isinstance(u.node.ctx, ast.Load)):
+                    if unbound_name.node.id == resolved_def.name():
                         # cleanup (needed) over-approximations of beniget
                         for d in self._state.goto_defs(unbound_name.node):
                             self._state.remove_user(d, unbound_name)
 
-                        # add new definition to the chains
-                        self._state.add_user(resolved_def, unbound_name)
-
+                        # add resolved use to the chains
+                        resolved_def.add_user(unbound_name)
+                # add the new def to the state
+                self._state.add_definition(resolved_def)
+            # should not call remove_definition(old_def) here because some names might still
+            # be only bound to the wildcard in complex __all__ definitions.
+    
     def _process_definitions(self, node: ast.Module) -> Optional[Def]:
         """
         Visit the defnintions of __all__ and ensure depending modules

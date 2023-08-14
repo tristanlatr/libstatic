@@ -1,7 +1,9 @@
 """
 Project-wide objects.
 """
+from __future__ import annotations
 import ast
+from functools import partial
 from itertools import chain
 import sys
 import time
@@ -253,13 +255,28 @@ class State(_MinimalState):
                 # make sure only namedefs with same name are in the list.
                 # this is a band-aid fix for https://github.com/serge-sans-paille/beniget/issues/63
                 # see test_chains.py::..::test_annassign
-                def f(d:Def) -> bool:
-                    return d.name()==node.id
-                defs = list(filter(f, defs))
+                # also make sure we prefer to return a resolved wilcard names when possible,
+                # but still fallback to '*' when the name is not explicitely bound to a fictional ast.alias.
+                def filter_defs(d:Def) -> bool:
+                    name = d.name()
+                    if name == node.id:
+                        return True
+                    elif include_wildcards and name == '*':
+                        return True
+                    return False
+                include_wildcards = True
+                defs = defs_including_wildcards = list(filter(partial(filter_defs), defs))
+                if len(defs)>1 and any(d.name()=='*' for d in defs):
+                    include_wildcards = False
+                    defs = list(filter(partial(filter_defs), defs))
+                if len(defs) == 0:
+                    # this happens when the wildcard analyzer 
+                    # failed to bind all uses of a wildcard import
+                    defs = defs_including_wildcards
             if len(defs) == 0:
                 if isinstance(node, ast.alias):
                     raise StaticImportError(node, filename=self.get_filename(node))
-                raise StaticNameError(node, filename=self.get_filename(node))            
+                raise StaticNameError(node, filename=self.get_filename(node))      
             return defs
         except StaticException as e:
             if noraise:
