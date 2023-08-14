@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 setup( 
     name = "libstatic",
-    version = "0.2.0.dev1",
+    version = "0.2.0.dev2",
     description = "Static analysis library based on beginet",
     author = "Various Developers",
     url = "https://github.com/tristanlatr/libstatic",
