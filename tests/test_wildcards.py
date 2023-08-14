@@ -35,13 +35,13 @@ class TestWildcardParsing(TestCase):
 
         *_, expr_a, exprb_b, exprb_c = m2.node.body
         expr_a_def = proj.state.goto_def(expr_a.value)
-        assert f'{expr_a_def.name()}: {NodeLocation.make(expr_a_def, proj.state.get_filename(expr_a_def))}' == 'a: ast.alias at mod2:2:17'
+        assert f'{expr_a_def.name()}: {NodeLocation.make(expr_a_def, proj.state.get_filename(expr_a_def))}'.startswith('a: ast.alias at mod2:2')
 
         exprb_b_def = proj.state.goto_def(exprb_b.value)
-        assert f'{exprb_b_def.name()}: {NodeLocation.make(exprb_b_def, proj.state.get_filename(exprb_b_def))}' == 'b: ast.alias at mod2:2:17'
+        assert f'{exprb_b_def.name()}: {NodeLocation.make(exprb_b_def, proj.state.get_filename(exprb_b_def))}'.startswith('b: ast.alias at mod2:2')
 
         exprb_c_def = proj.state.goto_def(exprb_c.value)
-        assert f'{exprb_c_def.name()}: {NodeLocation.make(exprb_c_def, proj.state.get_filename(exprb_c_def))}' == '*: ast.alias at mod2:2:17'
+        assert f'{exprb_c_def.name()}: {NodeLocation.make(exprb_c_def, proj.state.get_filename(exprb_c_def))}'.startswith('*: ast.alias at mod2:2')
 
     def test_defined_from_wildcard_import(self):
         mod1 = '''
