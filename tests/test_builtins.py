@@ -97,7 +97,8 @@ class TestBuiltins(TestCase):
         assert property_func is proj.state.goto_definition(deco)
 
         mod = proj.state.get_module('builtins')
-        assert [location(u.node, proj.state.get_filename(u.node)) for u in mod.users()]== ['ast.alias at src1:2:7']
+        assert [location(u.node, proj.state.get_filename(u.node)) for u in mod.users()] in (['ast.alias at src1:2:7'], 
+                                                                                            ['ast.alias at src1:2'])
         assert [r for r in proj.state.goto_references(mod) if proj.state.get_root(r) is src1]
         assert proj.state.goto_references(property_func)
         references = [r for r in proj.state.goto_references(property_func) if proj.state.get_root(r) is src1]
@@ -123,7 +124,7 @@ class TestBuiltins(TestCase):
 
         mod = proj.state.get_module('builtins')
         builtins_use = next(iter(u.node for u in mod.users()))
-        assert location(builtins_use, proj.state.get_filename(builtins_use)) == 'ast.alias at src1:2:7'
+        assert location(builtins_use, proj.state.get_filename(builtins_use)).startswith('ast.alias at src1:2')
         builtins_name_use = next(iter(u.node for u in proj.state.get_def(builtins_use).users()))
         assert location(builtins_name_use, proj.state.get_filename(builtins_name_use)) == 'ast.Name at src1:3:1'
         

@@ -128,10 +128,9 @@ class _ComputeWildcards:
             for name in bnames:
                 # A fictional ast node to represent a particular 
                 # name wildcard imports are binding.
-                new_node = ast.copy_location(ast.alias(
-                    name,
-                    asname=None
-                ), alias)
+                new_node = ast.alias(
+                    name, asname=None, lineno=alias.lineno, 
+                    col_offset=getattr(alias, 'col_offset', None))
                 resolved_def = Imp(new_node, islive=True, orgmodule=old_def.orgmodule, orgname=name)
                 
                 # TODO: We should use the modifiers for the following lines:
