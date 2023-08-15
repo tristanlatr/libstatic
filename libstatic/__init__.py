@@ -6,7 +6,7 @@ This model is extended in order to include imported names, including the ones fr
 Additionnaly, reachability analysis helps with cutting down the number of potential definitions 
 for a given variable, giving more precise results. From there, we can do interesting things, like going 
 to the genuine definition of an imported symbol, given the fact that we run python 3.11 for instance.
-Or the opposite, finding all references of a given symbol, accross all modules in the prohect.
+Or the opposite, finding all references of a given symbol, accross all modules in the project.
 
 The `Project` and `State` classes represent the primary hight-level interface for the library. 
 Althought, many other lower-level parts can be used indenpedently.
@@ -22,9 +22,8 @@ This object present accessors for several kind of analyses.
 
 from ._analyzer.state import Project, State, MutableState, Options
 from ._analyzer.loader import load_path
-from ._lib.model import (Def, Mod, Cls, Func, Var, Arg, Imp, AnonymousScope, 
-                         ClosedScope, OpenScope, 
-                         Scope, NameDef)
+from ._lib.model import (Def, Mod, Cls, Func, Var, Arg, Imp, Comp, Lamb, Attr, 
+                         ClosedScope, OpenScope, Scope, NameDef)
 from ._lib.process import TopologicalProcessor
 from ._lib.exceptions import *
 
@@ -44,7 +43,9 @@ __all__ = (
     "Arg", 
     "Imp",
     "Scope",
-    "AnonymousScope",
+    "Comp",
+    "Lamb",
+    "Attr",
     "ClosedScope",
     "OpenScope",
     "NameDef",

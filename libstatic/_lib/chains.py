@@ -11,9 +11,10 @@ from beniget.beniget import ( # type:ignore
     Def as BenigetDef,
 )
 
-from .model import Cls, Func, Var, Imp, Def, Arg, AnonymousScope, NameDef
+from .model import Cls, Func, Var, Imp, Def, Arg, Lamb, Comp, Attr, NameDef
 from .imports import ParseImportedNames, ImportInfo
 from .exceptions import StaticCodeUnsupported
+from .shared import LocalStmtVisitor, StmtVisitor
 
 # beniget integration here:
 
@@ -132,13 +133,16 @@ class BenigetConverter:
         return new_chains
 
     def _def_factory(self, node: ast.AST, islive:bool) -> "Def|None":
-        # attributes are not NameDef
+        # attributes **are** NameDef
         if isinstance(node, ast.ClassDef):
+            # ivars will be set later
             return Cls(node, islive=islive)
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             return Func(node, islive=islive)
         elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
             return Var(node, islive=islive)
+        elif isinstance(node, ast.Attribute) and isinstance(node.ctx, ast.Store):
+            return Attr(node, islive=islive)
         elif isinstance(node, ast.arg):
             # TODO: get kind, default value and annotation in this object.
             return Arg(node, islive=islive)
@@ -149,15 +153,14 @@ class BenigetConverter:
                            orgmodule=info.orgmodule, 
                            orgname=info.orgname)
             return None
-        elif isinstance(
-            node,
-            (ast.Lambda, ast.GeneratorExp, ast.ListComp, 
-             ast.DictComp, ast.SetComp),
-        ):
-            return AnonymousScope(node, islive=islive)
+        elif isinstance(node, (ast.GeneratorExp, ast.ListComp, ast.DictComp, ast.SetComp)):
+            return Comp(node, islive=islive)
+        elif isinstance(node, ast.Lambda):
+            return Lamb(node, islive=islive)
         elif isinstance(node, ast.Module):
             raise RuntimeError()
         else:
+            # not a definition, simply a use.
             return Def(node, islive=islive)
 
     def _convert_locals(self, locals: Mapping[ast.AST, List["BenigetDef"]]) -> Locals:
@@ -171,6 +174,61 @@ class BenigetConverter:
                 d.setdefault(loc.name(), []).append(converted_local) # type: ignore
         return locals_as_dict
 
+class IVarsVisitor(LocalStmtVisitor):
+    def __init__(self, chains:Mapping[ast.AST, Def]) -> None:
+        self.chains = chains
+        self.ivars: List[Attr] = []
+
+    def visit_FunctionDef(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
+        args = node.args.args
+        if (
+            len(args) == 0
+            # special methods known not to be instance methods,
+            # TODO: are there more?
+            or node.name in {"__new__", 
+                                "__init_subclass__",
+                                "__class_getitem__", 
+                                "__subclasscheck__", 
+                                "__subclasshook__", }
+            or any((getattr(d, "id", None)
+                    in {"classmethod", "staticmethod"}
+                    for d in node.decorator_list))
+            # we include only methods that follows the 
+            # 'self' convention to exclude code like
+            # class C:
+            #   def stmeth(thing):
+            #       thing.var = 2
+            #   stmeth = staticmethod(stmeth)
+            or not args[0].arg=='self'
+        ):
+            # not a typical instance method
+            return
+        self_def = self.chains[args[0]]
+        for use in (u for u in self_def.users() if isinstance(u.node, ast.Name)):
+            try:
+                attr = next(attr for attr in use.users() 
+                            if isinstance(attr, Attr) 
+                            and attr.node.value is use.node)
+            except StopIteration:
+                continue
+            else:
+                self.ivars.append(attr)
+
+    visit_AsyncFunctionDef = visit_FunctionDef
+
+def _compute_ivars(chains: Mapping[ast.AST, Def], cls: ast.ClassDef) -> Sequence[Attr]:
+    visitor = IVarsVisitor(chains)
+    visitor.generic_visit(cls)
+    return visitor.ivars
+
+class ComputeInstanceVariables(StmtVisitor):
+    def __init__(self, chains:Mapping[ast.AST, Def], ) -> None:
+        self.chains = chains
+    def visit_ClassDef(self, node: ast.ClassDef) -> Any:
+        cls = self.chains[node]
+        assert isinstance(cls, Cls)
+        cls.ivars = _compute_ivars(self.chains, node)
+        self.generic_visit(node)
 
 def defuse_chains_and_locals(
     node: ast.Module, 
@@ -195,6 +253,8 @@ def defuse_chains_and_locals(
     # convert result into standard library
     converter = BenigetConverter(gast2ast, alias2importinfo)
     chains, locals, builtins_defuse = converter.convert(defuse)
+    # compute ivars, this mutates the Cls instances in the chains.
+    ComputeInstanceVariables(chains).visit(node)
     return chains, locals, builtins_defuse
 
 
@@ -212,4 +272,3 @@ def usedef_chains(def_use_chains: Chains) -> UseChains:
             chains.setdefault(use.node, []).append(chain)
 
     return chains
-    # this does not support builtins, by design

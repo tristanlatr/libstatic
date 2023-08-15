@@ -116,7 +116,7 @@ class Def:
 
 class NameDef(Def):
     """
-    Model the definition of a name.
+    Model the definition of a name (abstract).
     """
 
     node: Union[
@@ -127,6 +127,7 @@ class NameDef(Def):
         ast.Name,
         ast.arg,
         ast.alias,
+        ast.Attribute,
     ]
 
     def name(self) -> str:
@@ -135,17 +136,21 @@ class NameDef(Def):
 
 class Scope(Def):
     """
-    Model a python scope.
+    Model a python scope (abstract).
     """
 
     def name(self) -> str:
         raise NotImplementedError()
 
 class OpenScope(Scope):
+    """
+    Model a open scope (abstract).
+    """
     node: Union[ast.Module, ast.ClassDef]
 
 class ClosedScope(Scope):
     """
+    Model a closed scope (abstract).
     Closed scope have <locals>.
     """
 
@@ -159,9 +164,20 @@ class ClosedScope(Scope):
         ast.SetComp,
     ]
 
-# TODO: Replace this with Lamb and Comp
-class AnonymousScope(ClosedScope):
-    node: Union[ast.Lambda, ast.GeneratorExp, ast.ListComp, ast.DictComp, ast.SetComp]
+class Lamb(ClosedScope):
+    """
+    Model the definition of a lambda function.
+    """
+    node: ast.Lambda
+
+    def name(self) -> str:
+        return f"<{type(self.node).__name__.lower()}>"
+
+class Comp(ClosedScope):
+    """
+    Model the definition of a generator or comprehension.
+    """
+    node: Union[ast.GeneratorExp, ast.ListComp, ast.DictComp, ast.SetComp]
 
     def name(self) -> str:
         return f"<{type(self.node).__name__.lower()}>"
@@ -195,9 +211,14 @@ class Cls(NameDef, OpenScope):
     """
     Model a class definition.
     """
-
+    __slots__ = (*Def.__slots__, 'ivars')
     node: ast.ClassDef
-
+    
+    def __init__(self, 
+                 node: ast.ClassDef, 
+                 islive: bool) -> None:
+        super().__init__(node, islive)
+        self.ivars: Sequence['Attr'] = []
 
 class Func(NameDef, ClosedScope):
     """
@@ -213,6 +234,12 @@ class Var(NameDef):
     """
 
     node: ast.Name
+
+class Attr(NameDef):
+    """
+    Model an attribute definition.
+    """
+    node: ast.Attribute
 
 
 class Arg(NameDef):

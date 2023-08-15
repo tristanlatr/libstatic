@@ -23,7 +23,7 @@ def node2dottedname(node: Optional[ast.AST]) -> Optional[List[str]]:
     return parts
 
 @overload
-def ast_node_name(n:Union[ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef, ast.Name, ast.arg, ast.alias]) -> 'str': # type: ignore[misc]
+def ast_node_name(n:Union[ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef, ast.Name, ast.arg, ast.alias, ast.Attribute]) -> 'str': # type: ignore[misc]
     ...
 @overload
 def ast_node_name(n:Any) -> None:
@@ -38,6 +38,8 @@ def ast_node_name(n:Any) -> 'str|None':
     elif isinstance(n, ast.alias):
         base = n.name.split(".", 1)[0]
         return n.asname or base
+    elif isinstance(n, ast.Attribute):
+        return n.attr
     return None
 
 def unparse(node:ast.AST) -> str:

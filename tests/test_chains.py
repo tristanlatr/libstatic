@@ -184,3 +184,29 @@ class TestUseDefChains(TestCase):
 
         with self.assertRaises(StaticNameError):
             proj.state.goto_def(node.body[-2].annotation)
+
+    def test_ivars(self):
+        code = '''
+        class F:
+            def __init__(self, x):
+                self.x = x
+            def set_val(self, v):
+                self.val = v
+
+            # not instance method
+            @staticmethod
+            def thing(self):
+                self.a = 1
+            @classmethod
+            def bar(self):
+                self.b = 2
+            def __new__(self, x):
+                self.c = 2
+        '''
+        node = ast.parse(dedent(code))
+        proj = Project(python_version=(3,7), )
+        proj.add_module(node, 'classes')
+        proj.analyze_project()
+        F, = proj.state.get_local(node, 'F')
+        assert [str(NodeLocation.make(i, proj.state.get_filename(i))) for i in F.ivars] ==\
+               ['ast.Attribute at classes:4:8', 'ast.Attribute at classes:6:8']
