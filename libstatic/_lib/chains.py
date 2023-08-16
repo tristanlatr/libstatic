@@ -89,6 +89,7 @@ class BenigetConverter:
 
 
     def convert(self, b: DefUseChains) -> Tuple[Chains, Locals, BuiltinsChains]:
+        self.filename = b.filename
         chains: Chains = self._convert_chains(b.chains) # type:ignore
         builtins_chains: BuiltinsChains = self._convert_chains(b._builtins, is_builtins=True) # type:ignore
         locals = self._convert_locals(b.locals)
@@ -168,7 +169,15 @@ class BenigetConverter:
         for namespace, loc_list in locals.items():
             d = locals_as_dict.setdefault(self.gast2ast[namespace], {})
             for loc in loc_list:
-                converted_local = self.converted[loc]
+                try:
+                    converted_local = self.converted[loc]
+                except KeyError:
+                    # globals and non locals are not handled at the moment.
+                    # Issues with the global keyword needs to be fixed first
+                    # https://github.com/serge-sans-paille/beniget/issues/74
+                    # https://github.com/serge-sans-paille/beniget/issues/64
+                    continue
+                    
                 if __debug__:
                     assert isinstance(converted_local, (NameDef, type(None)))
                 d.setdefault(loc.name(), []).append(converted_local) # type: ignore
