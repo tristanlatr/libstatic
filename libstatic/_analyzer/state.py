@@ -558,6 +558,9 @@ class State(_MinimalState):
             return self.get_root(node).filename()
         except StaticException:
             return None
+        
+    def get_location(self, node: 'ast.AST|Def') -> NodeLocation:
+        return NodeLocation.make(node, self.get_filename(node))
 
     def is_reachable(self, node: Union[ast.AST, Def]) -> bool:
         """
