@@ -15,6 +15,7 @@ from .model import Cls, Func, Var, Imp, Def, Arg, Lamb, Comp, Attr, NameDef
 from .imports import ParseImportedNames, ImportInfo
 from .exceptions import StaticCodeUnsupported
 from .shared import LocalStmtVisitor, StmtVisitor
+from .arguments import iter_arguments, ArgSpec
 
 # beniget integration here:
 
@@ -81,10 +82,12 @@ class BenigetConverter:
     def __init__(
         self,
         gast2ast: Mapping[gast.AST, ast.AST],
-        alias2importinfo: Mapping[ast.alias, ImportInfo]
+        alias2importinfo: Mapping[ast.alias, ImportInfo],
+        arg2spec: Mapping[ast.arg, ArgSpec],
     ) -> None:
         self.gast2ast = gast2ast
         self.alias2importinfo = alias2importinfo
+        self.arg2spec = arg2spec
         self.converted: Dict[BenigetDef, Optional[Def]] = {}
 
 
@@ -146,14 +149,21 @@ class BenigetConverter:
             return Attr(node, islive=islive)
         elif isinstance(node, ast.arg):
             # TODO: get kind, default value and annotation in this object.
-            return Arg(node, islive=islive)
+            try:
+                argspec = self.arg2spec[node]
+            except KeyError as e:
+                raise StaticCodeUnsupported(node, 'argument was not parsed', filename=self.filename) from e
+            return Arg(node, islive=islive,
+                       default=argspec.default, 
+                       kind=argspec.kind)
         elif isinstance(node, ast.alias):
-            info = self.alias2importinfo.get(node)
-            if info:
-                return Imp(node, islive=islive, 
-                           orgmodule=info.orgmodule, 
-                           orgname=info.orgname)
-            return None
+            try:
+                info = self.alias2importinfo[node]
+            except KeyError as e:
+                raise StaticCodeUnsupported(node, 'import was not parsed', filename=self.filename) from e
+            return Imp(node, islive=islive, 
+                        orgmodule=info.orgmodule, 
+                        orgname=info.orgname)
         elif isinstance(node, (ast.GeneratorExp, ast.ListComp, ast.DictComp, ast.SetComp)):
             return Comp(node, islive=islive)
         elif isinstance(node, ast.Lambda):
@@ -239,6 +249,16 @@ class ComputeInstanceVariables(StmtVisitor):
         cls.ivars = _compute_ivars(self.chains, node)
         self.generic_visit(node)
 
+class ParseArgumentsInfos(StmtVisitor):        
+    def visit_FunctionDef(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> Any:
+        self._result.update({a.node:a for a in iter_arguments(node.args)})
+        self.generic_visit(node)
+    def visit_Module(self, node: ast.Module) -> Mapping[ast.arg, ArgSpec]:
+        self._result: Dict[ast.arg, ArgSpec] = {}
+        self.generic_visit(node)
+        return self._result
+    visit_AsyncFunctionDef = visit_FunctionDef
+
 def defuse_chains_and_locals(
     node: ast.Module, 
     modname: str, 
@@ -259,8 +279,11 @@ def defuse_chains_and_locals(
         node
     )
 
+    # parse function's arguments
+    arg2spec = ParseArgumentsInfos().visit_Module(node)
+
     # convert result into standard library
-    converter = BenigetConverter(gast2ast, alias2importinfo)
+    converter = BenigetConverter(gast2ast, alias2importinfo, arg2spec)
     chains, locals, builtins_defuse = converter.convert(defuse)
     # compute ivars, this mutates the Cls instances in the chains.
     ComputeInstanceVariables(chains).visit(node)

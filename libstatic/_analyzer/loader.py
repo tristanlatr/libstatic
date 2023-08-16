@@ -12,7 +12,7 @@ from typing import Set, Tuple, TYPE_CHECKING
 if TYPE_CHECKING:
     from .state import Project
 
-def _parse_file(path: Path) -> ast.Module:
+def _parse_file(path: Path) -> ast.Module | None:
     """Parse the contents of a Python source file."""
     with open(path, 'rb') as f:
         src = f.read() + b'\n'

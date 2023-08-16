@@ -3,6 +3,7 @@ This module contains the def-use models, use to represent the code.
 """
 
 import ast
+import inspect
 from itertools import chain
 import sys
 import time
@@ -264,9 +265,47 @@ class Attr(NameDef):
 class Arg(NameDef):
     """
     Model a function argument definition.
+
+    This demonstrate the `Arg.to_parameter` method:
+    
+    >>> from libstatic import Project
+    >>> node = ast.parse('def f(a:int, b:object=None, *, key:str, **kwargs):...')
+    >>> p = Project()
+    >>> _ = p.add_module(node, 'test')
+    >>> p.analyze_project()
+    >>> func_node = node.body[0]
+    >>> args = (p.state.get_def(n) for n in ast.walk(func_node.args) if isinstance(n, ast.arg))
+    >>> parameters = [a.to_parameter() for a in args]
+    >>> sig = inspect.Signature(parameters)
+    >>> str(sig)
+    '(a: <ast.Name...>, b: <ast.Name...> = <ast.Constant...>, *, key: <ast.Name...>, **kwargs)'
+
     """
+    __slots__ = (*Def.__slots__, 'default', 'kind')
 
     node: ast.arg
+    def __init__(self, 
+                 node: ast.arg, 
+                 islive: bool, 
+                 default: ast.expr | None, 
+                 kind: inspect._ParameterKind) -> None:
+        super().__init__(node, islive)
+        self.default = default
+        self.kind = kind
+        """
+        One of ``Parameter.POSITIONAL_ONLY``, ``Parameter.POSITIONAL_OR_KEYWORD``, 
+        ``Parameter.VAR_POSITIONAL``, ``Parameter.KEYWORD_ONLY`` or ``Parameter.VAR_KEYWORD``.
+
+        :see: `inspect.Parameter.kind`
+        """
+    
+    def to_parameter(self) -> inspect.Parameter:
+        """
+        Cast this `Arg` instance into a `inspect.Parameter` instance.
+        """
+        return inspect.Parameter(self.node.arg, self.kind, 
+            default=self.default or inspect.Parameter.empty, 
+            annotation=self.node.annotation or inspect.Parameter.empty)
 
 
 class Imp(NameDef):
