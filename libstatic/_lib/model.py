@@ -74,6 +74,10 @@ class Def:
         self.node = node
         self.islive = islive
         self._users: MutableSet["Def"] = ordered_set()
+        self._setup()
+    
+    def _setup(self) -> None:
+        pass
 
     def add_user(self, node: "Def") -> None:
         assert isinstance(node, Def)
@@ -208,17 +212,32 @@ class Mod(NameDef, OpenScope):
 
 
 class Cls(NameDef, OpenScope):
-    """
+    r"""
     Model a class definition.
+
+    This demonstrate the `Cls.ivars` attribute:
+
+    >>> from libstatic import Project
+    >>> p = Project()
+    >>> m = p.add_module(ast.parse('class C:\n'
+    ... ' def __init__(self, x):\n'
+    ... '  self._x = x'), 'test')
+    >>> p.analyze_project()
+    >>> C, = p.state.get_local(m, 'C')
+    >>> ivars = [f'{v.name()!r} {p.state.get_location(v)}' for v in C.ivars]
+    >>> print('\n'.join(ivars))
+    '_x' ast.Attribute at test:3:2
     """
     __slots__ = (*Def.__slots__, 'ivars')
     node: ast.ClassDef
     
-    def __init__(self, 
-                 node: ast.ClassDef, 
-                 islive: bool) -> None:
-        super().__init__(node, islive)
+    def _setup(self) -> None:
+        super()._setup()
         self.ivars: Sequence['Attr'] = []
+        """
+        A sequence of `Attr` definitions to the ``self`` 
+        parameter of methods in the class body.
+        """
 
 class Func(NameDef, ClosedScope):
     """
