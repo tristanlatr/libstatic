@@ -45,13 +45,13 @@ from .._lib.exceptions import (
     StaticAmbiguity, 
     NodeLocation
 )
-from .._lib.model import Def, NameDef, Mod, Cls, Func, Imp, Scope, ClosedScope
+from .._lib.model import Def, NameDef, Mod, Cls, Func, Imp, Scope, ClosedScope, LazySeq, ChainMap
 
 from .asteval import LiteralValue, _LiteralEval, _GotoDefinition
 
 
 if TYPE_CHECKING:
-    from typing import Literal, NoReturn, Protocol
+    from typing import Literal, NoReturn, Protocol, _KT, _VT
 else:
     Protocol = object
 
@@ -126,6 +126,19 @@ class State(_MinimalState):
         self._dunder_all: Mapping["Mod", "Collection[str]|None"] = {}
         """
         Mapping from Mod instances explicit ``__all__`` values or None.
+        """
+
+        self._ivars: Dict[ast.ClassDef, Mapping[str, Sequence[NameDef]]] = {}
+        """
+        Mapping from class instances to instance variables definitions stored as mapping
+        for fast name based access.
+        """
+
+        self._mros: Mapping[Cls, Sequence[Cls | str]] = {}
+        """
+        Mapping from class instances to their resolved MRO. A warning is logged when
+        the MRO of a class could not be computed or is ambiguous. Qualname as strings 
+        replaces unresolved classes in the MRO.
         """
     
     def _raise_node_not_in_chains(self, e: KeyError, node:ast.AST) -> 'NoReturn':
@@ -328,16 +341,52 @@ class State(_MinimalState):
             return None
         return self._modules.get('.'.join(mod.name().split('.')[:-1]))
 
+    @overload
+    def get_mro(self, node: Cls | ast.ClassDef, *, 
+            include_unknown:'Literal[True]', 
+            include_self:bool=True) -> Iterator[Union['Cls', str]]:...
+    @overload
+    def get_mro(self, node: Cls | ast.ClassDef, *, 
+            include_unknown:'Literal[False]'=False, 
+            include_self:bool=True) -> Iterator['Cls']:...
+    
+    def get_mro(self, node: Cls | ast.ClassDef, *,
+                include_self:bool=True, 
+                include_unknown:bool=False) -> Iterator[Union[str, Cls]]:
+        if isinstance(node, ast.AST):
+            node = self.get_def(node)
+        if not isinstance(node, Cls):
+            raise StaticTypeError(node, expected='Class', 
+                                  filename=self.get_filename(node))
+        try:
+            _mro: Iterator[Union[str, Cls]] = iter(self._mros[node])
+        except KeyError as e:
+            raise StaticStateIncomplete(node, 'missing mro info', 
+                                        filename=self.get_filename(node)) from e
+        if include_self is False:
+            next(_mro)
+        if include_unknown is False:
+            yield from (o for o in _mro if not isinstance(o, str))
+        else:
+            yield from _mro
+
     def get_locals(
-        self, node: Union["Mod", "Def", ast.AST]
+        self, 
+        node: Union["Mod", "Def", ast.AST], *,
+        include_inherited:bool=False
     ) -> Mapping[str, Sequence[Optional["NameDef"]]]:
         """
         Get the mapping of locals of the given ``node``.
+
+        :raises StaticValueError: If the given ``node`` cannot have locals
+            (it's not a scope definition).
         """
         if isinstance(node, Def):
             node = node.node
         try:
-            return self._locals[node]
+            locals = self._locals[node]
+            if not include_inherited or not isinstance(node, ast.ClassDef):
+                return locals
         except KeyError as e:
             definition = self.get_def(node)
             if isinstance(definition, Scope):
@@ -347,15 +396,70 @@ class State(_MinimalState):
                 return {}
             raise StaticValueError(node, f"{type(node).__name__.lower()} cannot have locals", 
                                    filename=self.get_filename(node)) from e
+        else:
+            return ChainMap(LazySeq(chain((locals,), chain.from_iterable((self.get_locals(cls),) for 
+                    cls in self.get_mro(node, include_self=False)))))
 
     def get_local( #type:ignore[override]
-        self, node: Union["Mod", "Def", ast.AST], name: str
+        self, node: Union["Mod", "Def", ast.AST], name: str, *,
+        include_inherited:bool=False,
     ) -> Sequence[Optional["NameDef"]]: 
         """
-        Get the definitions of the given ``name`` in scope ``node``.
+        Get the local definitions of the given ``name`` in scope ``node``.
+
+        :return: List of definitions matching the provided name. **An empty list
+            will be returned if the name is not defined**.
         """
         try:
-            return self.get_locals(node)[name]
+            return self.get_locals(node, 
+                    include_inherited=include_inherited)[name]
+        except KeyError:
+            return []
+
+    def get_ivars(self, node: ast.ClassDef | Cls, *, include_inherited:bool=False) -> Mapping[str, Sequence[NameDef]]:
+        r"""
+        Get the mapping of instance variables of the given class.
+
+        >>> p = Project()
+        >>> m = p.add_module(ast.parse('class C:\n'
+        ... ' def __init__(self, x):\n'
+        ... '  self._x = x'), 'test')
+        >>> p.analyze_project()
+        >>> C, = p.state.get_local(m, 'C')
+        >>> ivars = [f'{v.name()!r} {p.state.get_location(v)}' for v in chain(*p.state.get_ivars(C).values())]
+        >>> print('\n'.join(ivars))
+        '_x' ast.Attribute at test:3:2
+
+        """
+        if isinstance(node, Def):
+            node = node.node
+        if not isinstance(node, ast.ClassDef):
+            raise StaticTypeError(node, expected='ClassDef', 
+                                  filename=self.get_filename(node))
+        try:
+            ivars = self._ivars[node]
+            if not include_inherited:
+                return ivars
+        except KeyError as e:
+            raise StaticStateIncomplete(node, 'missing instance variable infos', 
+                                        filename=self.get_filename(node)) from e
+        else:
+            return ChainMap(LazySeq(chain((ivars,), chain.from_iterable((self.get_ivars(cls),) for 
+                    cls in self.get_mro(node, include_self=False)))))
+
+    def get_ivar(self, node: Cls | ast.ClassDef, name: str, *, 
+                 include_inherited:bool=False):
+        """
+        Get the instance variable definitions of the given ``name`` in class ``node``.
+        Only assigments present in methods directly in the body of the class are considered here.
+        If you want to lookup instance variables in super classes as well, pass``include_inherited=True``.
+
+        :return: List of definitions matching the provided name. **An empty list
+            will be returned if the name is not defined**.
+        """
+        try:
+            return self.get_ivars(node, 
+                    include_inherited=include_inherited)[name]
         except KeyError:
             return []
 
@@ -405,11 +509,16 @@ class State(_MinimalState):
         *,
         ignore_locals: bool = False,
         noraise: bool = False, 
-        filter_unreachable: bool = True
+        filter_unreachable: bool = True,
+        include_ivars: bool = False,
+        include_inherited: bool = True,
     ) -> Sequence[NameDef]:
-        """
-        Get ``scope`` attributes definitions matching the ``name``.
-        It calls both `get_local()` and `get_sub_module()`.
+        r"""
+        Get attributes definitions matching the ``name`` in the scope ``node``.
+        It fisrt call `get_local()` (`get_ivar()` if ``include_ivars=True``); 
+        if no locals matches the name or ``ignore_locals=True`` and the scope is a module, it calls  `get_sub_module()`.
+
+        .. note:: It always filter out killed definitions.
 
         :raises StaticAttributeError: If the attribute is not found.
         """
@@ -424,11 +533,17 @@ class State(_MinimalState):
             if noraise:
                 return []
             raise StaticTypeError(node, expected='Module or Class')
+        values: Sequence[NameDef] = []
         if not ignore_locals:
-            values: Sequence[NameDef] = [v for v in self.get_local(node, name) if v]
+            if include_ivars and isinstance(node, Cls):
+                values = self.get_ivar(node, name, 
+                            include_inherited=include_inherited)
+            if not values:
+                values = [v for v in self.get_local(node, name, 
+                            include_inherited=include_inherited) if v]
             values = self._softfilter_defs(values, # type:ignore
-                                           unreachable=filter_unreachable, 
-                                           killed=True)
+                                        unreachable=filter_unreachable, 
+                                        killed=True)
         else:
             values = []
         if not values and isinstance(node, Mod) and node.is_package:
@@ -443,7 +558,7 @@ class State(_MinimalState):
         raise StaticAttributeError(node, attr=name, 
                                    filename=self.get_filename(node))
 
-    def get_dunder_all(self, mod: "Mod") -> "Collection[str]|None":
+    def get_dunder_all(self, mod: Mod | ast.Module) -> "Collection[str]|None":
         """
         Get the computed value for the ``__all__`` variable of this module.
 
@@ -451,6 +566,12 @@ class State(_MinimalState):
 
         :raises StaticStateIncomplete: If no information is registered for the module ``mod``.
         """
+        if isinstance(mod, ast.AST):
+            if not isinstance(mod, ast.Module):
+                mod = self.get_def(mod)
+            else:
+                raise StaticTypeError(mod, expected='Module', 
+                        filename=self.get_filename(mod))
         try:
             return self._dunder_all[mod]
         except KeyError as e:
@@ -486,7 +607,7 @@ class State(_MinimalState):
             return __all__
         return self._get_public_names(mod)
 
-    def get_parent(self, node: ast.AST) -> ast.AST:
+    def get_parent(self, node: ast.AST | Def) -> ast.AST:
         """
         Returns the direct parent of the given node in the syntax tree.
 
@@ -501,19 +622,21 @@ class State(_MinimalState):
                 ) from e
             raise StaticStateIncomplete(node, "missing parent") from e
 
-    def get_parents(self, node: ast.AST) -> Sequence[ast.AST]:
+    def get_parents(self, node: ast.AST | Def) -> Sequence[ast.AST]:
         """
         Returns all syntax tree parents of the node in the syntax tree up to the root module.
 
         :raises StaticStateIncomplete: If no parents informations is available.
         """
+        if isinstance(node, Def):
+            node = node.node
         try:
             return self._ancestors[node]
         except KeyError as e:
             raise StaticStateIncomplete(node, "no parents in the system") from e
 
     def get_parent_instance(
-        self, node: ast.AST, cls: "Type[T]|Tuple[Type[T],...]"
+        self, node: ast.AST | Def, cls: "Type[T]|Tuple[Type[T],...]"
     ) -> T:
         """
         Returns the first parent of the node in the syntax tree matching the given type info.
@@ -521,7 +644,7 @@ class State(_MinimalState):
         :raises StaticValueError: If the the node has no parents of the requested type.
         """
         # special case module access for speed.
-        if isinstance(cls, type) and issubclass(cls, ast.Module):
+        if isinstance(cls, type) and issubclass(cls, (ast.Module, Mod)):
             try:
                 mod = next(iter(self.get_parents(node)))
             except StopIteration:
@@ -617,7 +740,7 @@ class State(_MinimalState):
         assert isinstance(s, Scope)
         return s # type: ignore
 
-    def get_all_enclosing_scopes(self, definition: Def) -> Sequence[Scope]:
+    def get_all_enclosing_scopes(self, definition: Def | ast.AST) -> Sequence[Scope]:
         """
         Returns all scopes enclosing this definition.
         """
@@ -1137,8 +1260,6 @@ class MutableState(State):
         for use in tuple(definition.users()):
             self.remove_user(definition, use)
 
-    # first pass updates
-
     def store_anaysis(
         self,
         *,
@@ -1147,16 +1268,18 @@ class MutableState(State):
         ancestors: "Mapping[ast.AST, Sequence[ast.AST]]|None" = None,
         usedef: "Mapping[ast.AST, Sequence[Def]]|None" = None,
         unreachable: "Set[ast.AST]|None" = None,
+        ivars: Mapping[ast.ClassDef, Mapping[str, Sequence[NameDef]]]|None = None,
     ) -> None:
         self._def_use_chains.update(defuse) if defuse is not None else ...
         self._locals.update(locals) if locals is not None else ...
         self._ancestors.update(ancestors) if ancestors is not None else ...
         self._use_def_chains.update(usedef) if usedef is not None else ...
         self._unreachable.update(unreachable) if unreachable is not None else ...
+        self._ivars.update(ivars) if ivars is not None else ...
     
     # custom created nodes, TODO: this might be a bad idea.
 
-    def adopt_expression(self, expr:ast.expr, ctx:Scope) -> None:
+    # def adopt_expression(self, expr:ast.expr, ctx:Scope) -> None:
         """
         Updates the ancestors and the chains
         such that this manually constructed expression 

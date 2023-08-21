@@ -1,4 +1,5 @@
 import ast
+from itertools import chain
 import sys
 from unittest import TestCase
 from textwrap import dedent
@@ -208,5 +209,46 @@ class TestUseDefChains(TestCase):
         proj.add_module(node, 'classes')
         proj.analyze_project()
         F, = proj.state.get_local(node, 'F')
-        assert [str(NodeLocation.make(i, proj.state.get_filename(i))) for i in F.ivars] ==\
+        assert [str(NodeLocation.make(i, proj.state.get_filename(i))) for i in chain(*proj.state.get_ivars(F).values())] ==\
                ['ast.Attribute at classes:4:8', 'ast.Attribute at classes:6:8']
+    
+    def test_inheritence(self):
+        code = '''
+        class Parent:    
+            def __init__(self, name, serial, **kwargs):
+                self.name = name
+                self.serial = serial
+                self.id = 0
+
+        class ChildA(Parent):    
+            def __init__(self, a_name, a_serial, **kwargs):
+                self.a_name = a_name
+                self.a_serial = a_serial
+                super().__init__(**kwargs)
+
+        class ChildB(Parent):    
+            def __init__(self, a_name, b_serial, **kwargs):
+                self.a_name = b_name
+                self.b_serial = b_serial
+                self.name = 'thing'
+                super().__init__(**kwargs)
+
+        class GrandChild(ChildA, ChildB):
+            ...
+        '''
+
+        node = ast.parse(dedent(code))
+        proj = Project(python_version=(3,7), )
+        proj.add_module(node, 'mro')
+        proj.analyze_project()
+        GrandChild, = proj.state.get_local(node, 'GrandChild')
+        assert [f'{i.name()} '+str(NodeLocation.make(i, proj.state.get_filename(i))) 
+                for i in chain(*proj.state.get_ivars(GrandChild, 
+                        include_inherited=True).values())] == \
+               ['name ast.Attribute at mro:18:8',
+                'serial ast.Attribute at mro:5:8',
+                'id ast.Attribute at mro:6:8',
+                'a_name ast.Attribute at mro:10:8',
+                'b_serial ast.Attribute at mro:17:8',
+                'a_serial ast.Attribute at mro:11:8',]
+    

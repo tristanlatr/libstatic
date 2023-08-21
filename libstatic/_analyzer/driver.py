@@ -8,10 +8,12 @@ from .._lib.chains import defuse_chains_and_locals, usedef_chains, BuiltinsChain
 from .._lib.ancestors import Ancestors
 from .._lib.exceptions import StaticException
 from .._lib.shared import StmtVisitor
+from .._lib.ivars import ComputeInstanceVariables
 
 from .reachability import get_unreachable
 from .wildcards import compute_wildcards
 from .state import MutableState, Options
+from .mro import compute_mros
 
 from beniget.beniget import BuiltinsSrc # type: ignore
 
@@ -116,7 +118,7 @@ class Analyzer:
         # to fetch the filename for all ast nodes, which might be useful
         # for error/warning reporting.
         ancestors_vis = Ancestors()
-        ancestors_vis.visit(mod.node)
+        ancestors_vis.visit(module_node)
         ancestors = ancestors_vis.parents
         self._state.store_anaysis(ancestors=ancestors)
 
@@ -138,6 +140,10 @@ class Analyzer:
         # : Reachability analysis
         unreachable = get_unreachable(self._state, self._options, module_node)
         self._state.store_anaysis(unreachable=unreachable)
+
+        # : Compute local instance variables
+        ivars = ComputeInstanceVariables(defuse).visit_Module(module_node)
+        self._state.store_anaysis(ivars=ivars)
         
         return builtins_defuse
 
@@ -208,6 +214,9 @@ class Analyzer:
         # the compute_wildcards() function will mutate the state chains to resolve all widlcard
         # imported names.
         self._state._dunder_all = compute_wildcards(self._state)
+
+        # : Compute class MROs
+        self._state._mros = compute_mros(self._state)
     
     def analyze(self) -> None:
         """

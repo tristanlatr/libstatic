@@ -213,32 +213,10 @@ class Mod(NameDef, OpenScope):
 
 
 class Cls(NameDef, OpenScope):
-    r"""
-    Model a class definition.
-
-    This demonstrate the `Cls.ivars` attribute:
-
-    >>> from libstatic import Project
-    >>> p = Project()
-    >>> m = p.add_module(ast.parse('class C:\n'
-    ... ' def __init__(self, x):\n'
-    ... '  self._x = x'), 'test')
-    >>> p.analyze_project()
-    >>> C, = p.state.get_local(m, 'C')
-    >>> ivars = [f'{v.name()!r} {p.state.get_location(v)}' for v in C.ivars]
-    >>> print('\n'.join(ivars))
-    '_x' ast.Attribute at test:3:2
     """
-    __slots__ = (*Def.__slots__, 'ivars')
+    Model a class definition.
+    """
     node: ast.ClassDef
-    
-    def _setup(self) -> None:
-        super()._setup()
-        self.ivars: Sequence['Attr'] = []
-        """
-        A sequence of `Attr` definitions to the ``self`` 
-        parameter of methods in the class body.
-        """
 
 class Func(NameDef, ClosedScope):
     """
@@ -332,3 +310,92 @@ class Imp(NameDef):
             return f"{self.orgmodule}.{self.orgname}"
         else:
             return self.orgmodule
+
+_T = TypeVar("_T")
+class LazySeq(Sequence[_T]):
+    """
+    A lazy sequence makes an iterator look like an immutable sequence.
+    """
+    def __init__(self, iterable:Iterable[_T]) -> None:
+        self._iterator = iter(iterable)
+        self._values: List[_T] = []
+    
+    def _curr(self,) ->int:
+        return len(self._values)-1
+    
+    def _consume_next(self) -> _T:
+        val = next(self._iterator)
+        self._values.append(val)
+        return val
+    
+    def _consume_until(self, key:int) -> None:
+        if key < 0:
+            self._consume_all()
+            return
+        while self._curr() < key:
+            try:
+                self._consume_next()
+            except StopIteration:
+                break
+    
+    def _consume_all(self) -> None:
+        while 1:
+            try:
+                self._consume_next()
+            except StopIteration:
+                break
+    @overload
+    def __getitem__(self, key:int) -> _T:
+        ...
+    @overload
+    def __getitem__(self, key:slice) -> list[_T]:
+        ...
+    def __getitem__(self, key:int|slice) -> _T | list[_T]:
+        if isinstance(key, int):
+            self._consume_until(key)
+        else:
+            self._consume_all()
+        return self._values[key]
+    
+    def __iter__(self) -> Iterator[_T]:
+        yield from self._values
+        while 1:
+            try:
+                yield self._consume_next()
+            except StopIteration:
+                break
+    
+    def __len__(self) -> int:
+        self._consume_all()
+        return len(self._values)
+
+_KT = TypeVar("_KT")
+_VT = TypeVar("_VT")
+class ChainMap(Mapping['_KT', '_VT']):
+    """Combine multiple mappings for sequential lookup.
+
+    For example, to emulate Python's normal lookup sequence:
+
+        import __builtin__
+        pylookup = ChainMap((locals(), globals(), vars(__builtin__)))        
+    """
+
+    def __init__(self, maps:Sequence[Mapping[_KT, _VT]]) -> None:
+        self._maps = maps
+
+    def __getitem__(self, key:_KT) ->_VT:
+        for mapping in self._maps:
+            try:
+                return mapping[key]
+            except KeyError:
+                pass
+        raise KeyError(key)
+
+    def __len__(self) -> int:
+        return len(set().union(*self._maps))     # reuses stored hash values if possible
+
+    def __iter__(self) -> Iterator[_KT]:
+        d = {}
+        for mapping in reversed(self._maps):
+            d.update(dict.fromkeys(mapping))    # reuses stored hash values if possible
+        return iter(d)
