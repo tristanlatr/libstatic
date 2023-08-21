@@ -2,6 +2,7 @@
 Project-wide objects.
 """
 from __future__ import annotations
+
 import ast
 from functools import partial
 from itertools import chain

@@ -1,6 +1,8 @@
 """
 Wraps interface provided by ``beniget``, and make it work with the standard `ast` library.
 """
+from __future__ import annotations
+
 import ast
 from typing import Any, Dict, List, Mapping, Optional, Tuple, Sequence
 

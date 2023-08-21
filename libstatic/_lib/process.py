@@ -1,6 +1,8 @@
 """
 Provides a generic class to process a collection of objects in topological order.
 """
+from __future__ import annotations
+
 from collections import defaultdict
 from typing import Generic, TypeVar, Optional, Iterable, Dict, List
 import abc

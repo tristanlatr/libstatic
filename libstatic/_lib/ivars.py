@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from _ast import Module
 import ast
 from typing import Any, Dict, List, Mapping, Sequence

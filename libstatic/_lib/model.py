@@ -1,7 +1,7 @@
 """
 This module contains the def-use models, use to represent the code.
 """
-
+from __future__ import annotations
 import ast
 import inspect
 from itertools import chain

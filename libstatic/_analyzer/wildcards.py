@@ -1,6 +1,7 @@
 """
 Technically, this is part of the analyzer.
 """
+from __future__ import annotations
 
 import ast
 from collections import OrderedDict
