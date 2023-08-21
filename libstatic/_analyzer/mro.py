@@ -72,7 +72,7 @@ def compute_mros(state: MutableState) -> Mapping[Cls, Sequence[Cls|str]]:
     Returns a mapping from class to it's resolved MRO.
     """
 
-    class MROProcessor(TopologicalProcessor[Cls, Cls, Sequence[Cls|str]]):
+    class MROProcessor(TopologicalProcessor[Cls, Cls, Sequence['Cls|str']]):
         def getObj(self, key: Cls) -> Cls:
             return key
 
