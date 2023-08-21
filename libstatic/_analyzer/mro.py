@@ -13,7 +13,7 @@ from .state import MutableState, State
 
 class ComputeClassMRO:
     def __init__(self, state:State, 
-                 builder:TopologicalProcessor[Cls, Cls, Sequence[Cls|str]]) -> None:
+                 builder:TopologicalProcessor[Cls, Cls, Sequence['Cls|str']]) -> None:
         self.state = state
         self.builder = builder
 
