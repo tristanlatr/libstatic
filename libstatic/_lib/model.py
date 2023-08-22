@@ -4,10 +4,6 @@ This module contains the def-use models, use to represent the code.
 from __future__ import annotations
 import ast
 import inspect
-from itertools import chain
-import sys
-import time
-from pathlib import Path
 from typing import (
     TYPE_CHECKING,
     Iterator,
@@ -256,7 +252,7 @@ class Arg(NameDef):
     >>> parameters = [a.to_parameter() for a in args]
     >>> sig = inspect.Signature(parameters)
     >>> str(sig)
-    '(a: <ast.Name...>, b: <ast.Name...> = <ast.Constant...>, *, key: <ast.Name...>, **kwargs)'
+    '(a:...Name..., b:...Name...=...Constant..., *, key:...Name..., **kwargs)'
 
     """
     __slots__ = (*Def.__slots__, 'default', 'kind')

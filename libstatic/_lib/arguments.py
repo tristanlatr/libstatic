@@ -23,7 +23,7 @@ def iter_arguments(args: ast.arguments) -> Iterator[ArgSpec]:
     ... annotation=a.node.annotation or inspect.Parameter.empty) for a in args]
     >>> sig = inspect.Signature(parameters)
     >>> str(sig)
-    '(a: <ast.Name...>, b: <ast.Name...> = <ast.Constant...>, *, key: <ast.Name...>, **kwargs)'
+    '(a:...Name..., b:...Name...=...Constant..., *, key:...Name..., **kwargs)'
     """
     posonlyargs = getattr(args, "posonlyargs", ())
 
