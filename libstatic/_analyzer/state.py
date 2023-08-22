@@ -245,8 +245,15 @@ class State(_MinimalState):
     ) -> Optional[Union["Def", "Mod"]]:
         """
         Def-Use chains accessor: returns the `Def` instance of this node.
+        All ast nodes categorized as a use or a definition have a coresponding `Def` instance.
+        Use this method to access it.
 
-        :raises StaticValueError: If the node is not a registered use or definition.
+        :param node: The AST node of a definition or use.
+        :param noraise: Don't raise exceptions if the node is not a definition or use in the system:
+            simply returns `None` in these cases. 
+
+        :raises StaticValueError: If the node is not a use or definition.
+        :raises StaticStateIncomplete: If the node is not in the system.
         """
         try:
             return self._def_use_chains[node]
@@ -288,15 +295,20 @@ class State(_MinimalState):
     def goto_def(self, node: ast.AST, noraise: bool = False, *, 
                  raise_on_ambiguity: bool = False) -> Optional[Def]:
         """
-        Use-Def chains accessor that returns only one L{Def}, or raise `StaticException`.
-        It returns the last reachable def in the list. It does not ensure that the list is only
-        composed by one element.
+        Use-Def chains accessor (wraps `goto_defs`) that returns only one `Def`, or raise `StaticException`.
+        It **returns the first reachable definition** in the list. It does not ensure that the list is only
+        composed by one element, unless ``raise_on_ambiguity=True``.
         
-        :see: `goto_defs`
+        :param noraise: Don't raise exceptions, simply returns `None` in these cases. 
+        :param raise_on_ambiguity: Raise `StaticAmbiguity` when the use has several reachable definitions.
+            Cannot be used with ``noraise=True``.
+
+        :raises StaticAmbiguity: If ``raise_on_ambiguity=True`` and the symbol definition is ambiguous.
+        :raises StaticException: All other exceptions raised by `goto_defs`.
         """
         # it's returning the first reachable def.
         if noraise and raise_on_ambiguity:
-            raise ValueError('Illegal arguments: noraise=True with raise_on_ambiguity=True')
+            raise ValueError('Illegal arguments: noraise=True cannot be used with raise_on_ambiguity=True')
         try:
             defs = self._softfilter_defs(
                 self.goto_defs(node), unreachable=True, killed=False)
@@ -312,12 +324,23 @@ class State(_MinimalState):
 
     def goto_defs(self, node: ast.AST, noraise: bool = False) -> Sequence["Def"]:
         """
-        Use-Def chains accessor: returns the definition points of this use.
+        Use-Def chains accessor: returns the definition points of the use ``node``.
 
-        :note: It does not recurse on follow-up definitions in case of aliases. 
-            Builtins are supported only if the ``builtins`` module has been added to the project.
+        :param node: The AST node of a use.
+        :param noraise: Don't raise exception if the node is unbound or not a use in the system:
+            simply returns an empty list in these cases. 
+            By default, the returned list always have at least one element, otherwise an exception is raised.
+        :returns: A collection of `Def` instances
 
-        :raises StaticException: If the node is unbound or unknown.
+        .. note:: 
+            - It does not recurse on follow-up definitions in case of aliases. 
+            - It does not filter unreachable definitions
+            - Builtins are supported only if the ``builtins`` module has been added to the project.
+
+        :raises StaticImportError: If the node is an unbound import.
+        :raises StaticNameError: If the node is unbound.
+        :raises StaticValueError: If the node is not a use.
+        :raises StaticStateIncomplete: If the node is not in the system.
         """
         try:
             defs = self._use_def_chains[node]
@@ -361,12 +384,14 @@ class State(_MinimalState):
         """
         Returns the module with the given name if it's in 
         the system, else None.
+
+        :param name: The full dotted name of the module.
         """
         return self._modules.get(name)
 
     def get_all_modules(self) -> Iterable["Mod"]:
         """
-        Iterate over all modules in the project.
+        Iterate over all modules in the project. This include dependency modules.
         """
         return self._modules.values()
 
@@ -410,6 +435,9 @@ class State(_MinimalState):
     def get_mro(self, node: Cls | ast.ClassDef, *,
                 include_self:bool=True, 
                 include_unknown:bool=False) -> Iterator[Union[str, Cls]]:
+        """
+        Get an iterator on the elements of the MRO of class ``node``.
+        """
         if isinstance(node, ast.AST):
             node = self.get_def(node)
         if not isinstance(node, Cls):
@@ -575,9 +603,19 @@ class State(_MinimalState):
         It fisrt call `get_local()` (`get_ivar()` if ``include_ivars=True``); 
         if no locals matches the name or ``ignore_locals=True`` and the scope is a module, it calls  `get_sub_module()`.
 
-        .. note:: It always filter out killed definitions.
+        :param node: The AST or `Def` scope.
+        :param name: The name of the attribute we're looking-up.
+        :param ignore_locals: Whether to ignore the locals, this will only lookup in sub-modules.
+        :param noraise: Don't raise exceptions, returns an empty list in these cases.
+        :param filter_unreachable: Whether to filter unreachable definitions, `True` by default.
+        :param include_ivars: Whether to include instance context definitions, `False` by default.
+        :param include_inherited: Whether to include inherited definitions, `True` by default.
 
+        :raises StaticTypeError: If the node is not a module or a class.
         :raises StaticAttributeError: If the attribute is not found.
+        :raises StaticException: Other kind of exceptions can also be raised by callees.
+
+        .. note:: It always filter out killed definitions.
         """
         # TODO: Handle {"__name__", "__doc__", "__file__", "__path__", "__package__"}?
         # TODO: Handle {__class__, __module__, __qualname__}?
@@ -585,7 +623,7 @@ class State(_MinimalState):
         # TODO: Handle looking up in super classes?
 
         if isinstance(node, ast.AST):
-            node = self.get_def(node) # type: ignore
+            node = self.get_def(node, noraise=noraise) # type: ignore
         if not isinstance(node, (Mod, Cls)):
             if noraise:
                 return []
@@ -621,6 +659,7 @@ class State(_MinimalState):
 
         If ``__all__`` variable is not defined or too complex returns None.
 
+        :raises StaticTypeError: If ``mod`` is actually not a module.
         :raises StaticStateIncomplete: If no information is registered for the module ``mod``.
         """
         if isinstance(mod, ast.AST):
@@ -935,7 +974,7 @@ class State(_MinimalState):
         >>> p.state.expand_expr(use)
         'twisted.web.template.Tag'
 
-        Returns None if the name is unbound or the expreesion is not composed by names.
+        Returns None if the name is unbound or the expression is not composed by names.
         """
 
         dottedname = node2dottedname(node)
@@ -1058,7 +1097,7 @@ class State(_MinimalState):
     
     def _goto_attr_references(self, definition:NameDef, seen:Set[Def], filter_unreachable:bool) -> Iterator[Def]:
         """
-        Find attribute refernces. 
+        Find attribute references. 
 
         Pitfalls:
          - inherited attributes access in subclasses are not considered
