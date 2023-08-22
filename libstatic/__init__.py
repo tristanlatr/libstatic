@@ -1,23 +1,66 @@
 """
-Code analysis, based on `beniget <https://github.com/serge-sans-paille/beniget>`_.
+Simple static analysis library for Python, based on `beniget <https://github.com/serge-sans-paille/beniget>`_.
 
-The core model, provided by ``beniget``, is basically two directed graphs linking definitions to their use and vice versa.
+Goals and non-goals
+===================
+
+The main goal of this project is to provide a simple, standard library compatible framework to statically analyse a 
+collection of related python modules. The initial intent beeing to support static analyzers and API document generators 
+working with the `ast`.
+
+Trade-offs
+----------
+
+Libstatic tries to be relatively lightweight and fast, so here are some trade-offs:
+
+- Only provide intra-procedural analyses.
+- Partial path sensitivity: libstatic relies on over-approximations, some unreachable 
+  execution paths will be filtered out but impossibe paths might still be considered.
+- No pointer or shape analysis: Aliasing that happens in non-trivial ways will not be detected.
+- No soundness guarantees: ignores the effects of `eval`-like, `setattr`, etc. functions on the program state. 
+  It doesn’t make worst-case sound assumptions, but rather "reasonable" ones.
+
+.. - Incomplete type system: While *basic* type inference is provided, 
+..   libstatic does not carry the complexity to support full-featured type-checking.
+  
+The model
+=========
+
+The core model, provided by ``beniget``, is basically two directed graphs linking definitions to their uses and vice versa.
+We call these data structures Def-Use chains and Use-Def chains.
 This model is extended in order to include imported names, including the ones from wildcard imports. 
+
+All ast nodes categorized as a use or a definition have a coresponding `Def` instance. Definitions are represented
+using one of the specialized `Def` subclass: `Mod`, `Cls`, `Func`, `Var`, `etc <classIndex.html#libstatic.Def>`_... The direct users of a definition
+are accessible with `Def.users()`, which returns a collection of `Def` (generally wrapping a `ast.Name` or `ast.alias`).
+
 Additionnaly, reachability analysis helps with cutting down the number of potential definitions 
-for a given variable, giving more precise results. From there, we can do interesting things, like going 
-to the genuine definition of an imported symbol, given the fact that we run python 3.11 for instance.
+for a given user, giving more precise results. From there, we can go to the genuine definition of an 
+imported symbol, given the fact that we run python 3.11 for instance.
 Or the opposite, finding all references of a given symbol, accross all modules in the project.
 
-The `Project` and `State` classes represent the primary hight-level interface for the library. 
-Althought, many other lower-level parts can be used indenpedently.
+The Def-Use chains and Use-Def chains, and other analyses results are made available througth the `State`.
 
-When creating a `Project`, keep in mind that all module should be added **before** calling `Project.analyze_project`. 
+How to use the library
+======================
+
+The `Project` and `State` classes represent the primary hight-level interface for the library,
+(some other lower-level parts can be used indenpedently). 
+The API is designed to work with current code using the standard `ast` module.
+
+- First, create a `Project` instance
+- Then add the modules you want to analyze with `Project.add_module` or `load_path`
+- Call `Project.analyze_project()`
+- Do stuff with `Project.state`
+
+Keep in mind that all module should be added **before** calling ``analyze_project()``. 
 For performance reasons, it does not analyze the use of the builtins or any other dependent modules by default. 
-Pass option ``builtins=True`` to analyze builtins or option ``dependencies=True`` to recusively find and 
-load any dependent modules (including builtins).
+Use ``Project(builtins=True)`` to analyze builtins or ``Project(dependencies=True)`` to recusively find and 
+load any dependent modules (including builtins), see `Options` for other arguments.
 
-Once the project has been analyzed, one can use the `Project.state` attribute, which is the `State`. 
-This object present accessors for several kind of analyses.
+The `State` instance acts like a `façade <https://en.wikipedia.org/wiki/Facade_pattern>`_ and present accessors 
+for several kind of analyses.
+
 """
 
 from ._analyzer.state import Project, State, MutableState, Options

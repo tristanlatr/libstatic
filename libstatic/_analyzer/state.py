@@ -88,7 +88,63 @@ class _MinimalState(Protocol):
 
 class State(_MinimalState):
     """
-    The `Project`'s state.
+    The `Project`'s state: container and accessors for analyses results.
+
+    Analyses
+    ========
+
+    Node ancestors
+    --------------
+
+    Maps each node to their parents in the syntax-tree.
+
+    Accessors: `get_parent()`, `get_parents()`, 
+    `get_parent_instance()`, `get_enclosing_scope()`,
+    `get_all_enclosing_scopes()`.
+
+    Locals
+    ------
+
+    Accessors: `get_locals()`, `get_local()`, `get_attribute()`
+
+    Imports resolution
+    ------------------
+
+    Resolved imports are made available directly in the `Imp` instances.
+
+    Accessors: `Imp.orgmodule`, `Imp.orgname`, `Imp.target()`.
+
+    Chains of definitions
+    ---------------------
+
+    Accessors: `get_def()`, `goto_defs()`, `goto_def()`, `goto_definition()`, `goto_references()`.
+
+    Reachability
+    ------------
+
+    Accessor: `is_reachable()`. 
+
+    Instance variables
+    ------------------
+
+    Accessors: `get_ivars()`, `get_ivar()`
+
+    Class MROs
+    ----------
+
+    Accessor: `get_mro()`.
+
+    Function parameters for humans
+    ------------------------------
+
+    Accessors: `Arg.default`, `Arg.kind`, `Arg.to_parameter()`.
+
+    Symbolic evaluation
+    -------------------
+
+    Accessor: `literal_eval`.
+
+    .. - Basic, lazy type inference 
     """
 
     def __init__(self, msg: _Msg) -> None:
