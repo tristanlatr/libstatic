@@ -1,12 +1,9 @@
 """
 This module contains the def-use models, use to represent the code.
 """
-
+from __future__ import annotations
 import ast
-from itertools import chain
-import sys
-import time
-from pathlib import Path
+import inspect
 from typing import (
     TYPE_CHECKING,
     Iterator,
@@ -74,6 +71,10 @@ class Def:
         self.node = node
         self.islive = islive
         self._users: MutableSet["Def"] = ordered_set()
+        self._setup()
+    
+    def _setup(self) -> None:
+        pass
 
     def add_user(self, node: "Def") -> None:
         assert isinstance(node, Def)
@@ -116,7 +117,7 @@ class Def:
 
 class NameDef(Def):
     """
-    Model the definition of a name.
+    Model the definition of a name (abstract).
     """
 
     node: Union[
@@ -127,6 +128,7 @@ class NameDef(Def):
         ast.Name,
         ast.arg,
         ast.alias,
+        ast.Attribute,
     ]
 
     def name(self) -> str:
@@ -135,17 +137,21 @@ class NameDef(Def):
 
 class Scope(Def):
     """
-    Model a python scope.
+    Model a python scope (abstract).
     """
 
     def name(self) -> str:
         raise NotImplementedError()
 
 class OpenScope(Scope):
+    """
+    Model a open scope (abstract).
+    """
     node: Union[ast.Module, ast.ClassDef]
 
 class ClosedScope(Scope):
     """
+    Model a closed scope (abstract).
     Closed scope have <locals>.
     """
 
@@ -159,9 +165,20 @@ class ClosedScope(Scope):
         ast.SetComp,
     ]
 
-# TODO: Replace this with Lamb and Comp
-class AnonymousScope(ClosedScope):
-    node: Union[ast.Lambda, ast.GeneratorExp, ast.ListComp, ast.DictComp, ast.SetComp]
+class Lamb(ClosedScope):
+    """
+    Model the definition of a lambda function.
+    """
+    node: ast.Lambda
+
+    def name(self) -> str:
+        return f"<{type(self.node).__name__.lower()}>"
+
+class Comp(ClosedScope):
+    """
+    Model the definition of a generator or comprehension.
+    """
+    node: Union[ast.GeneratorExp, ast.ListComp, ast.DictComp, ast.SetComp]
 
     def name(self) -> str:
         return f"<{type(self.node).__name__.lower()}>"
@@ -195,9 +212,7 @@ class Cls(NameDef, OpenScope):
     """
     Model a class definition.
     """
-
     node: ast.ClassDef
-
 
 class Func(NameDef, ClosedScope):
     """
@@ -214,13 +229,57 @@ class Var(NameDef):
 
     node: ast.Name
 
+class Attr(NameDef):
+    """
+    Model an attribute definition.
+    """
+    node: ast.Attribute
+
 
 class Arg(NameDef):
     """
     Model a function argument definition.
+
+    This demonstrate the `Arg.to_parameter` method:
+    
+    >>> from libstatic import Project
+    >>> node = ast.parse('def f(a:int, b:object=None, *, key:str, **kwargs):...')
+    >>> p = Project()
+    >>> _ = p.add_module(node, 'test')
+    >>> p.analyze_project()
+    >>> func_node = node.body[0]
+    >>> args = (p.state.get_def(n) for n in ast.walk(func_node.args) if isinstance(n, ast.arg))
+    >>> parameters = [a.to_parameter() for a in args]
+    >>> sig = inspect.Signature(parameters)
+    >>> str(sig)
+    '(a:...Name..., b:...Name...=...Constant..., *, key:...Name..., **kwargs)'
+
     """
+    __slots__ = (*Def.__slots__, 'default', 'kind')
 
     node: ast.arg
+    def __init__(self, 
+                 node: ast.arg, 
+                 islive: bool, 
+                 default: ast.expr | None, 
+                 kind: inspect._ParameterKind) -> None:
+        super().__init__(node, islive)
+        self.default = default
+        self.kind = kind
+        """
+        One of ``Parameter.POSITIONAL_ONLY``, ``Parameter.POSITIONAL_OR_KEYWORD``, 
+        ``Parameter.VAR_POSITIONAL``, ``Parameter.KEYWORD_ONLY`` or ``Parameter.VAR_KEYWORD``.
+
+        :see: `inspect.Parameter.kind`
+        """
+    
+    def to_parameter(self) -> inspect.Parameter:
+        """
+        Cast this `Arg` instance into a `inspect.Parameter` instance.
+        """
+        return inspect.Parameter(self.node.arg, self.kind, 
+            default=self.default or inspect.Parameter.empty, 
+            annotation=self.node.annotation or inspect.Parameter.empty)
 
 
 class Imp(NameDef):
@@ -247,3 +306,92 @@ class Imp(NameDef):
             return f"{self.orgmodule}.{self.orgname}"
         else:
             return self.orgmodule
+
+_T = TypeVar("_T")
+class LazySeq(Sequence[_T]):
+    """
+    A lazy sequence makes an iterator look like an immutable sequence.
+    """
+    def __init__(self, iterable:Iterable[_T]) -> None:
+        self._iterator = iter(iterable)
+        self._values: List[_T] = []
+    
+    def _curr(self,) ->int:
+        return len(self._values)-1
+    
+    def _consume_next(self) -> _T:
+        val = next(self._iterator)
+        self._values.append(val)
+        return val
+    
+    def _consume_until(self, key:int) -> None:
+        if key < 0:
+            self._consume_all()
+            return
+        while self._curr() < key:
+            try:
+                self._consume_next()
+            except StopIteration:
+                break
+    
+    def _consume_all(self) -> None:
+        while 1:
+            try:
+                self._consume_next()
+            except StopIteration:
+                break
+    @overload
+    def __getitem__(self, key:int) -> _T:
+        ...
+    @overload
+    def __getitem__(self, key:slice) -> list[_T]:
+        ...
+    def __getitem__(self, key:int|slice) -> _T | list[_T]:
+        if isinstance(key, int):
+            self._consume_until(key)
+        else:
+            self._consume_all()
+        return self._values[key]
+    
+    def __iter__(self) -> Iterator[_T]:
+        yield from self._values
+        while 1:
+            try:
+                yield self._consume_next()
+            except StopIteration:
+                break
+    
+    def __len__(self) -> int:
+        self._consume_all()
+        return len(self._values)
+
+_KT = TypeVar("_KT")
+_VT = TypeVar("_VT")
+class ChainMap(Mapping['_KT', '_VT']):
+    """Combine multiple mappings for sequential lookup.
+
+    For example, to emulate Python's normal lookup sequence:
+
+        import __builtin__
+        pylookup = ChainMap((locals(), globals(), vars(__builtin__)))        
+    """
+
+    def __init__(self, maps:Sequence[Mapping[_KT, _VT]]) -> None:
+        self._maps = maps
+
+    def __getitem__(self, key:_KT) ->_VT:
+        for mapping in self._maps:
+            try:
+                return mapping[key]
+            except KeyError:
+                pass
+        raise KeyError(key)
+
+    def __len__(self) -> int:
+        return len(set().union(*self._maps))     # reuses stored hash values if possible
+
+    def __iter__(self) -> Iterator[_KT]:
+        d = {}
+        for mapping in reversed(self._maps):
+            d.update(dict.fromkeys(mapping))    # reuses stored hash values if possible
+        return iter(d)

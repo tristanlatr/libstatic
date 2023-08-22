@@ -1,6 +1,7 @@
 """
 Technically, this is part of the analyzer.
 """
+from __future__ import annotations
 
 import ast
 from collections import OrderedDict
@@ -30,7 +31,7 @@ class _VisitDunderAllAssignment(ast.NodeVisitor):
     """
 
     def __init__(
-        self, state: State, builder: TopologicalProcessor[Mod, Optional["Collection[str]"]]
+        self, state: State, builder: TopologicalProcessor[str, Mod, Optional["Collection[str]"]]
     ) -> None:
         self._state = state
         self._builder = builder
@@ -41,18 +42,18 @@ class _VisitDunderAllAssignment(ast.NodeVisitor):
                 if isinstance(d.node, ast.alias):
                     imported = self._state.get_def(d.node)
                     if imported.orgname == "__all__":
-                        self._builder.getProcessedModule(imported.orgmodule)
+                        self._builder.getProcessedObj(imported.orgmodule)
 
     def visit_Attribute(self, node: ast.Attribute) -> None:
         if isinstance(node.ctx, ast.Load) and node.attr == "__all__":
             modulename = node.value
             fullname = self._state.expand_expr(modulename)
             if fullname:
-                self._builder.getProcessedModule(fullname)
+                self._builder.getProcessedObj(fullname)
 
 class _VisitWildcardImports(LocalStmtVisitor):
     def __init__(
-        self, state: State, builder: TopologicalProcessor[Mod, Optional["Collection[str]"]]
+        self, state: State, builder: TopologicalProcessor[str, Mod, Optional["Collection[str]"]]
     ) -> None:
         self._state = state
         self._builder = builder
@@ -71,7 +72,7 @@ class _VisitWildcardImports(LocalStmtVisitor):
     def visit_alias(self, node: ast.alias) -> None:
         if node.name == "*":
             imp = self._state.get_def(node)
-            mod = self._builder.getProcessedModule(imp.orgmodule)
+            mod = self._builder.getProcessedObj(imp.orgmodule)
             if mod is not None:
                 try:
                     dunder_all = self._builder.result[mod]
@@ -94,7 +95,7 @@ class _ComputeWildcards:
     def __init__(
         self, 
         state: MutableState, 
-        builder: TopologicalProcessor[Mod, "Collection[str] | None"]
+        builder: TopologicalProcessor[str, Mod, "Collection[str] | None"]
     ) -> None:
         self._state = state
         self._builder = builder
@@ -161,7 +162,7 @@ class _ComputeWildcards:
         for definition in self._state.get_local(node, "__all__"):
             if isinstance(definition, Imp):
                 # __all__ is an import
-                self._builder.getProcessedModule(definition.orgmodule)
+                self._builder.getProcessedObj(definition.orgmodule)
                 dunder_all_def = definition
 
             elif isinstance(definition, Var):
@@ -229,11 +230,11 @@ def compute_wildcards(state: MutableState) -> Mapping[Mod, "Collection[str] | No
     to the collection of names they are actually importing.
     """
 
-    class WildcardsProcessor(TopologicalProcessor[Mod, Optional[Collection[str]]]):
-        def getModule(self, name: str) -> Optional[Mod]:
+    class WildcardsProcessor(TopologicalProcessor[str, Mod, Optional[Collection[str]]]):
+        def getObj(self, name: str) -> Optional[Mod]:
             return state.get_module(name)
 
-        def processModule(self, mod: Mod) -> Optional[Collection[str]]:
+        def processObj(self, mod: Mod) -> Optional[Collection[str]]:
             return _ComputeWildcards(state, self).compute_wildcards(mod.node)
 
     return WildcardsProcessor().process(state.get_all_modules())

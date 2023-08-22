@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import ast
 import sys
 from typing import Any, Dict, Mapping, Optional, Tuple, NamedTuple, Union
@@ -45,6 +47,8 @@ class ImportParser(ast.NodeVisitor):
             else:
                 # here, we're lossng the dependency on "driver" of "import pydoctor.driver" in 'orgmodule',
                 self._result[al] = ImportInfo(orgmodule=al.name.split(".", 1)[0])
+            # This seems to be the most resonable place to fix the ast.alias node not having
+            # proper line number information on python3.9 and before.
             if _alias_needs_lineno:
                 al.lineno = node.lineno
         return self._result
@@ -84,6 +88,7 @@ class ImportParser(ast.NodeVisitor):
             self._result[alias] = ImportInfo(
                 orgmodule=".".join(source_module), orgname=alias.name
             )
+            # fix the ast.alias node not having proper line number
             if _alias_needs_lineno:
                 alias.lineno = node.lineno
 
@@ -116,15 +121,5 @@ class ParseImportedNames(ast.NodeVisitor):
         except ValueError:
             return
         self._result.update(imports)
-
-    # if sys.version_info < (3,10):
-    #     # This seems to be the most resonable place to fix the ast.alias node not having
-    #     # proper line number information on python3.9 and before.
-
-    #     visit_Import_base = visit_Import
-    #     def visit_Import(self, node: Union[ast.Import, ast.ImportFrom]) -> None:
-    #         self.visit_Import_base(node)
-    #         for al in node.names:
-    #             ast.copy_location(al, node)
 
     visit_ImportFrom = visit_Import

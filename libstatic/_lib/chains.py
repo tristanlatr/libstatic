@@ -1,6 +1,8 @@
 """
 Wraps interface provided by ``beniget``, and make it work with the standard `ast` library.
 """
+from __future__ import annotations
+
 import ast
 from typing import Any, Dict, List, Mapping, Optional, Tuple, Sequence
 
@@ -11,9 +13,11 @@ from beniget.beniget import ( # type:ignore
     Def as BenigetDef,
 )
 
-from .model import Cls, Func, Var, Imp, Def, Arg, AnonymousScope, NameDef
+from .model import Cls, Func, Var, Imp, Def, Arg, Lamb, Comp, Attr, NameDef
 from .imports import ParseImportedNames, ImportInfo
 from .exceptions import StaticCodeUnsupported
+from .shared import LocalStmtVisitor, StmtVisitor
+from .arguments import iter_arguments, ArgSpec
 
 # beniget integration here:
 
@@ -80,14 +84,17 @@ class BenigetConverter:
     def __init__(
         self,
         gast2ast: Mapping[gast.AST, ast.AST],
-        alias2importinfo: Mapping[ast.alias, ImportInfo]
+        alias2importinfo: Mapping[ast.alias, ImportInfo],
+        arg2spec: Mapping[ast.arg, ArgSpec],
     ) -> None:
         self.gast2ast = gast2ast
         self.alias2importinfo = alias2importinfo
+        self.arg2spec = arg2spec
         self.converted: Dict[BenigetDef, Optional[Def]] = {}
 
 
     def convert(self, b: DefUseChains) -> Tuple[Chains, Locals, BuiltinsChains]:
+        self.filename = b.filename
         chains: Chains = self._convert_chains(b.chains) # type:ignore
         builtins_chains: BuiltinsChains = self._convert_chains(b._builtins, is_builtins=True) # type:ignore
         locals = self._convert_locals(b.locals)
@@ -132,32 +139,41 @@ class BenigetConverter:
         return new_chains
 
     def _def_factory(self, node: ast.AST, islive:bool) -> "Def|None":
-        # attributes are not NameDef
+        # attributes **are** NameDef
         if isinstance(node, ast.ClassDef):
+            # ivars will be set later
             return Cls(node, islive=islive)
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             return Func(node, islive=islive)
         elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
             return Var(node, islive=islive)
+        elif isinstance(node, ast.Attribute) and isinstance(node.ctx, ast.Store):
+            return Attr(node, islive=islive)
         elif isinstance(node, ast.arg):
             # TODO: get kind, default value and annotation in this object.
-            return Arg(node, islive=islive)
+            try:
+                argspec = self.arg2spec[node]
+            except KeyError as e:
+                raise StaticCodeUnsupported(node, 'argument was not parsed', filename=self.filename) from e
+            return Arg(node, islive=islive,
+                       default=argspec.default, 
+                       kind=argspec.kind)
         elif isinstance(node, ast.alias):
-            info = self.alias2importinfo.get(node)
-            if info:
-                return Imp(node, islive=islive, 
-                           orgmodule=info.orgmodule, 
-                           orgname=info.orgname)
-            return None
-        elif isinstance(
-            node,
-            (ast.Lambda, ast.GeneratorExp, ast.ListComp, 
-             ast.DictComp, ast.SetComp),
-        ):
-            return AnonymousScope(node, islive=islive)
+            try:
+                info = self.alias2importinfo[node]
+            except KeyError as e:
+                raise StaticCodeUnsupported(node, 'import was not parsed', filename=self.filename) from e
+            return Imp(node, islive=islive, 
+                        orgmodule=info.orgmodule, 
+                        orgname=info.orgname)
+        elif isinstance(node, (ast.GeneratorExp, ast.ListComp, ast.DictComp, ast.SetComp)):
+            return Comp(node, islive=islive)
+        elif isinstance(node, ast.Lambda):
+            return Lamb(node, islive=islive)
         elif isinstance(node, ast.Module):
             raise RuntimeError()
         else:
+            # not a definition, simply a use.
             return Def(node, islive=islive)
 
     def _convert_locals(self, locals: Mapping[ast.AST, List["BenigetDef"]]) -> Locals:
@@ -165,12 +181,29 @@ class BenigetConverter:
         for namespace, loc_list in locals.items():
             d = locals_as_dict.setdefault(self.gast2ast[namespace], {})
             for loc in loc_list:
-                converted_local = self.converted[loc]
+                try:
+                    converted_local = self.converted[loc]
+                except KeyError:
+                    # globals and non locals are not handled at the moment.
+                    # Issues with the global keyword needs to be fixed first
+                    # https://github.com/serge-sans-paille/beniget/issues/74
+                    # https://github.com/serge-sans-paille/beniget/issues/64
+                    continue
+                    
                 if __debug__:
                     assert isinstance(converted_local, (NameDef, type(None)))
                 d.setdefault(loc.name(), []).append(converted_local) # type: ignore
         return locals_as_dict
 
+class ParseArgumentsInfos(StmtVisitor):        
+    def visit_FunctionDef(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> Any:
+        self._result.update({a.node:a for a in iter_arguments(node.args)})
+        self.generic_visit(node)
+    def visit_Module(self, node: ast.Module) -> Mapping[ast.arg, ArgSpec]:
+        self._result: Dict[ast.arg, ArgSpec] = {}
+        self.generic_visit(node)
+        return self._result
+    visit_AsyncFunctionDef = visit_FunctionDef
 
 def defuse_chains_and_locals(
     node: ast.Module, 
@@ -192,9 +225,13 @@ def defuse_chains_and_locals(
         node
     )
 
+    # parse function's arguments
+    arg2spec = ParseArgumentsInfos().visit_Module(node)
+
     # convert result into standard library
-    converter = BenigetConverter(gast2ast, alias2importinfo)
+    converter = BenigetConverter(gast2ast, alias2importinfo, arg2spec)
     chains, locals, builtins_defuse = converter.convert(defuse)
+    
     return chains, locals, builtins_defuse
 
 
@@ -212,4 +249,3 @@ def usedef_chains(def_use_chains: Chains) -> UseChains:
             chains.setdefault(use.node, []).append(chain)
 
     return chains
-    # this does not support builtins, by design

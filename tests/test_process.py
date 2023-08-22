@@ -8,36 +8,37 @@ from libstatic._lib.ancestors import Ancestors
 
 class Cycle(Exception):...
 
-class ImportProcessor(TopologicalProcessor[ast.Module, ast.Module]):
+class ImportProcessor(TopologicalProcessor[str, ast.Module, ast.Module]):
 
     def __init__(self, state:State) -> None:
         super().__init__()
         self._state = state
-        self._getProcessedModuleCalls = []
+        self._getProcessedObjCalls = []
     
-    def getProcessedModule(self, name:str) -> Optional[ast.Module]:
-        self._getProcessedModuleCalls.append(name)
-        return super().getProcessedModule(name)
+    def getProcessedObj(self, key:str) -> Optional[ast.Module]:
+        self._getProcessedObjCalls.append(key)
+        return super().getProcessedObj(key)
     
-    def getModule(self, name: str) -> 'ast.Module | None':
-        mod = self._state.get_module(name)
+    def getObj(self, key: str) -> 'ast.Module | None':
+        mod = self._state.get_module(key)
         if mod:
             return mod.node
         return None
 
-    def processModule(self, astmod:ast.Module) -> ast.Module:
-        modname = self._state.get_def(astmod).name()
-        imports = ParseImportedNames(modname, is_package=False).visit_Module(astmod)
+    def processObj(self, obj:ast.Module) -> ast.Module:
+        modname = self._state.get_def(obj).name()
+        imports = ParseImportedNames(modname, is_package=False).visit_Module(obj)
         ancestors = Ancestors()
-        ancestors.visit(astmod)
+        ancestors.visit(obj)
         for al, imp in imports.items():
-            if any(isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) for node in ancestors.parents[al]):
+            if any(isinstance(node, (ast.FunctionDef, 
+                   ast.AsyncFunctionDef, ast.ClassDef)) for node in ancestors.parents[al]):
                 pass
             else:
                 if self.processing_state[
-                    self.getProcessedModule(imp.orgmodule)] is TopologicalProcessor.PROCESSING:
+                    self.getProcessedObj(imp.orgmodule)] is TopologicalProcessor.PROCESSING:
                     raise Cycle(f'{modname} <-> {imp.orgmodule}')
-        return astmod
+        return obj
 
 class TestProcessor(TestCase):
     
@@ -50,9 +51,9 @@ class TestProcessor(TestCase):
         ob = ImportProcessor(project.state)
         ob.process(m.node for m in project.state.get_all_modules())
         
-        assert ob._getProcessedModuleCalls == ['sys']
-        self.assertEqual(ob.processing_modules, [])
-        self.assertEqual(list(ob.unprocessed_modules), [])
+        assert ob._getProcessedObjCalls == ['sys']
+        self.assertEqual(ob.processing, [])
+        self.assertEqual(list(ob.unprocessed), [])
         self.assertEqual(len(ob.result), 1)
         self.assertIs(ob.result[project.state.get_module('mod1').node], node)
     
@@ -67,9 +68,9 @@ class TestProcessor(TestCase):
         with self.assertRaises(Cycle):
             ob.process(m.node for m in project.state.get_all_modules())
         
-        assert ob._getProcessedModuleCalls == ['mod2', 'mod1']
-        self.assertEqual(ob.processing_modules, [mod1.node, mod2.node])
-        self.assertEqual(list(ob.unprocessed_modules), [mod1.node, mod2.node])
+        assert ob._getProcessedObjCalls == ['mod2', 'mod1']
+        self.assertEqual(ob.processing, [mod1.node, mod2.node])
+        self.assertEqual(list(ob.unprocessed), [mod1.node, mod2.node])
         self.assertEqual(len(ob.result), 0)
         
     def test_processModuleAST(self):
@@ -81,7 +82,7 @@ class TestProcessor(TestCase):
         ob = ImportProcessor(project.state)
         ob.process(m.node for m in project.state.get_all_modules())
         
-        self.assertEqual(ob.processing_modules, [])
-        self.assertEqual(list(ob.unprocessed_modules), [])
+        self.assertEqual(ob.processing, [])
+        self.assertEqual(list(ob.unprocessed), [])
         self.assertEqual(len(ob.result), 1)
         self.assertEqual(ob.result[mod1.node], node)

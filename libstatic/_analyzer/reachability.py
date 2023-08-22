@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import ast
 from typing import List, Set, Dict, Any, Mapping, TYPE_CHECKING
 if TYPE_CHECKING:
