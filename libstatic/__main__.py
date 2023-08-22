@@ -21,6 +21,7 @@ def main() -> None:
                         'in the case of a module name only modules avalaible with typeshed_client are collected.', nargs='+')
     parser.add_argument('-v', '--verbose', dest='verbosity', action='count', help='increase verbosity', )
     parser.add_argument('-d', '--dependencies', action='store_true', help='load available dependencies')
+    parser.add_argument('--exclude', help='exlude files or directory matching th given fnmatch-like patterns', nargs='+')
     parser.add_argument('-u', '--uses', default=None, help='find usages of the definitions with the given qualname', nargs='+')
     parser.add_argument('--dir', default=None, help='list locals of specified definitions', nargs='+')
     
@@ -38,7 +39,7 @@ def main() -> None:
             assert proj.add_typeshed_module(path_or_modname), \
                 f'stubs for module {path_or_modname} not found and file ./{path_or_modname} doesn\'t exist'
         else:
-            load_path(proj, p)
+            load_path(proj, p, exclude=args.exclude)
 
     proj.analyze_project()
     total_defs = len(proj.state._def_use_chains)
