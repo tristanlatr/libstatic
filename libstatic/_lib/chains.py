@@ -195,15 +195,19 @@ class BenigetConverter:
                 d.setdefault(loc.name(), []).append(converted_local) # type: ignore
         return locals_as_dict
 
-class ParseArgumentsInfos(StmtVisitor):        
-    def visit_FunctionDef(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> Any:
+class ParseArgumentsInfos(ast.NodeVisitor):    
+    visit_Pass = visit_Break = visit_Continue = visit_Delete = \
+    visit_Global = visit_Nonlocal = \
+    visit_Import = visit_ImportFrom = lambda _,__:None
+    
+    def visit_FunctionDef(self, node: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda) -> Any:
         self._result.update({a.node:a for a in iter_arguments(node.args)})
         self.generic_visit(node)
     def visit_Module(self, node: ast.Module) -> Mapping[ast.arg, ArgSpec]:
         self._result: Dict[ast.arg, ArgSpec] = {}
         self.generic_visit(node)
         return self._result
-    visit_AsyncFunctionDef = visit_FunctionDef
+    visit_AsyncFunctionDef = visit_Lambda = visit_FunctionDef
 
 def defuse_chains_and_locals(
     node: ast.Module, 
