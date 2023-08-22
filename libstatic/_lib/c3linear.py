@@ -42,7 +42,7 @@ class Dependency(deque):
     @property
     def tail(self) -> islice: 
         """
-        Return islice object, which is suffice for iteration or calling `in`
+        Return islice object, which is suffice for iteration or calling ``in``
         """
         try:
             return islice(self, 1, self.__len__())
