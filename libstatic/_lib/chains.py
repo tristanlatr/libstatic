@@ -196,9 +196,7 @@ class BenigetConverter:
         return locals_as_dict
 
 class ParseArgumentsInfos(ast.NodeVisitor):    
-    visit_Pass = visit_Break = visit_Continue = visit_Delete = \
-    visit_Global = visit_Nonlocal = \
-    visit_Import = visit_ImportFrom = lambda _,__:None
+    visit_Pass = visit_Break = visit_Continue = visit_Delete = visit_Global = visit_Nonlocal = visit_Import = visit_ImportFrom = lambda _,__:None # type:ignore
     
     def visit_FunctionDef(self, node: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda) -> Any:
         self._result.update({a.node:a for a in iter_arguments(node.args)})
