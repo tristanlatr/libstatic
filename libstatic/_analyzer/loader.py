@@ -7,7 +7,8 @@ from functools import partial
 from pathlib import Path
 import ast
 import sys
-from typing import Set, Tuple, TYPE_CHECKING
+from typing import Sequence, Set, Tuple, TYPE_CHECKING
+from fnmatch import fnmatch
 
 if TYPE_CHECKING:
     from .state import Project
@@ -30,8 +31,11 @@ else:
 def _load_path(project:Project, 
                   path:Path, 
                   added:Set[Path], 
-                  parent:Tuple[str,...]=()) -> None:
+                  exclude:Sequence[str],
+                  parent:Tuple[str,...]=(),) -> None:
     if path in added:
+        return
+    if any(fnmatch(path.as_posix(), ex) for ex in exclude):
         return
     if path.is_dir():
         init_file = (path / '__init__.py')
@@ -45,7 +49,7 @@ def _load_path(project:Project,
                             filename=init_file.as_posix())
             added.add(init_file)
             for p in sorted(path.iterdir()):
-                _load_path(project, p, added, parent=curr_pack)
+                _load_path(project, p, added, parent=curr_pack, exclude=exclude)
     elif path.is_file() and path.suffix == '.py':
         mod = _parse_file(path)
         if mod:
@@ -53,7 +57,7 @@ def _load_path(project:Project,
                             filename=path.as_posix())
             added.add(path)
 
-def load_path(project:Project, path:Path) -> None:
+def load_path(project:Project, path:Path, exclude:Sequence[str]|None=None) -> None:
     """
     Load a project form a python package/module path in the filesystem.
     Project.analyze_project() must still be called after loading a path into the project.
@@ -64,4 +68,5 @@ def load_path(project:Project, path:Path) -> None:
     >>> # then call p.analyze_project()
 
     """
-    _load_path(project, path, set(), ())
+    _load_path(project, path, added=set(), 
+               parent=(), exclude=exclude or [])
