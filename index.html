@@ -124,7 +124,7 @@
         
 
         
-            <div class="itemName"><code><a href="libstatic.AnonymousScope.html" class="internal-link" title="libstatic.AnonymousScope"><wbr></wbr>Anonymous<wbr></wbr>Scope</a></code>
+            <div class="itemName"><code><a href="libstatic.Arg.html" class="internal-link" title="libstatic.Arg"><wbr></wbr>Arg</a></code>
             </div>
         
 
@@ -134,7 +134,7 @@
         
 
         
-            <div class="itemName"><code><a href="libstatic.Arg.html" class="internal-link" title="libstatic.Arg"><wbr></wbr>Arg</a></code>
+            <div class="itemName"><code><a href="libstatic.Attr.html" class="internal-link" title="libstatic.Attr"><wbr></wbr>Attr</a></code>
             </div>
         
 
@@ -155,6 +155,16 @@
 
         
             <div class="itemName"><code><a href="libstatic.Cls.html" class="internal-link" title="libstatic.Cls"><wbr></wbr>Cls</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic.Comp.html" class="internal-link" title="libstatic.Comp"><wbr></wbr>Comp</a></code>
             </div>
         
 
@@ -185,6 +195,16 @@
 
         
             <div class="itemName"><code><a href="libstatic.Imp.html" class="internal-link" title="libstatic.Imp"><wbr></wbr>Imp</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic.Lamb.html" class="internal-link" title="libstatic.Lamb"><wbr></wbr>Lamb</a></code>
             </div>
         
 
@@ -542,7 +562,7 @@ This model is extended in order to include imported names, including the ones fr
 Additionnaly, reachability analysis helps with cutting down the number of potential definitions
 for a given variable, giving more precise results. From there, we can do interesting things, like going
 to the genuine definition of an imported symbol, given the fact that we run python 3.11 for instance.
-Or the opposite, finding all references of a given symbol, accross all modules in the prohect.</p>
+Or the opposite, finding all references of a given symbol, accross all modules in the project.</p>
 <p>The <code><a href="libstatic.Project.html" class="internal-link" title="libstatic.Project">Project</a></code> and <code><a href="libstatic.State.html" class="internal-link" title="libstatic.State">State</a></code> classes represent the primary hight-level interface for the library.
 Althought, many other lower-level parts can be used indenpedently.</p>
 <p>When creating a <code><a href="libstatic.Project.html" class="internal-link" title="libstatic.Project">Project</a></code>, keep in mind that all module should be added <strong>before</strong> calling <code><a href="libstatic.Project.html#analyze_project" class="internal-link" title="libstatic.Project.analyze_project">Project.analyze_project</a></code>.
@@ -567,7 +587,7 @@ This object present accessors for several kind of analyses.</p>
     
     <td>Package</td>
     <td><code><a href="libstatic._lib.html" class="internal-link" title="libstatic._lib">_lib</a></code></td>
-    <td><span class="undocumented">No package docstring; 3/9 modules documented</span></td>
+    <td><span class="undocumented">No package docstring; 4/12 modules documented</span></td>
   </tr><tr class="module private">
     
     <td>Module</td>
@@ -583,23 +603,28 @@ This object present accessors for several kind of analyses.</p>
   <tr class="class">
     
     <td>Class</td>
-    <td><code><a href="libstatic.AnonymousScope.html" class="internal-link" title="libstatic.AnonymousScope"><wbr></wbr>Anonymous<wbr></wbr>Scope</a></code></td>
-    <td><span class="undocumented">Undocumented</span></td>
-  </tr><tr class="class">
-    
-    <td>Class</td>
     <td><code><a href="libstatic.Arg.html" class="internal-link" title="libstatic.Arg"><wbr></wbr>Arg</a></code></td>
     <td>Model a function argument definition.</td>
   </tr><tr class="class">
     
     <td>Class</td>
+    <td><code><a href="libstatic.Attr.html" class="internal-link" title="libstatic.Attr"><wbr></wbr>Attr</a></code></td>
+    <td>Model an attribute definition.</td>
+  </tr><tr class="class">
+    
+    <td>Class</td>
     <td><code><a href="libstatic.ClosedScope.html" class="internal-link" title="libstatic.ClosedScope"><wbr></wbr>Closed<wbr></wbr>Scope</a></code></td>
-    <td>Closed scope have &lt;locals&gt;.</td>
+    <td>Model a closed scope (abstract). Closed scope have &lt;locals&gt;.</td>
   </tr><tr class="class">
     
     <td>Class</td>
     <td><code><a href="libstatic.Cls.html" class="internal-link" title="libstatic.Cls"><wbr></wbr>Cls</a></code></td>
     <td>Model a class definition.</td>
+  </tr><tr class="class">
+    
+    <td>Class</td>
+    <td><code><a href="libstatic.Comp.html" class="internal-link" title="libstatic.Comp"><wbr></wbr>Comp</a></code></td>
+    <td>Model the definition of a generator or comprehension.</td>
   </tr><tr class="class">
     
     <td>Class</td>
@@ -618,6 +643,11 @@ This object present accessors for several kind of analyses.</p>
   </tr><tr class="class">
     
     <td>Class</td>
+    <td><code><a href="libstatic.Lamb.html" class="internal-link" title="libstatic.Lamb"><wbr></wbr>Lamb</a></code></td>
+    <td>Model the definition of a lambda function.</td>
+  </tr><tr class="class">
+    
+    <td>Class</td>
     <td><code><a href="libstatic.Mod.html" class="internal-link" title="libstatic.Mod"><wbr></wbr>Mod</a></code></td>
     <td>Model a module definition.</td>
   </tr><tr class="class">
@@ -629,7 +659,7 @@ This object present accessors for several kind of analyses.</p>
     
     <td>Class</td>
     <td><code><a href="libstatic.NameDef.html" class="internal-link" title="libstatic.NameDef"><wbr></wbr>Name<wbr></wbr>Def</a></code></td>
-    <td>Model the definition of a name.</td>
+    <td>Model the definition of a name (abstract).</td>
   </tr><tr class="class">
     
     <td>Class</td>
@@ -639,7 +669,7 @@ This object present accessors for several kind of analyses.</p>
     
     <td>Class</td>
     <td><code><a href="libstatic.OpenScope.html" class="internal-link" title="libstatic.OpenScope"><wbr></wbr>Open<wbr></wbr>Scope</a></code></td>
-    <td><span class="undocumented">Undocumented</span></td>
+    <td>Model a open scope (abstract).</td>
   </tr><tr class="class">
     
     <td>Class</td>
@@ -654,12 +684,12 @@ This object present accessors for several kind of analyses.</p>
     
     <td>Class</td>
     <td><code><a href="libstatic.Scope.html" class="internal-link" title="libstatic.Scope"><wbr></wbr>Scope</a></code></td>
-    <td>Model a python scope.</td>
+    <td>Model a python scope (abstract).</td>
   </tr><tr class="class">
     
     <td>Class</td>
     <td><code><a href="libstatic.Scope.html" class="internal-link" title="libstatic.Scope"><wbr></wbr>Scope</a></code></td>
-    <td>Model a python scope.</td>
+    <td>Model a python scope (abstract).</td>
   </tr><tr class="class">
     
     <td>Class</td>
@@ -669,7 +699,7 @@ This object present accessors for several kind of analyses.</p>
     
     <td>Class</td>
     <td><code><a href="libstatic.TopologicalProcessor.html" class="internal-link" title="libstatic.TopologicalProcessor"><wbr></wbr>Topological<wbr></wbr>Processor</a></code></td>
-    <td>Base class for processing modules in topological order. Decoupled from the concrete types so it can be re-used for several inter-modules analysis.</td>
+    <td>Base class for processing objects in topological order. Decoupled from the concrete types so it can be re-used for several order-sensitive analysis.</td>
   </tr><tr class="class">
     
     <td>Class</td>
@@ -753,7 +783,7 @@ This object present accessors for several kind of analyses.</p>
     
     
     <span class="py-keyword">def</span> <span class="py-defname">load_path</span><span class="function-signature">(project: <code>Project</code>, path: <code><a href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" class="intersphinx-link">Path</a></code>)</span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/loader.py#L50">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/loader.py#L56">
       
       (source)
     </a>
@@ -786,7 +816,7 @@ Project.analyze_project() must still be called after loading a path into the pro
     <div class="container">
       <a href="index.html">API Documentation</a> for <a href="https://github.com/tristanlatr/libstatic" class="projecthome">libstatic</a>,
     generated by <a href="https://github.com/twisted/pydoctor/">pydoctor</a>
-      23.4.1.dev0 at 2023-08-14 20:55:50.
+      23.4.1.dev0 at 2023-08-22 02:49:59.
     </div>
     
     <script src="ajax.js" type="text/javascript"></script>

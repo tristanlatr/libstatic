@@ -100,7 +100,7 @@
         
 
         
-            <div class="itemName"><code><a href="#BuildType" class="internal-link" title="libstatic._lib.process.BuildType"><wbr></wbr>Build<wbr></wbr>Type</a></code>
+            <div class="itemName"><code><a href="#KT" class="internal-link" title="libstatic._lib.process.KT">KT</a></code>
             </div>
         
 
@@ -110,7 +110,17 @@
         
 
         
-            <div class="itemName"><code><a href="#ModType" class="internal-link" title="libstatic._lib.process.ModType"><wbr></wbr>Mod<wbr></wbr>Type</a></code>
+            <div class="itemName"><code><a href="#RT" class="internal-link" title="libstatic._lib.process.RT">RT</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#VT" class="internal-link" title="libstatic._lib.process.VT">VT</a></code>
             </div>
         
 
@@ -150,7 +160,27 @@
         
 
         
+            <div class="itemName"><code><a href="libstatic._lib.arguments.html" class="internal-link" title="libstatic._lib.arguments">arguments</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
             <div class="itemName"><code><a href="libstatic._lib.assignment.html" class="internal-link" title="libstatic._lib.assignment">assignment</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._lib.c3linear.html" class="internal-link" title="libstatic._lib.c3linear">c3linear</a></code>
             </div>
         
 
@@ -181,6 +211,16 @@
 
         
             <div class="itemName"><code><a href="libstatic._lib.imports.html" class="internal-link" title="libstatic._lib.imports">imports</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._lib.ivars.html" class="internal-link" title="libstatic._lib.ivars">ivars</a></code>
             </div>
         
 
@@ -342,27 +382,32 @@
         </div>
 
         <div class="moduleDocstring">
-          <div><p>Provides a generic class to process a collection of modules.</p></div>
+          <div><p>Provides a generic class to process a collection of objects in topological order.</p></div>
         </div>
 
         <div id="splitTables">
-          <table class="children sortable" id="id44">
+          <table class="children sortable" id="id59">
   
   
   <tr class="class">
     
     <td>Class</td>
     <td><code><a href="libstatic.TopologicalProcessor.html" class="internal-link" title="libstatic.TopologicalProcessor"><wbr></wbr>Topological<wbr></wbr>Processor</a></code></td>
-    <td>Base class for processing modules in topological order. Decoupled from the concrete types so it can be re-used for several inter-modules analysis.</td>
+    <td>Base class for processing objects in topological order. Decoupled from the concrete types so it can be re-used for several order-sensitive analysis.</td>
   </tr><tr class="typevariable">
     
     <td>Type Variable</td>
-    <td><code><a href="#BuildType" class="internal-link" title="libstatic._lib.process.BuildType"><wbr></wbr>Build<wbr></wbr>Type</a></code></td>
+    <td><code><a href="#KT" class="internal-link" title="libstatic._lib.process.KT">KT</a></code></td>
     <td><span class="undocumented">Undocumented</span></td>
   </tr><tr class="typevariable">
     
     <td>Type Variable</td>
-    <td><code><a href="#ModType" class="internal-link" title="libstatic._lib.process.ModType"><wbr></wbr>Mod<wbr></wbr>Type</a></code></td>
+    <td><code><a href="#RT" class="internal-link" title="libstatic._lib.process.RT">RT</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="typevariable">
+    
+    <td>Type Variable</td>
+    <td><code><a href="#VT" class="internal-link" title="libstatic._lib.process.VT">VT</a></code></td>
     <td><span class="undocumented">Undocumented</span></td>
   </tr>
 </table>
@@ -375,20 +420,20 @@
           <div class="basetypevariable">
   
   
-  <a name="libstatic._lib.process.BuildType">
+  <a name="libstatic._lib.process.KT">
     
   </a>
-  <a name="BuildType">
+  <a name="KT">
     
   </a>
   <div class="functionHeader">
     
-    <span class="py-defname">BuildType</span> =
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/process.py#L9">
+    <span class="py-defname">KT</span> =
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/process.py#L10">
       
       (source)
     </a>
-    <a class="headerLink" href="#BuildType" title="libstatic._lib.process.BuildType">
+    <a class="headerLink" href="#KT" title="libstatic._lib.process.KT">
       
       
       ¶
@@ -397,25 +442,25 @@
   <div class="functionBody">
     
     <div><p class="undocumented">Undocumented</p></div>
-    <table class="valueTable"><tr class="fieldStart"><td class="fieldName">Value</td></tr><tr><td><pre class="constant-value"><code><a href="https://docs.python.org/3/library/typing.html#typing.TypeVar" class="intersphinx-link">TypeVar</a>(<wbr></wbr><span class="rst-variable-quote">'</span><span class="rst-variable-string">BuildType</span><span class="rst-variable-quote">'</span>)</code></pre></td></tr></table>
+    <table class="valueTable"><tr class="fieldStart"><td class="fieldName">Value</td></tr><tr><td><pre class="constant-value"><code><a href="https://docs.python.org/3/library/typing.html#typing.TypeVar" class="intersphinx-link">TypeVar</a>(<wbr></wbr><span class="rst-variable-quote">'</span><span class="rst-variable-string">KT</span><span class="rst-variable-quote">'</span>)</code></pre></td></tr></table>
   </div>
 </div><div class="basetypevariable">
   
   
-  <a name="libstatic._lib.process.ModType">
+  <a name="libstatic._lib.process.RT">
     
   </a>
-  <a name="ModType">
+  <a name="RT">
     
   </a>
   <div class="functionHeader">
     
-    <span class="py-defname">ModType</span> =
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/process.py#L8">
+    <span class="py-defname">RT</span> =
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/process.py#L12">
       
       (source)
     </a>
-    <a class="headerLink" href="#ModType" title="libstatic._lib.process.ModType">
+    <a class="headerLink" href="#RT" title="libstatic._lib.process.RT">
       
       
       ¶
@@ -424,7 +469,34 @@
   <div class="functionBody">
     
     <div><p class="undocumented">Undocumented</p></div>
-    <table class="valueTable"><tr class="fieldStart"><td class="fieldName">Value</td></tr><tr><td><pre class="constant-value"><code><a href="https://docs.python.org/3/library/typing.html#typing.TypeVar" class="intersphinx-link">TypeVar</a>(<wbr></wbr><span class="rst-variable-quote">'</span><span class="rst-variable-string">ModType</span><span class="rst-variable-quote">'</span>)</code></pre></td></tr></table>
+    <table class="valueTable"><tr class="fieldStart"><td class="fieldName">Value</td></tr><tr><td><pre class="constant-value"><code><a href="https://docs.python.org/3/library/typing.html#typing.TypeVar" class="intersphinx-link">TypeVar</a>(<wbr></wbr><span class="rst-variable-quote">'</span><span class="rst-variable-string">RT</span><span class="rst-variable-quote">'</span>)</code></pre></td></tr></table>
+  </div>
+</div><div class="basetypevariable">
+  
+  
+  <a name="libstatic._lib.process.VT">
+    
+  </a>
+  <a name="VT">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-defname">VT</span> =
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/process.py#L11">
+      
+      (source)
+    </a>
+    <a class="headerLink" href="#VT" title="libstatic._lib.process.VT">
+      
+      
+      ¶
+    </a>
+  </div>
+  <div class="functionBody">
+    
+    <div><p class="undocumented">Undocumented</p></div>
+    <table class="valueTable"><tr class="fieldStart"><td class="fieldName">Value</td></tr><tr><td><pre class="constant-value"><code><a href="https://docs.python.org/3/library/typing.html#typing.TypeVar" class="intersphinx-link">TypeVar</a>(<wbr></wbr><span class="rst-variable-quote">'</span><span class="rst-variable-string">VT</span><span class="rst-variable-quote">'</span>)</code></pre></td></tr></table>
   </div>
 </div>
         </div>
@@ -439,7 +511,7 @@
     <div class="container">
       <a href="index.html">API Documentation</a> for <a href="https://github.com/tristanlatr/libstatic" class="projecthome">libstatic</a>,
     generated by <a href="https://github.com/twisted/pydoctor/">pydoctor</a>
-      23.4.1.dev0 at 2023-08-14 20:55:50.
+      23.4.1.dev0 at 2023-08-22 02:49:59.
     </div>
     
     <script src="ajax.js" type="text/javascript"></script>

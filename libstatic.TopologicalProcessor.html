@@ -104,7 +104,7 @@
         
 
         
-            <div class="itemName"><code><a href="#getModule" class="internal-link" title="libstatic.TopologicalProcessor.getModule">get<wbr></wbr>Module</a></code>
+            <div class="itemName"><code><a href="#getObj" class="internal-link" title="libstatic.TopologicalProcessor.getObj">get<wbr></wbr>Obj</a></code>
             </div>
         
 
@@ -114,7 +114,7 @@
         
 
         
-            <div class="itemName"><code><a href="#getProcessedModule" class="internal-link" title="libstatic.TopologicalProcessor.getProcessedModule">get<wbr></wbr>Processed<wbr></wbr>Module</a></code>
+            <div class="itemName"><code><a href="#getProcessedObj" class="internal-link" title="libstatic.TopologicalProcessor.getProcessedObj">get<wbr></wbr>Processed<wbr></wbr>Obj</a></code>
             </div>
         
 
@@ -134,7 +134,7 @@
         
 
         
-            <div class="itemName"><code><a href="#processModule" class="internal-link" title="libstatic.TopologicalProcessor.processModule">process<wbr></wbr>Module</a></code>
+            <div class="itemName"><code><a href="#processObj" class="internal-link" title="libstatic.TopologicalProcessor.processObj">process<wbr></wbr>Obj</a></code>
             </div>
         
 
@@ -144,7 +144,7 @@
         
 
         
-            <div class="itemName"><code><a href="#_processModule" class="internal-link" title="libstatic.TopologicalProcessor._processModule">_process<wbr></wbr>Module</a></code>
+            <div class="itemName"><code><a href="#_processObj" class="internal-link" title="libstatic.TopologicalProcessor._processObj">_process<wbr></wbr>Obj</a></code>
             </div>
         
 
@@ -193,7 +193,7 @@
         
 
         
-            <div class="itemName"><code><a href="#processing_modules" class="internal-link" title="libstatic.TopologicalProcessor.processing_modules">processing<wbr></wbr>_modules</a></code>
+            <div class="itemName"><code><a href="#processing" class="internal-link" title="libstatic.TopologicalProcessor.processing">processing</a></code>
             </div>
         
 
@@ -223,7 +223,7 @@
         
 
         
-            <div class="itemName"><code><a href="#unprocessed_modules" class="internal-link" title="libstatic.TopologicalProcessor.unprocessed_modules">unprocessed<wbr></wbr>_modules</a></code>
+            <div class="itemName"><code><a href="#unprocessed" class="internal-link" title="libstatic.TopologicalProcessor.unprocessed">unprocessed</a></code>
             </div>
         
 
@@ -289,7 +289,7 @@
         
 
         
-            <div class="itemName"><code><a href="libstatic.AnonymousScope.html" class="internal-link" title="libstatic.AnonymousScope"><wbr></wbr>Anonymous<wbr></wbr>Scope</a></code>
+            <div class="itemName"><code><a href="libstatic.Arg.html" class="internal-link" title="libstatic.Arg"><wbr></wbr>Arg</a></code>
             </div>
         
 
@@ -299,7 +299,7 @@
         
 
         
-            <div class="itemName"><code><a href="libstatic.Arg.html" class="internal-link" title="libstatic.Arg"><wbr></wbr>Arg</a></code>
+            <div class="itemName"><code><a href="libstatic.Attr.html" class="internal-link" title="libstatic.Attr"><wbr></wbr>Attr</a></code>
             </div>
         
 
@@ -320,6 +320,16 @@
 
         
             <div class="itemName"><code><a href="libstatic.Cls.html" class="internal-link" title="libstatic.Cls"><wbr></wbr>Cls</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic.Comp.html" class="internal-link" title="libstatic.Comp"><wbr></wbr>Comp</a></code>
             </div>
         
 
@@ -350,6 +360,16 @@
 
         
             <div class="itemName"><code><a href="libstatic.Imp.html" class="internal-link" title="libstatic.Imp"><wbr></wbr>Imp</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic.Lamb.html" class="internal-link" title="libstatic.Lamb"><wbr></wbr>Lamb</a></code>
             </div>
         
 
@@ -696,24 +716,25 @@
         </div>
 
         <div class="extrasDocstring">
-          <p class="class-signature"><code><span class="py-keyword">class</span> <span class="py-defname">TopologicalProcessor</span>(<a href="https://docs.python.org/3/library/abc.html#abc.ABC" class="intersphinx-link">abc.ABC</a>, Generic[<wbr></wbr>ModType, <wbr></wbr>BuildType]): <a href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/process.py#L11" class="sourceLink">(source)</a></code></p>
+          <p class="class-signature"><code><span class="py-keyword">class</span> <span class="py-defname">TopologicalProcessor</span>(<a href="https://docs.python.org/3/library/abc.html#abc.ABC" class="intersphinx-link">abc.ABC</a>, Generic[<wbr></wbr>KT, <wbr></wbr>VT, <wbr></wbr>RT]): <a href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/process.py#L14" class="sourceLink">(source)</a></code></p>
           <p><a href="classIndex.html#libstatic.TopologicalProcessor">View In Hierarchy</a></p>
         </div>
 
         <div class="moduleDocstring">
-          <div><p>Base class for processing modules in topological order.
-Decoupled from the concrete types so it can be re-used for several inter-modules analysis.</p>
-<p>Base classes must override <code><a href="#getModule" class="internal-link" title="libstatic.TopologicalProcessor.getModule">getModule</a></code> and <code><a href="#processModule" class="internal-link" title="libstatic.TopologicalProcessor.processModule">processModule</a></code>.</p>
-<p>The processing code can call <code><a href="#getProcessedModule" class="internal-link" title="libstatic.TopologicalProcessor.getProcessedModule">getProcessedModule</a></code> in order to indicate that the given
-module <em>should</em> be processed before resuming the current task. In case of cycles, <code><a href="#getProcessedModule" class="internal-link" title="libstatic.TopologicalProcessor.getProcessedModule">getProcessedModule</a></code>
-returns a module that is not completely processed. To know wether the returned module is processed, one
-can use the <code><a href="#processing_state" class="internal-link" title="libstatic.TopologicalProcessor.processing_state">processing_state</a></code> mapping or the <code><a href="#result" class="internal-link" title="libstatic.TopologicalProcessor.result">result</a></code> mapping, a module that is still processing will not
+          <div><p>Base class for processing objects in topological order.
+Decoupled from the concrete types so it can be re-used
+for several order-sensitive analysis.</p>
+<p>Base classes must override <code><a href="#getObj" class="internal-link" title="libstatic.TopologicalProcessor.getObj">getObj</a></code> and <code><a href="#processObj" class="internal-link" title="libstatic.TopologicalProcessor.processObj">processObj</a></code>.</p>
+<p>The processing code can call <code><a href="#getProcessedObj" class="internal-link" title="libstatic.TopologicalProcessor.getProcessedObj">getProcessedObj</a></code> to indicate that the given
+object <em>should</em> be processed before resuming the current task. In case of cycles, <code><a href="#getProcessedObj" class="internal-link" title="libstatic.TopologicalProcessor.getProcessedObj">getProcessedObj</a></code>
+returns a object that is not completely processed. To know wether the returned obeject is processed, one
+can use the <code><a href="#processing_state" class="internal-link" title="libstatic.TopologicalProcessor.processing_state">processing_state</a></code> mapping or the <code><a href="#result" class="internal-link" title="libstatic.TopologicalProcessor.result">result</a></code> mapping, a object that is still processing will not
 be present in the <code><a href="#result" class="internal-link" title="libstatic.TopologicalProcessor.result">result</a></code> mapping.</p>
 </div>
         </div>
 
         <div id="splitTables">
-          <table class="children sortable" id="id84">
+          <table class="children sortable" id="id104">
   
   
   <tr class="method">
@@ -724,23 +745,23 @@ be present in the <code><a href="#result" class="internal-link" title="libstatic
   </tr><tr class="method">
     
     <td>Method</td>
-    <td><code><a href="#getModule" class="internal-link" title="libstatic.TopologicalProcessor.getModule">get<wbr></wbr>Module</a></code></td>
-    <td>Returns the module with the given name.</td>
+    <td><code><a href="#getObj" class="internal-link" title="libstatic.TopologicalProcessor.getObj">get<wbr></wbr>Obj</a></code></td>
+    <td>Returns the object known by the given key.</td>
   </tr><tr class="method">
     
     <td>Method</td>
-    <td><code><a href="#getProcessedModule" class="internal-link" title="libstatic.TopologicalProcessor.getProcessedModule">get<wbr></wbr>Processed<wbr></wbr>Module</a></code></td>
-    <td>Request processing of the given module.</td>
+    <td><code><a href="#getProcessedObj" class="internal-link" title="libstatic.TopologicalProcessor.getProcessedObj">get<wbr></wbr>Processed<wbr></wbr>Obj</a></code></td>
+    <td>Request processing of the given object and returns the object. The object might still be processing in the case of cycles.</td>
   </tr><tr class="method">
     
     <td>Method</td>
     <td><code><a href="#process" class="internal-link" title="libstatic.TopologicalProcessor.process">process</a></code></td>
-    <td>Run the <code><a href="libstatic.TopologicalProcessor.html#processModule" class="internal-link" title="libstatic.TopologicalProcessor.processModule">processModule</a></code> method on all modules.</td>
+    <td>Run the <code><a href="libstatic.TopologicalProcessor.html#processObj" class="internal-link" title="libstatic.TopologicalProcessor.processObj">processObj</a></code> method on all objects.</td>
   </tr><tr class="method">
     
     <td>Method</td>
-    <td><code><a href="#processModule" class="internal-link" title="libstatic.TopologicalProcessor.processModule">process<wbr></wbr>Module</a></code></td>
-    <td>Process this module and returns the 'result' of the analysis. If the processing code mutates the state, there is no need for the return value.</td>
+    <td><code><a href="#processObj" class="internal-link" title="libstatic.TopologicalProcessor.processObj">process<wbr></wbr>Obj</a></code></td>
+    <td>Process the object known by the given key and returns the 'result' of the analysis. If the processing code mutates a global state, there might be no need for the return value.</td>
   </tr><tr class="constant">
     
     <td>Constant</td>
@@ -759,7 +780,7 @@ be present in the <code><a href="#result" class="internal-link" title="libstatic
   </tr><tr class="instancevariable">
     
     <td>Instance Variable</td>
-    <td><code><a href="#processing_modules" class="internal-link" title="libstatic.TopologicalProcessor.processing_modules">processing<wbr></wbr>_modules</a></code></td>
+    <td><code><a href="#processing" class="internal-link" title="libstatic.TopologicalProcessor.processing">processing</a></code></td>
     <td><span class="undocumented">Undocumented</span></td>
   </tr><tr class="instancevariable">
     
@@ -774,12 +795,12 @@ be present in the <code><a href="#result" class="internal-link" title="libstatic
   </tr><tr class="instancevariable">
     
     <td>Instance Variable</td>
-    <td><code><a href="#unprocessed_modules" class="internal-link" title="libstatic.TopologicalProcessor.unprocessed_modules">unprocessed<wbr></wbr>_modules</a></code></td>
+    <td><code><a href="#unprocessed" class="internal-link" title="libstatic.TopologicalProcessor.unprocessed">unprocessed</a></code></td>
     <td><span class="undocumented">Undocumented</span></td>
   </tr><tr class="method private">
     
     <td>Method</td>
-    <td><code><a href="#_processModule" class="internal-link" title="libstatic.TopologicalProcessor._processModule">_process<wbr></wbr>Module</a></code></td>
+    <td><code><a href="#_processObj" class="internal-link" title="libstatic.TopologicalProcessor._processObj">_process<wbr></wbr>Obj</a></code></td>
     <td><span class="undocumented">Undocumented</span></td>
   </tr>
 </table>
@@ -802,7 +823,7 @@ be present in the <code><a href="#result" class="internal-link" title="libstatic
     
     
     <span class="py-keyword">def</span> <span class="py-defname">__init__</span><span class="function-signature">(self)</span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/process.py#L29">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/process.py#L33">
       
       (source)
     </a>
@@ -819,21 +840,21 @@ be present in the <code><a href="#result" class="internal-link" title="libstatic
 </div><div class="basemethod">
   
   
-  <a name="libstatic.TopologicalProcessor.getModule">
+  <a name="libstatic.TopologicalProcessor.getObj">
     
   </a>
-  <a name="getModule">
+  <a name="getObj">
     
   </a>
   <div class="functionHeader">
     
     @<a href="https://docs.python.org/3/library/abc.html#abc.abstractmethod" class="intersphinx-link">abc.abstractmethod</a><br />
-    <span class="py-keyword">def</span> <span class="py-defname">getModule</span><span class="function-signature">(self, name: <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr><a href="libstatic._lib.process.html#ModType" class="internal-link" title="libstatic._lib.process.ModType">ModType</a>]</code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/process.py#L40">
+    <span class="py-keyword">def</span> <span class="py-defname">getObj</span><span class="function-signature">(self, key: <code><a href="libstatic._lib.process.html#KT" class="internal-link" title="libstatic._lib.process.KT">KT</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr><a href="libstatic._lib.process.html#VT" class="internal-link" title="libstatic._lib.process.VT">VT</a>]</code></span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/process.py#L44">
       
       (source)
     </a>
-    <a class="headerLink" href="#getModule" title="libstatic.TopologicalProcessor.getModule">
+    <a class="headerLink" href="#getObj" title="libstatic.TopologicalProcessor.getObj">
       
       
       ¶
@@ -841,26 +862,26 @@ be present in the <code><a href="#result" class="internal-link" title="libstatic
   </div>
   <div class="docstring functionBody">
     
-    <div><p>Returns the module with the given name.</p></div>
+    <div><p>Returns the object known by the given key.</p></div>
   </div>
 </div><div class="basemethod">
   
   
-  <a name="libstatic.TopologicalProcessor.getProcessedModule">
+  <a name="libstatic.TopologicalProcessor.getProcessedObj">
     
   </a>
-  <a name="getProcessedModule">
+  <a name="getProcessedObj">
     
   </a>
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">getProcessedModule</span><span class="function-signature">(self, modname: <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr><a href="libstatic._lib.process.html#ModType" class="internal-link" title="libstatic._lib.process.ModType">ModType</a>]</code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/process.py#L53">
+    <span class="py-keyword">def</span> <span class="py-defname">getProcessedObj</span><span class="function-signature">(self, key: <code><a href="libstatic._lib.process.html#KT" class="internal-link" title="libstatic._lib.process.KT">KT</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr><a href="libstatic._lib.process.html#VT" class="internal-link" title="libstatic._lib.process.VT">VT</a>]</code></span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/process.py#L57">
       
       (source)
     </a>
-    <a class="headerLink" href="#getProcessedModule" title="libstatic.TopologicalProcessor.getProcessedModule">
+    <a class="headerLink" href="#getProcessedObj" title="libstatic.TopologicalProcessor.getProcessedObj">
       
       
       ¶
@@ -868,7 +889,8 @@ be present in the <code><a href="#result" class="internal-link" title="libstatic
   </div>
   <div class="docstring functionBody">
     
-    <div><p>Request processing of the given module.</p></div>
+    <div><p>Request processing of the given object and returns the object.
+The object might still be processing in the case of cycles.</p></div>
   </div>
 </div><div class="basemethod">
   
@@ -882,8 +904,8 @@ be present in the <code><a href="#result" class="internal-link" title="libstatic
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">process</span><span class="function-signature">(self, modules: <code><a href="https://docs.python.org/3/library/typing.html#typing.Iterable" class="intersphinx-link">Iterable</a>[<wbr></wbr><a href="libstatic._lib.process.html#ModType" class="internal-link" title="libstatic._lib.process.ModType">ModType</a>]</code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Dict" class="intersphinx-link">Dict</a>[<wbr></wbr><a href="libstatic._lib.process.html#ModType" class="internal-link" title="libstatic._lib.process.ModType">ModType</a>, <wbr></wbr><a href="libstatic._lib.process.html#BuildType" class="internal-link" title="libstatic._lib.process.BuildType">BuildType</a>]</code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/process.py#L81">
+    <span class="py-keyword">def</span> <span class="py-defname">process</span><span class="function-signature">(self, objects: <code><a href="https://docs.python.org/3/library/typing.html#typing.Iterable" class="intersphinx-link">Iterable</a>[<wbr></wbr><a href="libstatic._lib.process.html#VT" class="internal-link" title="libstatic._lib.process.VT">VT</a>]</code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Dict" class="intersphinx-link">Dict</a>[<wbr></wbr><a href="libstatic._lib.process.html#VT" class="internal-link" title="libstatic._lib.process.VT">VT</a>, <wbr></wbr><a href="libstatic._lib.process.html#RT" class="internal-link" title="libstatic._lib.process.RT">RT</a>]</code></span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/process.py#L85">
       
       (source)
     </a>
@@ -895,26 +917,26 @@ be present in the <code><a href="#result" class="internal-link" title="libstatic
   </div>
   <div class="docstring functionBody">
     
-    <div><p>Run the <code><a href="#processModule" class="internal-link" title="libstatic.TopologicalProcessor.processModule">processModule</a></code> method on all modules.</p></div>
+    <div><p>Run the <code><a href="#processObj" class="internal-link" title="libstatic.TopologicalProcessor.processObj">processObj</a></code> method on all objects.</p></div>
   </div>
 </div><div class="basemethod">
   
   
-  <a name="libstatic.TopologicalProcessor.processModule">
+  <a name="libstatic.TopologicalProcessor.processObj">
     
   </a>
-  <a name="processModule">
+  <a name="processObj">
     
   </a>
   <div class="functionHeader">
     
     @<a href="https://docs.python.org/3/library/abc.html#abc.abstractmethod" class="intersphinx-link">abc.abstractmethod</a><br />
-    <span class="py-keyword">def</span> <span class="py-defname">processModule</span><span class="function-signature">(self, mod: <code><a href="libstatic._lib.process.html#ModType" class="internal-link" title="libstatic._lib.process.ModType">ModType</a></code>) -&gt; <code><a href="libstatic._lib.process.html#BuildType" class="internal-link" title="libstatic._lib.process.BuildType">BuildType</a></code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/process.py#L46">
+    <span class="py-keyword">def</span> <span class="py-defname">processObj</span><span class="function-signature">(self, obj: <code><a href="libstatic._lib.process.html#VT" class="internal-link" title="libstatic._lib.process.VT">VT</a></code>) -&gt; <code><a href="libstatic._lib.process.html#RT" class="internal-link" title="libstatic._lib.process.RT">RT</a></code></span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/process.py#L50">
       
       (source)
     </a>
-    <a class="headerLink" href="#processModule" title="libstatic.TopologicalProcessor.processModule">
+    <a class="headerLink" href="#processObj" title="libstatic.TopologicalProcessor.processObj">
       
       
       ¶
@@ -922,8 +944,8 @@ be present in the <code><a href="#result" class="internal-link" title="libstatic
   </div>
   <div class="docstring functionBody">
     
-    <div><p>Process this module and returns the 'result' of the analysis.
-If the processing code mutates the state, there is no need for the return value.</p></div>
+    <div><p>Process the object known by the given key and returns the 'result' of the analysis.
+If the processing code mutates a global state, there might be no need for the return value.</p></div>
   </div>
 </div><div class="baseconstant">
   
@@ -937,7 +959,7 @@ If the processing code mutates the state, there is no need for the return value.
   <div class="functionHeader">
     
     <span class="py-defname">PROCESSED</span>: <code><a href="https://docs.python.org/3/library/functions.html#int" class="intersphinx-link">int</a></code> =
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/process.py#L27">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/process.py#L31">
       
       (source)
     </a>
@@ -964,7 +986,7 @@ If the processing code mutates the state, there is no need for the return value.
   <div class="functionHeader">
     
     <span class="py-defname">PROCESSING</span>: <code><a href="https://docs.python.org/3/library/functions.html#int" class="intersphinx-link">int</a></code> =
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/process.py#L26">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/process.py#L30">
       
       (source)
     </a>
@@ -991,7 +1013,7 @@ If the processing code mutates the state, there is no need for the return value.
   <div class="functionHeader">
     
     <span class="py-defname">UNPROCESSED</span>: <code><a href="https://docs.python.org/3/library/functions.html#int" class="intersphinx-link">int</a></code> =
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/process.py#L25">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/process.py#L29">
       
       (source)
     </a>
@@ -1009,20 +1031,20 @@ If the processing code mutates the state, there is no need for the return value.
 </div><div class="baseinstancevariable">
   
   
-  <a name="libstatic.TopologicalProcessor.processing_modules">
+  <a name="libstatic.TopologicalProcessor.processing">
     
   </a>
-  <a name="processing_modules">
+  <a name="processing">
     
   </a>
   <div class="functionHeader">
     
-    <span class="py-defname">processing_modules</span>: <code><a href="https://docs.python.org/3/library/typing.html#typing.List" class="intersphinx-link">List</a>[<wbr></wbr><a href="libstatic._lib.process.html#ModType" class="internal-link" title="libstatic._lib.process.ModType">ModType</a>]</code> =
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/process.py#L36">
+    <span class="py-defname">processing</span>: <code><a href="https://docs.python.org/3/library/typing.html#typing.List" class="intersphinx-link">List</a>[<wbr></wbr><a href="libstatic._lib.process.html#VT" class="internal-link" title="libstatic._lib.process.VT">VT</a>]</code> =
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/process.py#L40">
       
       (source)
     </a>
-    <a class="headerLink" href="#processing_modules" title="libstatic.TopologicalProcessor.processing_modules">
+    <a class="headerLink" href="#processing" title="libstatic.TopologicalProcessor.processing">
       
       
       ¶
@@ -1044,8 +1066,8 @@ If the processing code mutates the state, there is no need for the return value.
   </a>
   <div class="functionHeader">
     
-    <span class="py-defname">processing_state</span>: <code><a href="https://docs.python.org/3/library/typing.html#typing.Dict" class="intersphinx-link">Dict</a>[<wbr></wbr><a href="libstatic._lib.process.html#ModType" class="internal-link" title="libstatic._lib.process.ModType">ModType</a>, <wbr></wbr><a href="https://docs.python.org/3/library/functions.html#object" class="intersphinx-link">object</a>]</code> =
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/process.py#L33">
+    <span class="py-defname">processing_state</span>: <code><a href="https://docs.python.org/3/library/typing.html#typing.Dict" class="intersphinx-link">Dict</a>[<wbr></wbr><a href="libstatic._lib.process.html#VT" class="internal-link" title="libstatic._lib.process.VT">VT</a>, <wbr></wbr><a href="https://docs.python.org/3/library/functions.html#object" class="intersphinx-link">object</a>]</code> =
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/process.py#L37">
       
       (source)
     </a>
@@ -1071,8 +1093,8 @@ If the processing code mutates the state, there is no need for the return value.
   </a>
   <div class="functionHeader">
     
-    <span class="py-defname">result</span>: <code><a href="https://docs.python.org/3/library/typing.html#typing.Dict" class="intersphinx-link">Dict</a>[<wbr></wbr><a href="libstatic._lib.process.html#ModType" class="internal-link" title="libstatic._lib.process.ModType">ModType</a>, <wbr></wbr><a href="libstatic._lib.process.html#BuildType" class="internal-link" title="libstatic._lib.process.BuildType">BuildType</a>]</code> =
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/process.py#L38">
+    <span class="py-defname">result</span>: <code><a href="https://docs.python.org/3/library/typing.html#typing.Dict" class="intersphinx-link">Dict</a>[<wbr></wbr><a href="libstatic._lib.process.html#VT" class="internal-link" title="libstatic._lib.process.VT">VT</a>, <wbr></wbr><a href="libstatic._lib.process.html#RT" class="internal-link" title="libstatic._lib.process.RT">RT</a>]</code> =
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/process.py#L42">
       
       (source)
     </a>
@@ -1090,20 +1112,20 @@ If the processing code mutates the state, there is no need for the return value.
 </div><div class="baseinstancevariable">
   
   
-  <a name="libstatic.TopologicalProcessor.unprocessed_modules">
+  <a name="libstatic.TopologicalProcessor.unprocessed">
     
   </a>
-  <a name="unprocessed_modules">
+  <a name="unprocessed">
     
   </a>
   <div class="functionHeader">
     
-    <span class="py-defname">unprocessed_modules</span> =
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/process.py#L37">
+    <span class="py-defname">unprocessed</span> =
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/process.py#L41">
       
       (source)
     </a>
-    <a class="headerLink" href="#unprocessed_modules" title="libstatic.TopologicalProcessor.unprocessed_modules">
+    <a class="headerLink" href="#unprocessed" title="libstatic.TopologicalProcessor.unprocessed">
       
       
       ¶
@@ -1117,21 +1139,21 @@ If the processing code mutates the state, there is no need for the return value.
 </div><div class="basemethod private">
   
   
-  <a name="libstatic.TopologicalProcessor._processModule">
+  <a name="libstatic.TopologicalProcessor._processObj">
     
   </a>
-  <a name="_processModule">
+  <a name="_processObj">
     
   </a>
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">_processModule</span><span class="function-signature">(self, mod: <code><a href="libstatic._lib.process.html#ModType" class="internal-link" title="libstatic._lib.process.ModType">ModType</a></code>)</span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/process.py#L67">
+    <span class="py-keyword">def</span> <span class="py-defname">_processObj</span><span class="function-signature">(self, obj: <code><a href="libstatic._lib.process.html#VT" class="internal-link" title="libstatic._lib.process.VT">VT</a></code>)</span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/process.py#L71">
       
       (source)
     </a>
-    <a class="headerLink" href="#_processModule" title="libstatic.TopologicalProcessor._processModule">
+    <a class="headerLink" href="#_processObj" title="libstatic.TopologicalProcessor._processObj">
       
       
       ¶
@@ -1154,7 +1176,7 @@ If the processing code mutates the state, there is no need for the return value.
     <div class="container">
       <a href="index.html">API Documentation</a> for <a href="https://github.com/tristanlatr/libstatic" class="projecthome">libstatic</a>,
     generated by <a href="https://github.com/twisted/pydoctor/">pydoctor</a>
-      23.4.1.dev0 at 2023-08-14 20:55:50.
+      23.4.1.dev0 at 2023-08-22 02:49:59.
     </div>
     
     <script src="ajax.js" type="text/javascript"></script>

@@ -173,7 +173,27 @@
         
 
         
+            <div class="itemName"><code><a href="#arg2spec" class="internal-link" title="libstatic._lib.chains.BenigetConverter.arg2spec">arg2spec</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
             <div class="itemName"><code><a href="#converted" class="internal-link" title="libstatic._lib.chains.BenigetConverter.converted">converted</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#filename" class="internal-link" title="libstatic._lib.chains.BenigetConverter.filename">filename</a></code>
             </div>
         
 
@@ -227,6 +247,16 @@
 
         
             <div class="itemName"><code><a href="libstatic._lib.chains.DefUseChains.html" class="internal-link" title="libstatic._lib.chains.DefUseChains"><wbr></wbr>Def<wbr></wbr>Use<wbr></wbr>Chains</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._lib.chains.ParseArgumentsInfos.html" class="internal-link" title="libstatic._lib.chains.ParseArgumentsInfos"><wbr></wbr>Parse<wbr></wbr>Arguments<wbr></wbr>Infos</a></code>
             </div>
         
 
@@ -426,7 +456,7 @@
         </div>
 
         <div class="extrasDocstring">
-          <p class="class-signature"><code><span class="py-keyword">class</span> <span class="py-defname">BenigetConverter</span>: <a href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/chains.py#L79" class="sourceLink">(source)</a></code></p><p>Constructor: <code><a href="#__init__" class="internal-link" title="libstatic._lib.chains.BenigetConverter.__init__">BenigetConverter(gast2ast, alias2importinfo)</a></code></p>
+          <p class="class-signature"><code><span class="py-keyword">class</span> <span class="py-defname">BenigetConverter</span>: <a href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/chains.py#L83" class="sourceLink">(source)</a></code></p><p>Constructor: <code><a href="#__init__" class="internal-link" title="libstatic._lib.chains.BenigetConverter.__init__">BenigetConverter(gast2ast, alias2importinfo, arg2spec)</a></code></p>
           <p><a href="classIndex.html#libstatic._lib.chains.BenigetConverter">View In Hierarchy</a></p>
         </div>
 
@@ -435,7 +465,7 @@
         </div>
 
         <div id="splitTables">
-          <table class="children sortable" id="id36">
+          <table class="children sortable" id="id43">
   
   
   <tr class="method">
@@ -456,7 +486,17 @@
   </tr><tr class="instancevariable">
     
     <td>Instance Variable</td>
+    <td><code><a href="#arg2spec" class="internal-link" title="libstatic._lib.chains.BenigetConverter.arg2spec">arg2spec</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="instancevariable">
+    
+    <td>Instance Variable</td>
     <td><code><a href="#converted" class="internal-link" title="libstatic._lib.chains.BenigetConverter.converted">converted</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="instancevariable">
+    
+    <td>Instance Variable</td>
+    <td><code><a href="#filename" class="internal-link" title="libstatic._lib.chains.BenigetConverter.filename">filename</a></code></td>
     <td><span class="undocumented">Undocumented</span></td>
   </tr><tr class="instancevariable">
     
@@ -503,8 +543,8 @@
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">__init__</span><span class="function-signature">(self, gast2ast: <code><a href="https://docs.python.org/3/library/typing.html#typing.Mapping" class="intersphinx-link">Mapping</a>[<wbr></wbr>gast.AST, <wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>, alias2importinfo: <code><a href="https://docs.python.org/3/library/typing.html#typing.Mapping" class="intersphinx-link">Mapping</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.alias" class="intersphinx-link">ast.alias</a>, <wbr></wbr><a href="libstatic._lib.imports.ImportInfo.html" class="internal-link" title="libstatic._lib.imports.ImportInfo">ImportInfo</a>]</code>)</span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/chains.py#L80">
+    <span class="py-keyword">def</span> <span class="py-defname">__init__</span><span class="function-signature">(self, gast2ast: <code><a href="https://docs.python.org/3/library/typing.html#typing.Mapping" class="intersphinx-link">Mapping</a>[<wbr></wbr>gast.AST, <wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>, alias2importinfo: <code><a href="https://docs.python.org/3/library/typing.html#typing.Mapping" class="intersphinx-link">Mapping</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.alias" class="intersphinx-link">ast.alias</a>, <wbr></wbr><a href="libstatic._lib.imports.ImportInfo.html" class="internal-link" title="libstatic._lib.imports.ImportInfo">ImportInfo</a>]</code>, arg2spec: <code><a href="https://docs.python.org/3/library/typing.html#typing.Mapping" class="intersphinx-link">Mapping</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.arg" class="intersphinx-link">ast.arg</a>, <wbr></wbr><a href="libstatic._lib.arguments.ArgSpec.html" class="internal-link" title="libstatic._lib.arguments.ArgSpec">ArgSpec</a>]</code>)</span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/chains.py#L84">
       
       (source)
     </a>
@@ -531,7 +571,7 @@
     
     
     <span class="py-keyword">def</span> <span class="py-defname">convert</span><span class="function-signature">(self, b: <code><a href="libstatic._lib.chains.DefUseChains.html" class="internal-link" title="libstatic._lib.chains.DefUseChains">DefUseChains</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Tuple" class="intersphinx-link">Tuple</a>[<wbr></wbr><a href="libstatic._lib.chains.html#Chains" class="internal-link" title="libstatic._lib.chains.Chains">Chains</a>, <wbr></wbr><a href="libstatic._lib.chains.html#Locals" class="internal-link" title="libstatic._lib.chains.Locals">Locals</a>, <wbr></wbr><a href="libstatic._lib.chains.html#BuiltinsChains" class="internal-link" title="libstatic._lib.chains.BuiltinsChains">BuiltinsChains</a>]</code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/chains.py#L90">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/chains.py#L96">
       
       (source)
     </a>
@@ -557,11 +597,38 @@
   <div class="functionHeader">
     
     <span class="py-defname">alias2importinfo</span> =
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/chains.py#L86">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/chains.py#L91">
       
       (source)
     </a>
     <a class="headerLink" href="#alias2importinfo" title="libstatic._lib.chains.BenigetConverter.alias2importinfo">
+      
+      
+      ¶
+    </a>
+  </div>
+  <div class="functionBody">
+    
+    <div><p class="undocumented">Undocumented</p></div>
+    
+  </div>
+</div><div class="baseinstancevariable">
+  
+  
+  <a name="libstatic._lib.chains.BenigetConverter.arg2spec">
+    
+  </a>
+  <a name="arg2spec">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-defname">arg2spec</span> =
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/chains.py#L92">
+      
+      (source)
+    </a>
+    <a class="headerLink" href="#arg2spec" title="libstatic._lib.chains.BenigetConverter.arg2spec">
       
       
       ¶
@@ -584,11 +651,38 @@
   <div class="functionHeader">
     
     <span class="py-defname">converted</span>: <code><a href="https://docs.python.org/3/library/typing.html#typing.Dict" class="intersphinx-link">Dict</a>[<wbr></wbr>BenigetDef, <wbr></wbr><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr>Def]]</code> =
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/chains.py#L87">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/chains.py#L93">
       
       (source)
     </a>
     <a class="headerLink" href="#converted" title="libstatic._lib.chains.BenigetConverter.converted">
+      
+      
+      ¶
+    </a>
+  </div>
+  <div class="functionBody">
+    
+    <div><p class="undocumented">Undocumented</p></div>
+    
+  </div>
+</div><div class="baseinstancevariable">
+  
+  
+  <a name="libstatic._lib.chains.BenigetConverter.filename">
+    
+  </a>
+  <a name="filename">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-defname">filename</span> =
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/chains.py#L97">
+      
+      (source)
+    </a>
+    <a class="headerLink" href="#filename" title="libstatic._lib.chains.BenigetConverter.filename">
       
       
       ¶
@@ -611,7 +705,7 @@
   <div class="functionHeader">
     
     <span class="py-defname">gast2ast</span> =
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/chains.py#L85">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/chains.py#L90">
       
       (source)
     </a>
@@ -639,7 +733,7 @@
     
     
     <span class="py-keyword">def</span> <span class="py-defname">_convert_chains</span><span class="function-signature">(self, chains: <code><a href="https://docs.python.org/3/library/typing.html#typing.Dict" class="intersphinx-link">Dict</a>[<wbr></wbr><a href="https://docs.python.org/3/library/typing.html#typing.Any" class="intersphinx-link">Any</a>, <wbr></wbr>BenigetDef]</code>, is_builtins: <code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code> = <a href="https://docs.python.org/3/library/constants.html#False" class="intersphinx-link">False</a>) -&gt; <code><a href="libstatic._lib.chains.html#Chains" class="internal-link" title="libstatic._lib.chains.Chains">Chains</a>|<a href="libstatic._lib.chains.html#BuiltinsChains" class="internal-link" title="libstatic._lib.chains.BuiltinsChains">BuiltinsChains</a></code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/chains.py#L121">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/chains.py#L128">
       
       (source)
     </a>
@@ -666,7 +760,7 @@
     
     
     <span class="py-keyword">def</span> <span class="py-defname">_convert_definition</span><span class="function-signature">(self, definition: <code>BenigetDef</code>) -&gt; <code>Def|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/chains.py#L96">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/chains.py#L103">
       
       (source)
     </a>
@@ -693,7 +787,7 @@
     
     
     <span class="py-keyword">def</span> <span class="py-defname">_convert_locals</span><span class="function-signature">(self, locals: <code><a href="https://docs.python.org/3/library/typing.html#typing.Mapping" class="intersphinx-link">Mapping</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>, <wbr></wbr><a href="https://docs.python.org/3/library/typing.html#typing.List" class="intersphinx-link">List</a>[<wbr></wbr>BenigetDef]]</code>) -&gt; <code><a href="libstatic._lib.chains.html#Locals" class="internal-link" title="libstatic._lib.chains.Locals">Locals</a></code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/chains.py#L163">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/chains.py#L179">
       
       (source)
     </a>
@@ -720,7 +814,7 @@
     
     
     <span class="py-keyword">def</span> <span class="py-defname">_def_factory</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code>, islive: <code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code>) -&gt; <code>Def|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/chains.py#L134">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/chains.py#L141">
       
       (source)
     </a>
@@ -747,7 +841,7 @@
     <div class="container">
       <a href="index.html">API Documentation</a> for <a href="https://github.com/tristanlatr/libstatic" class="projecthome">libstatic</a>,
     generated by <a href="https://github.com/twisted/pydoctor/">pydoctor</a>
-      23.4.1.dev0 at 2023-08-14 20:55:50.
+      23.4.1.dev0 at 2023-08-22 02:49:59.
     </div>
     
     <script src="ajax.js" type="text/javascript"></script>

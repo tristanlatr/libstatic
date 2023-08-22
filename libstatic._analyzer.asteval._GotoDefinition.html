@@ -562,7 +562,7 @@
         </div>
 
         <div class="extrasDocstring">
-          <p class="class-signature"><code><span class="py-keyword">class</span> <span class="py-defname">_GotoDefinition</span>(<a href="libstatic._analyzer.asteval._ASTEval.html" class="internal-link" title="libstatic._analyzer.asteval._ASTEval">_ASTEval</a>): <a href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/asteval.py#L144" class="sourceLink">(source)</a></code></p><p>Constructor: <code><a href="#__init__" class="internal-link" title="libstatic._analyzer.asteval._GotoDefinition.__init__">_GotoDefinition(state, raise_on_ambiguity, follow_aliases, follow_imports)</a></code></p>
+          <p class="class-signature"><code><span class="py-keyword">class</span> <span class="py-defname">_GotoDefinition</span>(<a href="libstatic._analyzer.asteval._ASTEval.html" class="internal-link" title="libstatic._analyzer.asteval._ASTEval">_ASTEval</a>): <a href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/asteval.py#L146" class="sourceLink">(source)</a></code></p><p>Constructor: <code><a href="#__init__" class="internal-link" title="libstatic._analyzer.asteval._GotoDefinition.__init__">_GotoDefinition(state, raise_on_ambiguity, follow_aliases, follow_imports)</a></code></p>
           <p><a href="classIndex.html#libstatic._analyzer.asteval._GotoDefinition">View In Hierarchy</a></p>
         </div>
 
@@ -679,7 +679,7 @@
     
     
     <span class="py-keyword">def</span> <span class="py-defname">__init__</span><span class="function-signature">(self, state: <code><a href="libstatic._analyzer.state._MinimalState.html" class="internal-link" title="libstatic._analyzer.state._MinimalState">_MinimalState</a></code>, raise_on_ambiguity: <code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code> = <a href="https://docs.python.org/3/library/constants.html#False" class="intersphinx-link">False</a>, follow_aliases: <code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code> = <a href="https://docs.python.org/3/library/constants.html#False" class="intersphinx-link">False</a>, follow_imports: <code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code> = <a href="https://docs.python.org/3/library/constants.html#True" class="intersphinx-link">True</a>)</span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/asteval.py#L145">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/asteval.py#L147">
       
       (source)
     </a>
@@ -706,7 +706,7 @@
     
     
     <span class="py-keyword">def</span> <span class="py-defname">visit</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/typing.html#typing.Any" class="intersphinx-link">Any</a></code>, path: <code><a href="https://docs.python.org/3/library/typing.html#typing.List" class="intersphinx-link">List</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>) -&gt; <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/asteval.py#L159">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/asteval.py#L161">
       
       (source)
     </a>
@@ -733,7 +733,7 @@
     
     
     <span class="py-keyword">def</span> <span class="py-defname">visit_alias</span><span class="function-signature">(self: <code><a href="libstatic._analyzer.asteval._ASTEval.html" class="internal-link" title="libstatic._analyzer.asteval._ASTEval">_ASTEval</a></code>, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.alias" class="intersphinx-link">ast.alias</a></code>, path: <code><a href="https://docs.python.org/3/library/typing.html#typing.List" class="intersphinx-link">List</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>) -&gt; <code><a href="libstatic._analyzer.asteval.html#ASTOrLiteralValue" class="internal-link" title="libstatic._analyzer.asteval.ASTOrLiteralValue">ASTOrLiteralValue</a></code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/asteval.py#L166">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/asteval.py#L168">
       
       (source)
     </a>
@@ -760,7 +760,7 @@
     
     
     <span class="py-keyword">def</span> <span class="py-defname">visit_alias_DontFollowImports</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.alias" class="intersphinx-link">ast.alias</a></code>, path: <code><a href="https://docs.python.org/3/library/typing.html#typing.List" class="intersphinx-link">List</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>) -&gt; <code><a href="https://docs.python.org/3/library/ast.html#ast.alias" class="intersphinx-link">ast.alias</a></code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/asteval.py#L174">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/asteval.py#L176">
       
       (source)
     </a>
@@ -787,7 +787,7 @@
     
     
     <span class="py-keyword">def</span> <span class="py-defname">visit_Name_FollowAliases</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.Name" class="intersphinx-link">ast.Name</a></code>, path: <code><a href="https://docs.python.org/3/library/typing.html#typing.List" class="intersphinx-link">List</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>) -&gt; <code><a href="libstatic._analyzer.asteval.html#ASTOrLiteralValue" class="internal-link" title="libstatic._analyzer.asteval.ASTOrLiteralValue">ASTOrLiteralValue</a></code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/asteval.py#L182">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/asteval.py#L184">
       
       (source)
     </a>
@@ -814,7 +814,7 @@
     
     
     <span class="py-keyword">def</span> <span class="py-defname">visit_Name_Store</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.Name" class="intersphinx-link">ast.Name</a></code>, path: <code><a href="https://docs.python.org/3/library/typing.html#typing.List" class="intersphinx-link">List</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>) -&gt; <code><a href="https://docs.python.org/3/library/ast.html#ast.Name" class="intersphinx-link">ast.Name</a></code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/asteval.py#L179">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/asteval.py#L181">
       
       (source)
     </a>
@@ -840,7 +840,7 @@
   <div class="functionHeader">
     
     <span class="py-defname">visit_alias 0</span> =
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/asteval.py#L157">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/asteval.py#L159">
       
       (source)
     </a>
@@ -868,7 +868,7 @@
     <div class="container">
       <a href="index.html">API Documentation</a> for <a href="https://github.com/tristanlatr/libstatic" class="projecthome">libstatic</a>,
     generated by <a href="https://github.com/twisted/pydoctor/">pydoctor</a>
-      23.4.1.dev0 at 2023-08-14 20:55:50.
+      23.4.1.dev0 at 2023-08-22 02:49:59.
     </div>
     
     <script src="ajax.js" type="text/javascript"></script>

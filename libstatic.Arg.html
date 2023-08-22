@@ -85,10 +85,7 @@
         
         
 
-        
-         
-
-        <div class="childrenKindTitle">Inherited Methods</div>
+        <div class="childrenKindTitle">Methods</div>
         <ul>
     
     <li class="">
@@ -97,11 +94,27 @@
         
 
         
-            <div class="itemName"><code><a href="libstatic.Def.html#__init__" class="internal-link" title="libstatic.Def.__init__">__init__</a></code>
+            <div class="itemName"><code><a href="#__init__" class="internal-link" title="libstatic.Arg.__init__">__init__</a></code>
             </div>
         
 
     </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#to_parameter" class="internal-link" title="libstatic.Arg.to_parameter">to<wbr></wbr>_parameter</a></code>
+            </div>
+        
+
+    </li>
+</ul> 
+
+        <div class="childrenKindTitle">Inherited Methods</div>
+        <ul>
+    
+    <li class="">
         
         
         
@@ -157,6 +170,16 @@
         
 
         
+            <div class="itemName"><code><a href="libstatic.Def.html#_setup" class="internal-link" title="libstatic.Def._setup">_setup</a></code>
+            </div>
+        
+
+    </li><li class="private">
+        
+        
+        
+
+        
             <div class="itemName"><code><a href="libstatic.Def.html#_str" class="internal-link" title="libstatic.Def._str">_str</a></code>
             </div>
         
@@ -173,7 +196,37 @@
         
 
         
+            <div class="itemName"><code><a href="#__slots__" class="internal-link" title="libstatic.Arg.__slots__">__slots__</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
             <div class="itemName"><code><a href="#node" class="internal-link" title="libstatic.Arg.node">node</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#default" class="internal-link" title="libstatic.Arg.default">default</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#kind" class="internal-link" title="libstatic.Arg.kind">kind</a></code>
             </div>
         
 
@@ -184,16 +237,6 @@
         <ul>
     
     <li class="">
-        
-        
-        
-
-        
-            <div class="itemName"><code><a href="libstatic.Def.html#__slots__" class="internal-link" title="libstatic.Def.__slots__">__slots__</a></code>
-            </div>
-        
-
-    </li><li class="">
         
         
         
@@ -266,23 +309,23 @@
         <div class="childrenKindTitle">Classes</div>
         <ul>
     
-    <li class="">
-        
-        
-        
-
-        
-            <div class="itemName"><code><a href="libstatic.AnonymousScope.html" class="internal-link" title="libstatic.AnonymousScope"><wbr></wbr>Anonymous<wbr></wbr>Scope</a></code>
-            </div>
-        
-
-    </li><li class=" thisobject">
+    <li class=" thisobject">
         
         
         
 
         
             <div class="itemName"><code><a href="libstatic.Arg.html" class="internal-link" title="libstatic.Arg"><wbr></wbr>Arg</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic.Attr.html" class="internal-link" title="libstatic.Attr"><wbr></wbr>Attr</a></code>
             </div>
         
 
@@ -303,6 +346,16 @@
 
         
             <div class="itemName"><code><a href="libstatic.Cls.html" class="internal-link" title="libstatic.Cls"><wbr></wbr>Cls</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic.Comp.html" class="internal-link" title="libstatic.Comp"><wbr></wbr>Comp</a></code>
             </div>
         
 
@@ -333,6 +386,16 @@
 
         
             <div class="itemName"><code><a href="libstatic.Imp.html" class="internal-link" title="libstatic.Imp"><wbr></wbr>Imp</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic.Lamb.html" class="internal-link" title="libstatic.Lamb"><wbr></wbr>Lamb</a></code>
             </div>
         
 
@@ -679,30 +742,69 @@
         </div>
 
         <div class="extrasDocstring">
-          <p class="class-signature"><code><span class="py-keyword">class</span> <span class="py-defname">Arg</span>(<a href="libstatic.NameDef.html" class="internal-link" title="libstatic.NameDef">NameDef</a>): <a href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/model.py#L218" class="sourceLink">(source)</a></code></p><p>Constructor: <code><a href="libstatic.Def.html#__init__" class="internal-link" title="libstatic.Def.__init__">Arg(node, islive)</a></code></p>
+          <p class="class-signature"><code><span class="py-keyword">class</span> <span class="py-defname">Arg</span>(<a href="libstatic.NameDef.html" class="internal-link" title="libstatic.NameDef">NameDef</a>): <a href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/model.py#L239" class="sourceLink">(source)</a></code></p><p>Constructor: <code><a href="#__init__" class="internal-link" title="libstatic.Arg.__init__">Arg(node, islive, default, kind)</a></code></p>
           <p><a href="classIndex.html#libstatic.Arg">View In Hierarchy</a></p>
         </div>
 
         <div class="moduleDocstring">
-          <div><p>Model a function argument definition.</p></div>
+          <div><p>Model a function argument definition.</p>
+<p>This demonstrate the <code><a href="#to_parameter" class="internal-link" title="libstatic.Arg.to_parameter">Arg.to_parameter</a></code> method:</p>
+<pre class="py-doctest">
+<span class="py-prompt">&gt;&gt;&gt; </span><span class="py-keyword">from</span> libstatic <span class="py-keyword">import</span> Project
+<span class="py-prompt">&gt;&gt;&gt; </span>node = ast.parse(<span class="py-string">'def f(a:int, b:object=None, *, key:str, **kwargs):...'</span>)
+<span class="py-prompt">&gt;&gt;&gt; </span>p = Project()
+<span class="py-prompt">&gt;&gt;&gt; </span>_ = p.add_module(node, <span class="py-string">'test'</span>)
+<span class="py-prompt">&gt;&gt;&gt; </span>p.analyze_project()
+<span class="py-prompt">&gt;&gt;&gt; </span>func_node = node.body[0]
+<span class="py-prompt">&gt;&gt;&gt; </span>args = (p.state.get_def(n) <span class="py-keyword">for</span> n <span class="py-keyword">in</span> ast.walk(func_node.args) <span class="py-keyword">if</span> <span class="py-builtin">isinstance</span>(n, ast.arg))
+<span class="py-prompt">&gt;&gt;&gt; </span>parameters = [a.to_parameter() <span class="py-keyword">for</span> a <span class="py-keyword">in</span> args]
+<span class="py-prompt">&gt;&gt;&gt; </span>sig = inspect.Signature(parameters)
+<span class="py-prompt">&gt;&gt;&gt; </span><span class="py-builtin">str</span>(sig)
+<span class="py-output">'(a:...Name..., b:...Name...=...Constant..., *, key:...Name..., **kwargs)'</span>
+</pre></div>
         </div>
 
         <div id="splitTables">
-          <table class="children sortable" id="id66">
+          <table class="children sortable" id="id81">
   
   
-  <tr class="classvariable">
+  <tr class="method">
+    
+    <td>Method</td>
+    <td><code><a href="#__init__" class="internal-link" title="libstatic.Arg.__init__">__init__</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="method">
+    
+    <td>Method</td>
+    <td><code><a href="#to_parameter" class="internal-link" title="libstatic.Arg.to_parameter">to<wbr></wbr>_parameter</a></code></td>
+    <td>Cast this <code><a href="libstatic.Arg.html" class="internal-link" title="libstatic.Arg">Arg</a></code> instance into a <code><a href="https://docs.python.org/3/library/inspect.html#inspect.Parameter" class="intersphinx-link">inspect.Parameter</a></code> instance.</td>
+  </tr><tr class="classvariable">
+    
+    <td>Class Variable</td>
+    <td><code><a href="#__slots__" class="internal-link" title="libstatic.Arg.__slots__">__slots__</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="classvariable">
     
     <td>Class Variable</td>
     <td><code><a href="#node" class="internal-link" title="libstatic.Arg.node">node</a></code></td>
     <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="instancevariable">
+    
+    <td>Instance Variable</td>
+    <td><code><a href="#default" class="internal-link" title="libstatic.Arg.default">default</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="instancevariable">
+    
+    <td>Instance Variable</td>
+    <td><code><a href="#kind" class="internal-link" title="libstatic.Arg.kind">kind</a></code></td>
+    <td>One of <tt class="rst-docutils literal">Parameter.POSITIONAL_ONLY</tt>, <tt class="rst-docutils literal">Parameter.POSITIONAL_OR_KEYWORD</tt>, <tt class="rst-docutils literal">Parameter.VAR_POSITIONAL</tt>, <tt class="rst-docutils literal">Parameter.KEYWORD_ONLY</tt> or <tt class="rst-docutils literal">Parameter.VAR_KEYWORD</tt>.</td>
   </tr>
 </table>
           
             <p class="inheritedFrom">
               Inherited from <code><a href="libstatic.NameDef.html" class="internal-link" title="libstatic.NameDef">NameDef</a></code>:
             </p>
-            <table class="children sortable" id="id67">
+            <table class="children sortable" id="id82">
   
   
   <tr class="basemethod">
@@ -716,15 +818,10 @@
             <p class="inheritedFrom">
               Inherited from <code><a href="libstatic.Def.html" class="internal-link" title="libstatic.Def">Def</a></code> (via <code><a href="libstatic.NameDef.html" class="internal-link" title="libstatic.NameDef">NameDef</a></code>):
             </p>
-            <table class="children sortable" id="id68">
+            <table class="children sortable" id="id83">
   
   
   <tr class="basemethod">
-    
-    <td>Method</td>
-    <td><code><a href="libstatic.Def.html#__init__" class="internal-link" title="libstatic.Def.__init__">__init__</a></code></td>
-    <td><span class="undocumented">Undocumented</span></td>
-  </tr><tr class="basemethod">
     
     <td>Method</td>
     <td><code><a href="libstatic.Def.html#__repr__" class="internal-link" title="libstatic.Def.__repr__">__repr__</a></code></td>
@@ -744,15 +841,15 @@
     <td>Method</td>
     <td><code><a href="libstatic.Def.html#users" class="internal-link" title="libstatic.Def.users">users</a></code></td>
     <td>The list of ast entity that holds a reference to this node.</td>
-  </tr><tr class="baseclassvariable">
-    
-    <td>Class Variable</td>
-    <td><code><a href="libstatic.Def.html#__slots__" class="internal-link" title="libstatic.Def.__slots__">__slots__</a></code></td>
-    <td><span class="undocumented">Undocumented</span></td>
   </tr><tr class="baseinstancevariable">
     
     <td>Instance Variable</td>
     <td><code><a href="libstatic.Def.html#islive" class="internal-link" title="libstatic.Def.islive">islive</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="basemethod private">
+    
+    <td>Method</td>
+    <td><code><a href="libstatic.Def.html#_setup" class="internal-link" title="libstatic.Def._setup">_setup</a></code></td>
     <td><span class="undocumented">Undocumented</span></td>
   </tr><tr class="basemethod private">
     
@@ -772,7 +869,88 @@
         </div>
 
         <div id="childList">
-          <div class="baseclassvariable">
+          <div class="basemethod">
+  
+  
+  <a name="libstatic.Arg.__init__">
+    
+  </a>
+  <a name="__init__">
+    
+  </a>
+  <div class="functionHeader">
+    
+    
+    <span class="py-keyword">def</span> <span class="py-defname">__init__</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.arg" class="intersphinx-link">ast.arg</a></code>, islive: <code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code>, default: <code>ast.expr|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code>, kind: <code>inspect._ParameterKind</code>)</span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/model.py#L261">
+      
+      (source)
+    </a>
+    <a class="headerLink" href="#__init__" title="libstatic.Arg.__init__">
+      
+      
+      ¶
+    </a>
+  </div>
+  <div class="docstring functionBody">
+    <div class="interfaceinfo">overrides <code><a href="libstatic.Def.html#__init__" class="internal-link">libstatic.Def.__init__</a></code></div>
+    <div><p class="undocumented">Undocumented</p></div>
+  </div>
+</div><div class="basemethod">
+  
+  
+  <a name="libstatic.Arg.to_parameter">
+    
+  </a>
+  <a name="to_parameter">
+    
+  </a>
+  <div class="functionHeader">
+    
+    
+    <span class="py-keyword">def</span> <span class="py-defname">to_parameter</span><span class="function-signature">(self) -&gt; <code><a href="https://docs.python.org/3/library/inspect.html#inspect.Parameter" class="intersphinx-link">inspect.Parameter</a></code></span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/model.py#L276">
+      
+      (source)
+    </a>
+    <a class="headerLink" href="#to_parameter" title="libstatic.Arg.to_parameter">
+      
+      
+      ¶
+    </a>
+  </div>
+  <div class="docstring functionBody">
+    
+    <div><p>Cast this <code><a href="libstatic.Arg.html" class="internal-link" title="libstatic.Arg">Arg</a></code> instance into a <code><a href="https://docs.python.org/3/library/inspect.html#inspect.Parameter" class="intersphinx-link">inspect.Parameter</a></code> instance.</p></div>
+  </div>
+</div><div class="baseclassvariable">
+  
+  
+  <a name="libstatic.Arg.__slots__">
+    
+  </a>
+  <a name="__slots__">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-defname">__slots__</span> =
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/model.py#L258">
+      
+      (source)
+    </a>
+    <a class="headerLink" href="#__slots__" title="libstatic.Arg.__slots__">
+      
+      
+      ¶
+    </a>
+  </div>
+  <div class="functionBody">
+    <div class="interfaceinfo">overrides <code><a href="libstatic.Def.html#__slots__" class="internal-link">libstatic.Def.__slots__</a></code></div>
+    <div><p class="undocumented">Undocumented</p></div>
+    
+  </div>
+</div><div class="baseclassvariable">
   
   
   <a name="libstatic.Arg.node">
@@ -784,7 +962,7 @@
   <div class="functionHeader">
     
     <span class="py-defname">node</span>: <code><a href="https://docs.python.org/3/library/ast.html#ast.arg" class="intersphinx-link">ast.arg</a></code> =
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/model.py#L223">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/model.py#L260">
       
       (source)
     </a>
@@ -797,6 +975,61 @@
   <div class="functionBody">
     <div class="interfaceinfo">overrides <code><a href="libstatic.NameDef.html#node" class="internal-link">libstatic.NameDef.node</a></code></div>
     <div><p class="undocumented">Undocumented</p></div>
+    
+  </div>
+</div><div class="baseinstancevariable">
+  
+  
+  <a name="libstatic.Arg.default">
+    
+  </a>
+  <a name="default">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-defname">default</span> =
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/model.py#L267">
+      
+      (source)
+    </a>
+    <a class="headerLink" href="#default" title="libstatic.Arg.default">
+      
+      
+      ¶
+    </a>
+  </div>
+  <div class="functionBody">
+    
+    <div><p class="undocumented">Undocumented</p></div>
+    
+  </div>
+</div><div class="baseinstancevariable">
+  
+  
+  <a name="libstatic.Arg.kind">
+    
+  </a>
+  <a name="kind">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-defname">kind</span> =
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/model.py#L268">
+      
+      (source)
+    </a>
+    <a class="headerLink" href="#kind" title="libstatic.Arg.kind">
+      
+      
+      ¶
+    </a>
+  </div>
+  <div class="functionBody">
+    
+    <div><p>One of <tt class="rst-docutils literal">Parameter.POSITIONAL_ONLY</tt>, <tt class="rst-docutils literal">Parameter.POSITIONAL_OR_KEYWORD</tt>,
+<tt class="rst-docutils literal">Parameter.VAR_POSITIONAL</tt>, <tt class="rst-docutils literal">Parameter.KEYWORD_ONLY</tt> or <tt class="rst-docutils literal">Parameter.VAR_KEYWORD</tt>.</p><table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">See Also</td></tr><tr><td colspan="2"><code><a href="https://docs.python.org/3/library/inspect.html#inspect.Parameter.kind" class="intersphinx-link">inspect.Parameter.kind</a></code></td></tr></table></div>
     
   </div>
 </div>
@@ -812,7 +1045,7 @@
     <div class="container">
       <a href="index.html">API Documentation</a> for <a href="https://github.com/tristanlatr/libstatic" class="projecthome">libstatic</a>,
     generated by <a href="https://github.com/twisted/pydoctor/">pydoctor</a>
-      23.4.1.dev0 at 2023-08-14 20:55:50.
+      23.4.1.dev0 at 2023-08-22 02:49:59.
     </div>
     
     <script src="ajax.js" type="text/javascript"></script>
