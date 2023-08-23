@@ -24,7 +24,7 @@ from typing import (
     TextIO,
     Tuple,
     Union,
-    Type,
+    Type as typingType,
     TypeVar,
     cast,
     overload,
@@ -46,18 +46,19 @@ from .._lib.exceptions import (
     StaticAmbiguity, 
     NodeLocation
 )
-from .._lib.model import Def, NameDef, Mod, Cls, Func, Imp, Scope, ClosedScope, LazySeq, ChainMap
+from .._lib.model import Def, NameDef, Mod, Cls, Func, Imp, Scope, ClosedScope, LazySeq, ChainMap, Type
 
 from .asteval import LiteralValue, _LiteralEval, _GotoDefinition
+from .typeinfer import _TypeInference
 
 
 if TYPE_CHECKING:
-    from typing import Literal, NoReturn, Protocol, _KT, _VT
+    from typing import Literal, NoReturn, Protocol, _KT, _VT, TypeAlias
 else:
     Protocol = object
 
 T = TypeVar("T", bound=ast.AST)
-
+_ClassInfo: TypeAlias = "typingType[T]|Tuple[typingType[T],...]"
 
 class _Msg(Protocol):
     def __call__(
@@ -80,9 +81,7 @@ class _MinimalState(Protocol):
     def get_def(self, node:ast.AST) -> 'Def':...
     def goto_defs(self, node:ast.AST) -> Sequence['Def']:...
     def goto_def(self, node: ast.AST, raise_on_ambiguity: bool = False) -> Def:...
-    def get_parent_instance(
-        self, node: ast.AST, cls: "Type[T]|Tuple[Type[T],...]"
-    ) -> T:...
+    def get_parent_instance(self, node: ast.AST, cls: _ClassInfo) -> T:...
     def expand_expr(self, node:ast.AST) -> 'str|None':
         ...
 
@@ -144,7 +143,10 @@ class State(_MinimalState):
 
     Accessor: `literal_eval`.
 
-    .. - Basic, lazy type inference 
+    Basic type inference 
+    -------------------- 
+
+    Accessor: `get_type`.
     """
 
     def __init__(self, msg: _Msg) -> None:
@@ -731,9 +733,7 @@ class State(_MinimalState):
         except KeyError as e:
             raise StaticStateIncomplete(node, "no parents in the system") from e
 
-    def get_parent_instance(
-        self, node: ast.AST | Def, cls: "Type[T]|Tuple[Type[T],...]"
-    ) -> T:
+    def get_parent_instance(self, node: ast.AST | Def, cls: _ClassInfo) -> T:
         """
         Returns the first parent of the node in the syntax tree matching the given type info.
 
@@ -1253,6 +1253,20 @@ class State(_MinimalState):
             return find([module], names)
         else:
             raise StaticStateIncomplete(qualname, f'{qualname!r} not in the system')
+    
+    def get_type(self, node:ast.AST|Def) -> Type|None:
+        """
+        Infer the type of the given node or definition.
+
+        While *basic* type inference is provided, libstatic does 
+        not carry the complexity to support full-featured type-checking.
+        """
+        if isinstance(node, Def):
+            node = node.node
+        try:
+            return _TypeInference(self).visit(node)
+        except Exception as e:
+            return None
 
 # class SingleModuleState(State):
 #     """

@@ -4,8 +4,10 @@ This module contains the def-use models, use to represent the code.
 from __future__ import annotations
 import ast
 import inspect
+from itertools import chain
 from typing import (
     TYPE_CHECKING,
+    ClassVar,
     Iterator,
     Any,
     Collection,
@@ -16,37 +18,24 @@ from typing import (
     MutableSet,
     Optional,
     Sequence,
-    Set,
-    TextIO,
     Tuple,
     Union,
-    Type,
     TypeVar,
     cast,
     overload,
 )
-import attr as attrs
-from beniget.beniget import ordered_set  # type: ignore
-from typeshed_client import get_stub_file, get_search_context
-from typeshed_client.finder import parse_stub_file
 
-from .shared import ast_node_name, node2dottedname
-from .transform import Transform
-from .._analyzer.asteval import LiteralValue, _LiteralEval, _GotoDefinition
-from .exceptions import (
-    StaticStateIncomplete,
-    StaticNameError,
-    StaticAttributeError,
-    StaticImportError,
-    StaticException,
-    StaticValueError,
-    StaticTypeError,
-    StaticAmbiguity, 
-    NodeLocation
-)
+try:
+    from functools import cached_property
+except ImportError:
+    cached_property = property  # type: ignore
+
+from beniget.beniget import ordered_set  # type: ignore
+import attr as attrs
+from .shared import ast_node_name
 
 if TYPE_CHECKING:
-    from typing import Literal, NoReturn, Protocol
+    from typing import Protocol
 else:
     Protocol = object
 
@@ -395,3 +384,180 @@ class ChainMap(Mapping['_KT', '_VT']):
         for mapping in reversed(self._maps):
             d.update(dict.fromkeys(mapping))    # reuses stored hash values if possible
         return iter(d)
+
+# This class has beeen adapted from the 'astypes' project.
+@attrs.s(frozen=True, auto_attribs=True)
+class Type:
+    """The type of a Python expression.
+
+    It is currently limited to what can be represented by type annotations.
+    """
+    
+    name: str
+    """The name of the type.
+
+    For example, `Iterable` or `list`.
+    """
+    
+    args: Tuple['Type', ...] = attrs.ib(converter=tuple)
+    """Arguments of a generic type if any.
+
+    For example, `(str, int)` if the type is `dict[str, int]`.
+    """
+    
+    module: str
+    """The module where the type is defined.
+
+    For example, `typing` if the type is `Iterable`.
+    Empty string for built-ins.
+    """
+
+    # TODO:
+    # property: is_class: whether the Type represents a class, i.e not a special form Union/Literal/etc...
+    #   A Protocol is a normal class
+    # property: bases, mro, subclasses
+
+    UNION: ClassVar = 'Union'
+    LITERAL: ClassVar = 'Literal'
+
+    @classmethod
+    def new(
+        cls,
+        name: str, *,
+        args: Optional[Iterable['Type']] = None,
+        module: str = "",
+    ) -> 'Type':
+        """Construct a new TypeInfo.
+        """
+        return cls(
+            name=name,
+            args=args or (), #type:ignore[arg-type]
+            module=module,
+        )
+
+    @property
+    def fullname(self) -> str:
+        """The full name of the type.
+
+        For example, `typing.Iterable` or `list` (for builtins).
+        """
+        mod = self.module
+        if mod:
+            return f"{mod}.{self.name}"
+        else:
+            return self.name
+
+    @cached_property
+    def imports(self) -> frozenset[str]:
+        """Import statements required to define the type.
+        """
+        result = set()
+        if self.module:
+            result.add(f'from {self.module} import {self.name}')
+        for arg in self.args:
+            result.update(arg.imports)
+        return frozenset(result)
+
+    @property
+    def unknown(self) -> bool:
+        """
+        We can create TypeInfo with empty name.
+        It is used to denote an unknown type.
+        """
+        return not self.name
+
+    @property
+    def is_union(self) -> bool:
+        return self.name == Type.UNION
+    
+    @property
+    def is_literal(self) -> bool:
+        """
+        A literal type means it's literal values can be recovered with:
+        
+        >>> type = Type.new(Type.LITERAL, args=[Type.new('"val"')], module='typing')
+        >>> ast.literal_eval(type.args[0].name)
+        'val'
+        """
+        return self.name == Type.LITERAL
+
+    @cached_property
+    def annotation(self) -> str:
+        """Represent the type as a string suitable for type annotations.
+
+        The string is a valid Python 3.10 expression.
+        For example, `str | dict[str, Any]`.
+        """
+        if self.unknown:
+            return 'Any'
+        if self.is_union:
+            return ' | '.join(arg.annotation for arg in self.args)
+        if self.args:
+            args = ', '.join(arg.annotation for arg in self.args)
+            return f'{self.name}[{args}]'
+        return self.name
+
+    def merge(self, other: 'Type') -> 'Type':
+        """Get a union of the two given types.
+
+        If any of the types is unknown, the other is returned.
+        When possible, the type is simplified. For instance, `int | int` will be
+        simplified to just `int`.
+        """
+        if self.unknown:
+            return other
+        if other.unknown:
+            return self
+        if self.supertype_of(other):
+            return self
+        if other.supertype_of(self):
+            return other
+
+        # if one type is already union, extend it
+        if self.is_union and other.is_union:
+            return type(self).new(
+                name=Type.UNION,
+                args=self.args + other.args,
+            )
+        if self.is_union:
+            return self._replace(args=self.args + (other,))
+        if other.is_union:
+            return other._replace(args=(self,) + other.args)
+
+        # none goes last
+        if self.name == 'None':
+            args = (other, self)
+        else:
+            args = (self, other)
+        return type(self).new(
+            name=Type.UNION,
+            args=args,
+        )
+    
+    def _replace(self, **changes:Any) -> Type:
+        return attrs.evolve(self, **changes) # type:ignore
+
+    def add_args(self, args: list[Type]) -> Type:
+        """Get a copy of the Type with the given args added in the list of args.
+        """
+        return self._replace(args=chain(self.args, args))
+
+    def supertype_of(self, other: 'Type') -> bool:
+        # TODO: use a mapping of type-promotion instead of this.
+        if self.name == 'float' and other.name == 'int':
+            return True
+        if self.name in ('Any', 'object'):
+            return True
+        if self.is_union:
+            for arg in self.args:
+                if arg.supertype_of(other):
+                    return True
+
+        # TODO Look superclasses
+        if self.name != other.name:
+            return False
+        if self.module != other.module:
+            return False
+        if self.args != other.args:
+            return False
+        return True
