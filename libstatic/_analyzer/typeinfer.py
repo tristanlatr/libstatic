@@ -77,6 +77,22 @@ class _AnnotationToType(ast.NodeVisitor):
     Converts an annotation into a L{Type}.
     """
 
+    # ISC License
+
+    # Copyright (c) 2021, Timothée Mazzucotelli
+
+    # Permission to use, copy, modify, and/or distribute this software for any
+    # purpose with or without fee is hereby granted, provided that the above
+    # copyright notice and this permission notice appear in all copies.
+
+    # THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+    # WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+    # MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+    # ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+    # WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+    # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+    # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
     def __init__(self, state:State, scope:Scope) -> None:
         self.state = state
         self.scope = scope
@@ -180,6 +196,28 @@ class _TypeInference(ast.NodeVisitor):
     Find the L{Type} of an expression.
     """
 
+    #  MIT License
+
+    #  2022 Gram
+
+    # Permission is hereby granted, free of charge, to any person obtaining a copy
+    # of this software and associated documentation files (the "Software"), to deal
+    # in the Software without restriction, including without limitation the rights
+    # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    # copies of the Software, and to permit persons to whom the Software is
+    # furnished to do so, subject to the following conditions:
+
+    # The above copyright notice and this permission notice shall be included
+    # in all copies or substantial portions of the Software.
+
+    # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    # AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    # SOFTWARE.
+
     def __init__(self, state:State) -> None:
         self.state = state
         # self.scope = scope
@@ -192,6 +230,12 @@ class _TypeInference(ast.NodeVisitor):
         Callers should catch L{ValueError}.
         """
         return super().visit(expr)
+    
+    def get_type(self, expr:ast.AST) -> Type|None:
+        try:
+            return self.visit(expr)
+        except Exception:
+            return None
 
     # AST expressions
 
@@ -205,17 +249,62 @@ class _TypeInference(ast.NodeVisitor):
     
     # container types
 
-    def visit_List(self, node: ast.List) -> Type:
-        return Type.new('list')
+    def visit_List(self, node: ast.List|ast.Set, clsname:str='list') -> Type:
+        subtype = Type.new('')
+        for element_node in node.elts:
+            element_type = self.get_type(element_node)
+            if element_type is None:
+                return Type.new(clsname)
+            subtype = subtype.merge(element_type)
+        if subtype.unknown:
+            return Type.new(clsname)
+        return Type.new(clsname, args=[subtype])
 
     def visit_Tuple(self, node: ast.Tuple) -> Type:
-        return Type.new('tuple')
+        subtypes = []
+        for element_node in node.elts:
+            element_type = self.get_type(element_node)
+            if element_type is None:
+                return Type.new('tuple')
+            subtypes.append(element_type)
+        if not subtypes:
+            return Type.new('tuple')
+        return Type.new('tuple', args=subtypes)
 
     def visit_Set(self, node: ast.Set) -> Type:
-        return Type.new('set')
+        return self.visit_List(node, clsname='set')
 
     def visit_Dict(self, node: ast.Dict) -> Type:
-        return Type.new('dict')
+        keys_type = Type.new('')
+        unpack_indexes = set() 
+        for i, key_node in enumerate(node.keys):
+            if key_node is None:
+                unpack_indexes.add(i)
+                continue
+            key_type = self.get_type(key_node)
+            if key_type is None:
+                key_type = Type.new('')
+                break
+            keys_type = keys_type.merge(key_type)
+
+        values_type = Type.new('')
+        for i, value_node in enumerate(node.values):
+            if i in unpack_indexes:
+                # TODO: we could do better here, it ignore unpacking for now.
+                continue
+            value_type = self.get_type(value_node)
+            if value_type is None:
+                value_type = Type.new('')
+                break
+            values_type = values_type.merge(value_type)
+
+        if keys_type.unknown and values_type.unknown:
+            return Type.new('dict')
+        if keys_type.unknown:
+            keys_type = Type.new('Any', module='typing')
+        if values_type.unknown:
+            values_type = Type.new('Any', module='typing')
+        return Type.new('dict', args=[keys_type, values_type])
     
     # statements
 

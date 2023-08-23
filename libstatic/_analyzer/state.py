@@ -58,7 +58,6 @@ else:
     Protocol = object
 
 T = TypeVar("T", bound=ast.AST)
-_ClassInfo: TypeAlias = "typingType[T]|Tuple[typingType[T],...]"
 
 class _Msg(Protocol):
     def __call__(
@@ -81,7 +80,7 @@ class _MinimalState(Protocol):
     def get_def(self, node:ast.AST) -> 'Def':...
     def goto_defs(self, node:ast.AST) -> Sequence['Def']:...
     def goto_def(self, node: ast.AST, raise_on_ambiguity: bool = False) -> Def:...
-    def get_parent_instance(self, node: ast.AST, cls: _ClassInfo) -> T:...
+    def get_parent_instance(self, node: ast.AST, cls: typingType[T]|Tuple[typingType[T],...]) -> T:...
     def expand_expr(self, node:ast.AST) -> 'str|None':
         ...
 
@@ -733,7 +732,7 @@ class State(_MinimalState):
         except KeyError as e:
             raise StaticStateIncomplete(node, "no parents in the system") from e
 
-    def get_parent_instance(self, node: ast.AST | Def, cls: _ClassInfo) -> T:
+    def get_parent_instance(self, node: ast.AST | Def, cls: typingType[T]|Tuple[typingType[T],...]) -> T:
         """
         Returns the first parent of the node in the syntax tree matching the given type info.
 
@@ -1263,10 +1262,7 @@ class State(_MinimalState):
         """
         if isinstance(node, Def):
             node = node.node
-        try:
-            return _TypeInference(self).visit(node)
-        except Exception as e:
-            return None
+        return _TypeInference(self).get_type(node)
 
 # class SingleModuleState(State):
 #     """
