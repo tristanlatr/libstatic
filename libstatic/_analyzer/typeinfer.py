@@ -220,7 +220,6 @@ class _TypeInference(ast.NodeVisitor):
 
     def __init__(self, state:State) -> None:
         self.state = state
-        # self.scope = scope
 
     def generic_visit(self, node: AST) -> Any:
         raise ValueError(f'unsupported node: {node}')
@@ -305,6 +304,49 @@ class _TypeInference(ast.NodeVisitor):
         if values_type.unknown:
             values_type = Type.new('Any', module='typing')
         return Type.new('dict', args=[keys_type, values_type])
+    
+    def visit_UnaryOp(self, node: ast.UnaryOp) -> Type | None:
+        if isinstance(node.op, ast.Not):
+            return Type.new('bool')
+        result = self.get_type(node.operand)
+        if result is not None:
+            # result = result.add_ass(Ass.NO_UNARY_OVERLOAD)
+            return result
+        return None
+
+    def visit_BinOp(self, node: ast.BinOp) -> Type | None:
+        assert node.op
+        lt = self.get_type(node.left)
+        if lt is None:
+            return None
+        rt = self.get_type(node.right)
+        if rt is None:
+            return None
+        if lt.name == rt.name == 'int':
+            if isinstance(node.op, ast.Div):
+                return Type.new('float')
+            return lt
+        if lt.name in ('float', 'int') and rt.name in ('float', 'int'):
+            return Type.new('float')
+        if lt.name == rt.name:
+            return rt
+        return None
+
+    def visit_BoolOp(self, node: ast.BoolOp) -> Type | None:
+        assert node.op
+        result = Type.new('')
+        for subnode in node.values:
+            type = self.get_type(subnode)
+            if type is None:
+                return None
+            result = result.merge(type)
+        return result
+
+    def visit_Compare(self, node: ast.Compare) -> Type | None:
+        if isinstance(node.ops[0], ast.Is):
+            return Type.new('bool')
+        # TODO: Use typeshed here to get preceise type.
+        return Type.new('bool')#, ass={Ass.NO_COMP_OVERLOAD})
     
     # statements
 

@@ -150,28 +150,28 @@ def test_annotation_to_error(source:str) -> None:
     # ('float(x)',    'float'),
 
     # # math operations
-    # ('3 + 2',       'int'),
-    # ('3 * 2',       'int'),
-    # ('3 + 2.',      'float'),
-    # ('3. + 2',      'float'),
-    # ('3 / 2',       'float'),
-    # ('"a" + "b"',   'str'),
+    ('3 + 2',       'int'),
+    ('3 * 2',       'int'),
+    ('3 + 2.',      'float'),
+    ('3. + 2',      'float'),
+    ('3 / 2',       'float'),
+    ('"a" + "b"',   'str'),
 
     # # binary "bool" operations
-    # ('3 and 2',     'int'),
-    # ('3 or 2',      'int'),
-    # ('3. and 2.',   'float'),
-    # ('3. or 2.',    'float'),
+    ('3 and 2',     'int'),
+    ('3 or 2',      'int'),
+    ('3. and 2.',   'float'),
+    ('3. or 2.',    'float'),
 
     # # operations with known type
-    # ('not x',       'bool'),
-    # ('x is str',    'bool'),
+    ('not x',       'bool'),
+    ('x is str',    'bool'),
 
     # # operations with assumptions
-    # ('x in (1, 2, 3)',  'bool'),
-    # ('x < 10',          'bool'),
-    # ('~13',             'int'),
-    # ('+13',             'int'),
+    ('x in (1, 2, 3)',  'bool'),
+    ('x < 10',          'bool'),
+    ('~13',             'int'),
+    ('+13',             'int'),
 
     # # methods of builtins
     # ('"".join(x)',      'str'),
