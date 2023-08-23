@@ -329,16 +329,6 @@
         
 
         
-            <div class="itemName"><code><a href="libstatic.MutableState.html" class="internal-link" title="libstatic.MutableState"><wbr></wbr>Mutable<wbr></wbr>State</a></code>
-            </div>
-        
-
-    </li><li class="">
-        
-        
-        
-
-        
             <div class="itemName"><code><a href="libstatic.NameDef.html" class="internal-link" title="libstatic.NameDef"><wbr></wbr>Name<wbr></wbr>Def</a></code>
             </div>
         
@@ -656,7 +646,7 @@
         </div>
 
         <div class="extrasDocstring">
-          <p class="class-signature"><code><span class="py-keyword">class</span> <span class="py-defname">Project</span>: <a href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L1319" class="sourceLink">(source)</a></code></p><p>Constructor: <code><a href="#__init__" class="internal-link" title="libstatic.Project.__init__">Project(**kw)</a></code></p>
+          <p class="class-signature"><code><span class="py-keyword">class</span> <span class="py-defname">Project</span>: <a href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L1414" class="sourceLink">(source)</a></code></p><p>Constructor: <code><a href="#__init__" class="internal-link" title="libstatic.Project.__init__">Project(**kw)</a></code></p>
           <p><a href="classIndex.html#libstatic.Project">View In Hierarchy</a></p>
         </div>
 
@@ -692,7 +682,7 @@
         </div>
 
         <div id="splitTables">
-          <table class="children sortable" id="id64">
+          <table class="children sortable" id="id63">
   
   
   <tr class="method">
@@ -751,7 +741,7 @@
     
     
     <span class="py-keyword">def</span> <span class="py-defname">__init__</span><span class="function-signature">(self, **kw: <code><a href="https://docs.python.org/3/library/typing.html#typing.Any" class="intersphinx-link">Any</a></code>)</span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L1355">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L1450">
       
       (source)
     </a>
@@ -778,7 +768,7 @@
     
     
     <span class="py-keyword">def</span> <span class="py-defname">add_module</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.Module" class="intersphinx-link">ast.Module</a></code>, name: <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code>, *, is_package: <code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code> = <a href="https://docs.python.org/3/library/constants.html#False" class="intersphinx-link">False</a>, filename: <code><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>]</code> = <a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a>) -&gt; <code>Mod</code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L1380">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L1475">
       
       (source)
     </a>
@@ -805,7 +795,7 @@
     
     
     <span class="py-keyword">def</span> <span class="py-defname">add_typeshed_module</span><span class="function-signature">(self, modname: <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code>) -&gt; <code>Mod|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L1397">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L1492">
       
       (source)
     </a>
@@ -832,7 +822,7 @@
     
     
     <span class="py-keyword">def</span> <span class="py-defname">analyze_project</span><span class="function-signature">(self)</span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L1364">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L1459">
       
       (source)
     </a>
@@ -861,7 +851,7 @@
     
     
     <span class="py-keyword">def</span> <span class="py-defname">msg</span><span class="function-signature">(self, msg: <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code>, ctx: <code><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code> = <a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a>, thresh: <code><a href="https://docs.python.org/3/library/functions.html#int" class="intersphinx-link">int</a></code> = 0)</span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L1402">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L1497">
       
       (source)
     </a>
@@ -887,7 +877,7 @@
   <div class="functionHeader">
     
     <span class="py-defname">options</span> =
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L1361">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L1456">
       
       (source)
     </a>
@@ -914,7 +904,7 @@
   <div class="functionHeader">
     
     <span class="py-defname">state</span>: <code><a href="libstatic.State.html" class="internal-link" title="libstatic.State">State</a></code> =
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L1362">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L1457">
       
       (source)
     </a>
@@ -942,7 +932,7 @@
     <div class="container">
       <a href="index.html">API Documentation</a> for <a href="https://github.com/tristanlatr/libstatic" class="projecthome">libstatic</a>,
     generated by <a href="https://github.com/twisted/pydoctor/">pydoctor</a>
-      23.4.1.dev0 at 2023-08-22 02:49:59.
+      23.4.1.dev0 at 2023-08-23 00:03:04.
     </div>
     
     <script src="ajax.js" type="text/javascript"></script>

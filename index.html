@@ -77,6 +77,16 @@
       </div>
       
       <div>
+         
+          <div class="childrenKindTitle">Contents</div>
+          <ul><li><p class="rst-first"><a class="rst-reference internal" href="#rst-goals-and-non-goals" id="rst-toc-entry-1">Goals and non-goals</a></p>
+<ul class="rst-simple">
+<li><a class="rst-reference internal" href="#rst-trade-offs" id="rst-toc-entry-2">Trade-offs</a></li>
+</ul>
+</li>
+<li><a class="rst-reference internal" href="#rst-the-model" id="rst-toc-entry-3">The model</a></li>
+<li><a class="rst-reference internal" href="#rst-how-to-use-the-library" id="rst-toc-entry-4">How to use the library</a></li>
+</ul>
         
 
         <div class="childrenKindTitle">Modules</div>
@@ -215,16 +225,6 @@
 
         
             <div class="itemName"><code><a href="libstatic.Mod.html" class="internal-link" title="libstatic.Mod"><wbr></wbr>Mod</a></code>
-            </div>
-        
-
-    </li><li class="">
-        
-        
-        
-
-        
-            <div class="itemName"><code><a href="libstatic.MutableState.html" class="internal-link" title="libstatic.MutableState"><wbr></wbr>Mutable<wbr></wbr>State</a></code>
             </div>
         
 
@@ -556,21 +556,59 @@
         </div>
 
         <div class="moduleDocstring">
-          <div><p>Code analysis, based on <a class="rst-reference external" href="https://github.com/serge-sans-paille/beniget" target="_top">beniget</a>.</p>
-<p>The core model, provided by <tt class="rst-docutils literal">beniget</tt>, is basically two directed graphs linking definitions to their use and vice versa.
-This model is extended in order to include imported names, including the ones from wildcard imports.
-Additionnaly, reachability analysis helps with cutting down the number of potential definitions
-for a given variable, giving more precise results. From there, we can do interesting things, like going
-to the genuine definition of an imported symbol, given the fact that we run python 3.11 for instance.
+          <div><p>Simple static analysis library for Python, based on <a class="rst-reference external" href="https://github.com/serge-sans-paille/beniget" target="_top">beniget</a>.</p>
+<div class="rst-section" id="rst-goals-and-non-goals">
+<h2 class="heading">Goals and non-goals</h2>
+<p>The main goal of this project is to provide a simple, standard library compatible framework to statically analyse a
+collection of related python modules. The initial intent beeing to support static analyzers and API document generators
+working with the <code><a href="https://docs.python.org/3/library/ast.html#module-ast" class="intersphinx-link">ast</a></code>.</p>
+<div class="rst-section" id="rst-trade-offs">
+<h3 class="heading">Trade-offs</h3>
+<p>Libstatic tries to be relatively lightweight and fast, so here are some trade-offs:</p>
+<ul class="rst-simple">
+<li>Only provide intra-procedural analyses.</li>
+<li>Partial path sensitivity: libstatic relies on over-approximations, some unreachable
+execution paths will be filtered out but impossibe paths might still be considered.</li>
+<li>No pointer or shape analysis: Aliasing that happens in non-trivial ways will not be detected.</li>
+<li>No soundness guarantees: ignores the effects of <code><a href="https://docs.python.org/3/library/functions.html#eval" class="intersphinx-link">eval</a></code>-like, <code><a href="https://docs.python.org/3/library/functions.html#setattr" class="intersphinx-link">setattr</a></code>, etc. functions on the program state.
+It doesn’t make worst-case sound assumptions, but rather "reasonable" ones.</li>
+</ul>
+<!-- - Incomplete type system: While *basic* type inference is provided, -->
+<!-- libstatic does not carry the complexity to support full-featured type-checking. -->
+</div>
+</div>
+<div class="rst-section" id="rst-the-model">
+<h2 class="heading">The model</h2>
+<p>The core model, provided by <tt class="rst-docutils literal">beniget</tt>, is basically two directed graphs linking definitions to their uses and vice versa.
+We call these data structures Def-Use chains and Use-Def chains.
+This model is extended in order to include imported names, including the ones from wildcard imports.</p>
+<p>All ast nodes categorized as a use or a definition have a coresponding <code><a href="libstatic.Def.html" class="internal-link" title="libstatic.Def">Def</a></code> instance. Definitions are represented
+using one of the specialized <code><a href="libstatic.Def.html" class="internal-link" title="libstatic.Def">Def</a></code> subclass: <code><a href="libstatic.Mod.html" class="internal-link" title="libstatic.Mod">Mod</a></code>, <code><a href="libstatic.Cls.html" class="internal-link" title="libstatic.Cls">Cls</a></code>, <code><a href="libstatic.Func.html" class="internal-link" title="libstatic.Func">Func</a></code>, <code><a href="libstatic.Var.html" class="internal-link" title="libstatic.Var">Var</a></code>, <a class="rst-reference external" href="classIndex.html#libstatic.Def" target="_top">etc</a>... The direct users of a definition
+are accessible with <code><a href="libstatic.Def.html#users" class="internal-link" title="libstatic.Def.users">Def.users()</a></code>, which returns a collection of <code><a href="libstatic.Def.html" class="internal-link" title="libstatic.Def">Def</a></code> (generally wrapping a <code><a href="https://docs.python.org/3/library/ast.html#ast.Name" class="intersphinx-link">ast.Name</a></code> or <code><a href="https://docs.python.org/3/library/ast.html#ast.alias" class="intersphinx-link">ast.alias</a></code>).</p>
+<p>Additionnaly, reachability analysis helps with cutting down the number of potential definitions
+for a given user, giving more precise results. From there, we can go to the genuine definition of an
+imported symbol, given the fact that we run python 3.11 for instance.
 Or the opposite, finding all references of a given symbol, accross all modules in the project.</p>
-<p>The <code><a href="libstatic.Project.html" class="internal-link" title="libstatic.Project">Project</a></code> and <code><a href="libstatic.State.html" class="internal-link" title="libstatic.State">State</a></code> classes represent the primary hight-level interface for the library.
-Althought, many other lower-level parts can be used indenpedently.</p>
-<p>When creating a <code><a href="libstatic.Project.html" class="internal-link" title="libstatic.Project">Project</a></code>, keep in mind that all module should be added <strong>before</strong> calling <code><a href="libstatic.Project.html#analyze_project" class="internal-link" title="libstatic.Project.analyze_project">Project.analyze_project</a></code>.
+<p>The Def-Use chains and Use-Def chains, and other analyses results are made available througth the <code><a href="libstatic.State.html" class="internal-link" title="libstatic.State">State</a></code>.</p>
+</div>
+<div class="rst-section" id="rst-how-to-use-the-library">
+<h2 class="heading">How to use the library</h2>
+<p>The <code><a href="libstatic.Project.html" class="internal-link" title="libstatic.Project">Project</a></code> and <code><a href="libstatic.State.html" class="internal-link" title="libstatic.State">State</a></code> classes represent the primary hight-level interface for the library,
+(some other lower-level parts can be used indenpedently).
+The API is designed to work with current code using the standard <code><a href="https://docs.python.org/3/library/ast.html#module-ast" class="intersphinx-link">ast</a></code> module.</p>
+<ul class="rst-simple">
+<li>First, create a <code><a href="libstatic.Project.html" class="internal-link" title="libstatic.Project">Project</a></code> instance</li>
+<li>Then add the modules you want to analyze with <code><a href="libstatic.Project.html#add_module" class="internal-link" title="libstatic.Project.add_module">Project.add_module</a></code> or <code><a href="#load_path" class="internal-link" title="libstatic.load_path">load_path</a></code></li>
+<li>Call <code><a href="libstatic.Project.html#analyze_project" class="internal-link" title="libstatic.Project.analyze_project">Project.analyze_project()</a></code></li>
+<li>Do stuff with <code><a href="libstatic.Project.html#state" class="internal-link" title="libstatic.Project.state">Project.state</a></code></li>
+</ul>
+<p>Keep in mind that all module should be added <strong>before</strong> calling <tt class="rst-docutils literal">analyze_project()</tt>.
 For performance reasons, it does not analyze the use of the builtins or any other dependent modules by default.
-Pass option <tt class="rst-docutils literal">builtins=True</tt> to analyze builtins or option <tt class="rst-docutils literal">dependencies=True</tt> to recusively find and
-load any dependent modules (including builtins).</p>
-<p>Once the project has been analyzed, one can use the <code><a href="libstatic.Project.html#state" class="internal-link" title="libstatic.Project.state">Project.state</a></code> attribute, which is the <code><a href="libstatic.State.html" class="internal-link" title="libstatic.State">State</a></code>.
-This object present accessors for several kind of analyses.</p>
+Use <tt class="rst-docutils literal">Project(builtins=True)</tt> to analyze builtins or <tt class="rst-docutils literal">Project(dependencies=True)</tt> to recusively find and
+load any dependent modules (including builtins), see <code><a href="libstatic.Options.html" class="internal-link" title="libstatic.Options">Options</a></code> for other arguments.</p>
+<p>The <code><a href="libstatic.State.html" class="internal-link" title="libstatic.State">State</a></code> instance acts like a <a class="rst-reference external" href="https://en.wikipedia.org/wiki/Facade_pattern" target="_top">façade</a> and present accessors
+for several kind of analyses.</p>
+</div>
 </div>
         </div>
 
@@ -653,11 +691,6 @@ This object present accessors for several kind of analyses.</p>
   </tr><tr class="class">
     
     <td>Class</td>
-    <td><code><a href="libstatic.MutableState.html" class="internal-link" title="libstatic.MutableState"><wbr></wbr>Mutable<wbr></wbr>State</a></code></td>
-    <td>Class providing modifiers for the <code><a href="libstatic.State.html" class="internal-link" title="libstatic.State">State</a></code>.</td>
-  </tr><tr class="class">
-    
-    <td>Class</td>
     <td><code><a href="libstatic.NameDef.html" class="internal-link" title="libstatic.NameDef"><wbr></wbr>Name<wbr></wbr>Def</a></code></td>
     <td>Model the definition of a name (abstract).</td>
   </tr><tr class="class">
@@ -694,7 +727,7 @@ This object present accessors for several kind of analyses.</p>
     
     <td>Class</td>
     <td><code><a href="libstatic.State.html" class="internal-link" title="libstatic.State"><wbr></wbr>State</a></code></td>
-    <td>The <code><a href="libstatic.Project.html" class="internal-link" title="libstatic.Project">Project</a></code>'s state.</td>
+    <td>The <code><a href="libstatic.Project.html" class="internal-link" title="libstatic.Project">Project</a></code>'s state: container and accessors for analyses results.</td>
   </tr><tr class="class">
     
     <td>Class</td>
@@ -764,7 +797,7 @@ This object present accessors for several kind of analyses.</p>
     
     <td>Function</td>
     <td><code><a href="#load_path" class="internal-link" title="libstatic.load_path">load<wbr></wbr>_path</a></code></td>
-    <td>Load a project form a python package/module path in the filesystem. Project.analyze_project() must still be called after loading a path into the project.</td>
+    <td>Load a project form a python package/module path in the filesystem. <code><a href="libstatic.Project.html#analyze_project" class="internal-link" title="libstatic.Project.analyze_project">Project.analyze_project()</a></code> must still be called after loading a path into the project.</td>
   </tr>
 </table>
         </div>
@@ -782,8 +815,8 @@ This object present accessors for several kind of analyses.</p>
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">load_path</span><span class="function-signature">(project: <code>Project</code>, path: <code><a href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" class="intersphinx-link">Path</a></code>)</span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/loader.py#L56">
+    <span class="py-keyword">def</span> <span class="py-defname">load_path</span><span class="function-signature">(project: <code>Project</code>, path: <code><a href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" class="intersphinx-link">Path</a></code>, exclude: <code><a href="https://docs.python.org/3/library/typing.html#typing.Sequence" class="intersphinx-link">Sequence</a>[<wbr></wbr><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>]|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code> = <a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a>)</span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/loader.py#L60">
       
       (source)
     </a>
@@ -796,7 +829,7 @@ This object present accessors for several kind of analyses.</p>
   <div class="docstring functionBody">
     
     <div><p>Load a project form a python package/module path in the filesystem.
-Project.analyze_project() must still be called after loading a path into the project.</p>
+<code><a href="libstatic.Project.html#analyze_project" class="internal-link" title="libstatic.Project.analyze_project">Project.analyze_project()</a></code> must still be called after loading a path into the project.</p>
 <pre class="py-doctest">
 <span class="py-prompt">&gt;&gt;&gt; </span><span class="py-keyword">from</span> libstatic <span class="py-keyword">import</span> Project
 <span class="py-prompt">&gt;&gt;&gt; </span>p = Project()
@@ -816,7 +849,7 @@ Project.analyze_project() must still be called after loading a path into the pro
     <div class="container">
       <a href="index.html">API Documentation</a> for <a href="https://github.com/tristanlatr/libstatic" class="projecthome">libstatic</a>,
     generated by <a href="https://github.com/twisted/pydoctor/">pydoctor</a>
-      23.4.1.dev0 at 2023-08-22 02:49:59.
+      23.4.1.dev0 at 2023-08-23 00:03:04.
     </div>
     
     <script src="ajax.js" type="text/javascript"></script>

@@ -73,7 +73,7 @@
             <div class="type">Package</div>
             <div class="kind">Package</div>
             <div class="privacy">PUBLIC</div>
-            <div class="summary">Code analysis, based on <a class="rst-reference external" href="https://github.com/serge-sans-paille/beniget" target="_top">beniget</a>.</div>
+            <div class="summary">Simple static analysis library for Python, based on <a class="rst-reference external" href="https://github.com/serge-sans-paille/beniget" target="_top">beniget</a>.</div>
           </li><li id="libstatic.__main__">
             
             <div class="fullName">libstatic<wbr></wbr>.__main__</div>
@@ -113,15 +113,7 @@
             <div class="type">Class</div>
             <div class="kind">Class</div>
             <div class="privacy">PUBLIC</div>
-            <div class="summary">The <code><a href="libstatic.Project.html" class="internal-link" title="libstatic.Project">Project</a></code>'s state.</div>
-          </li><li id="libstatic.MutableState">
-            
-            <div class="fullName">libstatic<wbr></wbr>.<wbr></wbr>Mutable<wbr></wbr>State</div>
-            <div class="url">libstatic.MutableState.html</div>
-            <div class="type">Class</div>
-            <div class="kind">Class</div>
-            <div class="privacy">PUBLIC</div>
-            <div class="summary">Class providing modifiers for the <code><a href="libstatic.State.html" class="internal-link" title="libstatic.State">State</a></code>.</div>
+            <div class="summary">The <code><a href="libstatic.Project.html" class="internal-link" title="libstatic.Project">Project</a></code>'s state: container and accessors for analyses results.</div>
           </li><li id="libstatic.Options">
             
             <div class="fullName">libstatic<wbr></wbr>.<wbr></wbr>Options</div>
@@ -137,7 +129,7 @@
             <div class="type">Function</div>
             <div class="kind">Function</div>
             <div class="privacy">PUBLIC</div>
-            <div class="summary">Load a project form a python package/module path in the filesystem. Project.analyze_project() must still be called after loading a path into the project.</div>
+            <div class="summary">Load a project form a python package/module path in the filesystem. <code><a href="libstatic.Project.html#analyze_project" class="internal-link" title="libstatic.Project.analyze_project">Project.analyze_project()</a></code> must still be called after loading a path into the project.</div>
           </li><li id="libstatic.Def">
             
             <div class="fullName">libstatic<wbr></wbr>.<wbr></wbr>Def</div>
@@ -578,14 +570,6 @@
             <div class="kind">Method</div>
             <div class="privacy">PUBLIC</div>
             <div class="summary">Log a message about this ast node.</div>
-          </li><li id="libstatic.State.__init__">
-            
-            <div class="fullName">libstatic<wbr></wbr>.<wbr></wbr>State<wbr></wbr>.__init__</div>
-            <div class="url">libstatic.State.html#__init__</div>
-            <div class="type">Function</div>
-            <div class="kind">Method</div>
-            <div class="privacy">PUBLIC</div>
-            <div class="summary"><span class="undocumented">Undocumented</span></div>
           </li><li id="libstatic.State.msg">
             
             <div class="fullName">libstatic<wbr></wbr>.<wbr></wbr>State<wbr></wbr>.msg</div>
@@ -681,7 +665,7 @@
             <div class="type">Function</div>
             <div class="kind">Method</div>
             <div class="privacy">PUBLIC</div>
-            <div class="summary">Def-Use chains accessor: returns the <code><a href="libstatic.Def.html" class="internal-link" title="libstatic.Def">Def</a></code> instance of this node.</div>
+            <div class="summary">Def-Use chains accessor: returns the <code><a href="libstatic.Def.html" class="internal-link" title="libstatic.Def">Def</a></code> instance of this node. All ast nodes categorized as a use or a definition have a coresponding <code><a href="libstatic.Def.html" class="internal-link" title="libstatic.Def">Def</a></code> instance. Use this method to access it.</div>
           </li><li id="libstatic.State.goto_def">
             
             <div class="fullName">libstatic<wbr></wbr>.<wbr></wbr>State<wbr></wbr>.goto<wbr></wbr>_def</div>
@@ -689,7 +673,7 @@
             <div class="type">Function</div>
             <div class="kind">Method</div>
             <div class="privacy">PUBLIC</div>
-            <div class="summary">Use-Def chains accessor that returns only one L{Def}, or raise <code><a href="libstatic.StaticException.html" class="internal-link" title="libstatic.StaticException">StaticException</a></code>. It returns the last reachable def in the list. It does not ensure that the list is only composed by one element.</div>
+            <div class="summary">Use-Def chains accessor (wraps <code><a href="libstatic.State.html#goto_defs" class="internal-link" title="libstatic.State.goto_defs">goto_defs</a></code>) that returns only one <code><a href="libstatic.Def.html" class="internal-link" title="libstatic.Def">Def</a></code>, or raise <code><a href="libstatic.StaticException.html" class="internal-link" title="libstatic.StaticException">StaticException</a></code>. It <strong>returns the first reachable definition</strong> in the list. It does not ensure that the list is only composed by one element, unless ...</div>
           </li><li id="libstatic.State.goto_defs">
             
             <div class="fullName">libstatic<wbr></wbr>.<wbr></wbr>State<wbr></wbr>.goto<wbr></wbr>_defs</div>
@@ -697,7 +681,7 @@
             <div class="type">Function</div>
             <div class="kind">Method</div>
             <div class="privacy">PUBLIC</div>
-            <div class="summary">Use-Def chains accessor: returns the definition points of this use.</div>
+            <div class="summary">Use-Def chains accessor: returns the definition points of the use <tt class="rst-docutils literal">node</tt>.</div>
           </li><li id="libstatic.State.get_module">
             
             <div class="fullName">libstatic<wbr></wbr>.<wbr></wbr>State<wbr></wbr>.get<wbr></wbr>_module</div>
@@ -713,7 +697,7 @@
             <div class="type">Function</div>
             <div class="kind">Method</div>
             <div class="privacy">PUBLIC</div>
-            <div class="summary">Iterate over all modules in the project.</div>
+            <div class="summary">Iterate over all modules in the project. This include dependency modules.</div>
           </li><li id="libstatic.State.get_sub_module">
             
             <div class="fullName">libstatic<wbr></wbr>.<wbr></wbr>State<wbr></wbr>.get<wbr></wbr>_sub<wbr></wbr>_module</div>
@@ -737,7 +721,7 @@
             <div class="type">Function</div>
             <div class="kind">Method</div>
             <div class="privacy">PUBLIC</div>
-            <div class="summary"><span class="undocumented">Undocumented</span></div>
+            <div class="summary">Get an iterator on the elements of the MRO of class <tt class="rst-docutils literal">node</tt>.</div>
           </li><li id="libstatic.State.get_locals">
             
             <div class="fullName">libstatic<wbr></wbr>.<wbr></wbr>State<wbr></wbr>.get<wbr></wbr>_locals</div>
@@ -961,7 +945,7 @@
             <div class="type">Function</div>
             <div class="kind">Method</div>
             <div class="privacy">PRIVATE</div>
-            <div class="summary">Find attribute refernces.</div>
+            <div class="summary">Find attribute references.</div>
           </li><li id="libstatic.State.goto_references">
             
             <div class="fullName">libstatic<wbr></wbr>.<wbr></wbr>State<wbr></wbr>.goto<wbr></wbr>_references</div>
@@ -978,78 +962,6 @@
             <div class="kind">Method</div>
             <div class="privacy">PUBLIC</div>
             <div class="summary">Finds the definitions having the given qualname.</div>
-          </li><li id="libstatic.MutableState.search_context">
-            
-            <div class="fullName">libstatic<wbr></wbr>.<wbr></wbr>Mutable<wbr></wbr>State<wbr></wbr>.search<wbr></wbr>_context</div>
-            <div class="url">libstatic.MutableState.html#search_context</div>
-            <div class="type">Attribute</div>
-            <div class="kind">Instance Variable</div>
-            <div class="privacy">PUBLIC</div>
-            <div class="summary"><span class="undocumented">Undocumented</span></div>
-          </li><li id="libstatic.MutableState.add_typeshed_module">
-            
-            <div class="fullName">libstatic<wbr></wbr>.<wbr></wbr>Mutable<wbr></wbr>State<wbr></wbr>.add<wbr></wbr>_typeshed<wbr></wbr>_module</div>
-            <div class="url">libstatic.MutableState.html#add_typeshed_module</div>
-            <div class="type">Function</div>
-            <div class="kind">Method</div>
-            <div class="privacy">PUBLIC</div>
-            <div class="summary">Add a module from typeshed or from locally installed .pyi files or typed packages.</div>
-          </li><li id="libstatic.MutableState.add_module">
-            
-            <div class="fullName">libstatic<wbr></wbr>.<wbr></wbr>Mutable<wbr></wbr>State<wbr></wbr>.add<wbr></wbr>_module</div>
-            <div class="url">libstatic.MutableState.html#add_module</div>
-            <div class="type">Function</div>
-            <div class="kind">Method</div>
-            <div class="privacy">PUBLIC</div>
-            <div class="summary">Adds a module to the project. All modules should be added before calling <code><a href="libstatic.Project.html#analyze_project" class="internal-link" title="libstatic.Project.analyze_project">analyze_project()</a></code>. This will slightly transform the AST... see <code><a href="libstatic._lib.transform.Transform.html" class="internal-link" title="libstatic._lib.transform.Transform">Transform</a></code>.</div>
-          </li><li id="libstatic.MutableState._add_usedef">
-            
-            <div class="fullName">libstatic<wbr></wbr>.<wbr></wbr>Mutable<wbr></wbr>State<wbr></wbr>._add<wbr></wbr>_usedef</div>
-            <div class="url">libstatic.MutableState.html#_add_usedef</div>
-            <div class="type">Function</div>
-            <div class="kind">Method</div>
-            <div class="privacy">PRIVATE</div>
-            <div class="summary"><span class="undocumented">Undocumented</span></div>
-          </li><li id="libstatic.MutableState.add_definition">
-            
-            <div class="fullName">libstatic<wbr></wbr>.<wbr></wbr>Mutable<wbr></wbr>State<wbr></wbr>.add<wbr></wbr>_definition</div>
-            <div class="url">libstatic.MutableState.html#add_definition</div>
-            <div class="type">Function</div>
-            <div class="kind">Method</div>
-            <div class="privacy">PUBLIC</div>
-            <div class="summary"><span class="undocumented">Undocumented</span></div>
-          </li><li id="libstatic.MutableState.add_user">
-            
-            <div class="fullName">libstatic<wbr></wbr>.<wbr></wbr>Mutable<wbr></wbr>State<wbr></wbr>.add<wbr></wbr>_user</div>
-            <div class="url">libstatic.MutableState.html#add_user</div>
-            <div class="type">Function</div>
-            <div class="kind">Method</div>
-            <div class="privacy">PUBLIC</div>
-            <div class="summary"><span class="undocumented">Undocumented</span></div>
-          </li><li id="libstatic.MutableState.remove_user">
-            
-            <div class="fullName">libstatic<wbr></wbr>.<wbr></wbr>Mutable<wbr></wbr>State<wbr></wbr>.remove<wbr></wbr>_user</div>
-            <div class="url">libstatic.MutableState.html#remove_user</div>
-            <div class="type">Function</div>
-            <div class="kind">Method</div>
-            <div class="privacy">PUBLIC</div>
-            <div class="summary"><span class="undocumented">Undocumented</span></div>
-          </li><li id="libstatic.MutableState.remove_definition">
-            
-            <div class="fullName">libstatic<wbr></wbr>.<wbr></wbr>Mutable<wbr></wbr>State<wbr></wbr>.remove<wbr></wbr>_definition</div>
-            <div class="url">libstatic.MutableState.html#remove_definition</div>
-            <div class="type">Function</div>
-            <div class="kind">Method</div>
-            <div class="privacy">PUBLIC</div>
-            <div class="summary"><span class="undocumented">Undocumented</span></div>
-          </li><li id="libstatic.MutableState.store_anaysis">
-            
-            <div class="fullName">libstatic<wbr></wbr>.<wbr></wbr>Mutable<wbr></wbr>State<wbr></wbr>.store<wbr></wbr>_anaysis</div>
-            <div class="url">libstatic.MutableState.html#store_anaysis</div>
-            <div class="type">Function</div>
-            <div class="kind">Method</div>
-            <div class="privacy">PUBLIC</div>
-            <div class="summary"><span class="undocumented">Undocumented</span></div>
           </li><li id="libstatic.Options.builtins">
             
             <div class="fullName">libstatic<wbr></wbr>.<wbr></wbr>Options<wbr></wbr>.builtins</div>
@@ -1080,14 +992,6 @@
             <div class="url">libstatic.Options.html#verbosity</div>
             <div class="type">Attribute</div>
             <div class="kind">Instance Variable</div>
-            <div class="privacy">PUBLIC</div>
-            <div class="summary"><span class="undocumented">Undocumented</span></div>
-          </li><li id="libstatic.Def.__slots__">
-            
-            <div class="fullName">libstatic<wbr></wbr>.<wbr></wbr>Def<wbr></wbr>.__slots__</div>
-            <div class="url">libstatic.Def.html#__slots__</div>
-            <div class="type">Attribute</div>
-            <div class="kind">Class Variable</div>
             <div class="privacy">PUBLIC</div>
             <div class="summary"><span class="undocumented">Undocumented</span></div>
           </li><li id="libstatic.Def.node">
@@ -1146,22 +1050,6 @@
             <div class="kind">Method</div>
             <div class="privacy">PUBLIC</div>
             <div class="summary">The list of ast entity that holds a reference to this node.</div>
-          </li><li id="libstatic.Def.__repr__">
-            
-            <div class="fullName">libstatic<wbr></wbr>.<wbr></wbr>Def<wbr></wbr>.__repr__</div>
-            <div class="url">libstatic.Def.html#__repr__</div>
-            <div class="type">Function</div>
-            <div class="kind">Method</div>
-            <div class="privacy">PUBLIC</div>
-            <div class="summary"><span class="undocumented">Undocumented</span></div>
-          </li><li id="libstatic.Def.__str__">
-            
-            <div class="fullName">libstatic<wbr></wbr>.<wbr></wbr>Def<wbr></wbr>.__str__</div>
-            <div class="url">libstatic.Def.html#__str__</div>
-            <div class="type">Function</div>
-            <div class="kind">Method</div>
-            <div class="privacy">PUBLIC</div>
-            <div class="summary"><span class="undocumented">Undocumented</span></div>
           </li><li id="libstatic.Def._str">
             
             <div class="fullName">libstatic<wbr></wbr>.<wbr></wbr>Def<wbr></wbr>._str</div>
@@ -1169,14 +1057,6 @@
             <div class="type">Function</div>
             <div class="kind">Method</div>
             <div class="privacy">PRIVATE</div>
-            <div class="summary"><span class="undocumented">Undocumented</span></div>
-          </li><li id="libstatic.Mod.__slots__">
-            
-            <div class="fullName">libstatic<wbr></wbr>.<wbr></wbr>Mod<wbr></wbr>.__slots__</div>
-            <div class="url">libstatic.Mod.html#__slots__</div>
-            <div class="type">Attribute</div>
-            <div class="kind">Class Variable</div>
-            <div class="privacy">PUBLIC</div>
             <div class="summary"><span class="undocumented">Undocumented</span></div>
           </li><li id="libstatic.Mod.node">
             
@@ -1250,28 +1130,12 @@
             <div class="kind">Class Variable</div>
             <div class="privacy">PUBLIC</div>
             <div class="summary"><span class="undocumented">Undocumented</span></div>
-          </li><li id="libstatic.Arg.__slots__">
-            
-            <div class="fullName">libstatic<wbr></wbr>.<wbr></wbr>Arg<wbr></wbr>.__slots__</div>
-            <div class="url">libstatic.Arg.html#__slots__</div>
-            <div class="type">Attribute</div>
-            <div class="kind">Class Variable</div>
-            <div class="privacy">PUBLIC</div>
-            <div class="summary"><span class="undocumented">Undocumented</span></div>
           </li><li id="libstatic.Arg.node">
             
             <div class="fullName">libstatic<wbr></wbr>.<wbr></wbr>Arg<wbr></wbr>.node</div>
             <div class="url">libstatic.Arg.html#node</div>
             <div class="type">Attribute</div>
             <div class="kind">Class Variable</div>
-            <div class="privacy">PUBLIC</div>
-            <div class="summary"><span class="undocumented">Undocumented</span></div>
-          </li><li id="libstatic.Arg.__init__">
-            
-            <div class="fullName">libstatic<wbr></wbr>.<wbr></wbr>Arg<wbr></wbr>.__init__</div>
-            <div class="url">libstatic.Arg.html#__init__</div>
-            <div class="type">Function</div>
-            <div class="kind">Method</div>
             <div class="privacy">PUBLIC</div>
             <div class="summary"><span class="undocumented">Undocumented</span></div>
           </li><li id="libstatic.Arg.default">
@@ -1298,14 +1162,6 @@
             <div class="kind">Method</div>
             <div class="privacy">PUBLIC</div>
             <div class="summary">Cast this <code><a href="libstatic.Arg.html" class="internal-link" title="libstatic.Arg">Arg</a></code> instance into a <code><a href="https://docs.python.org/3/library/inspect.html#inspect.Parameter" class="intersphinx-link">inspect.Parameter</a></code> instance.</div>
-          </li><li id="libstatic.Imp.__slots__">
-            
-            <div class="fullName">libstatic<wbr></wbr>.<wbr></wbr>Imp<wbr></wbr>.__slots__</div>
-            <div class="url">libstatic.Imp.html#__slots__</div>
-            <div class="type">Attribute</div>
-            <div class="kind">Class Variable</div>
-            <div class="privacy">PUBLIC</div>
-            <div class="summary"><span class="undocumented">Undocumented</span></div>
           </li><li id="libstatic.Imp.node">
             
             <div class="fullName">libstatic<wbr></wbr>.<wbr></wbr>Imp<wbr></wbr>.node</div>
@@ -3345,7 +3201,7 @@
             <div class="type">Attribute</div>
             <div class="kind">Property</div>
             <div class="privacy">PUBLIC</div>
-            <div class="summary">Return islice object, which is suffice for iteration or calling <code>in</code></div>
+            <div class="summary">Return islice object, which is suffice for iteration or calling <tt class="rst-docutils literal">in</tt></div>
           </li><li id="libstatic._lib.c3linear.DependencyList.__init__">
             
             <div class="fullName">libstatic<wbr></wbr>._lib<wbr></wbr>.c3linear<wbr></wbr>.<wbr></wbr>Dependency<wbr></wbr>List<wbr></wbr>.__init__</div>
@@ -3545,6 +3401,70 @@
             <div class="type">Function</div>
             <div class="kind">Method</div>
             <div class="privacy">PRIVATE</div>
+            <div class="summary"><span class="undocumented">Undocumented</span></div>
+          </li><li id="libstatic._lib.chains.ParseArgumentsInfos.visit_Pass">
+            
+            <div class="fullName">libstatic<wbr></wbr>._lib<wbr></wbr>.chains<wbr></wbr>.<wbr></wbr>Parse<wbr></wbr>Arguments<wbr></wbr>Infos<wbr></wbr>.visit_<wbr></wbr>Pass</div>
+            <div class="url">libstatic._lib.chains.ParseArgumentsInfos.html#visit_Pass</div>
+            <div class="type">Attribute</div>
+            <div class="kind">Class Variable</div>
+            <div class="privacy">PUBLIC</div>
+            <div class="summary"><span class="undocumented">Undocumented</span></div>
+          </li><li id="libstatic._lib.chains.ParseArgumentsInfos.visit_Break">
+            
+            <div class="fullName">libstatic<wbr></wbr>._lib<wbr></wbr>.chains<wbr></wbr>.<wbr></wbr>Parse<wbr></wbr>Arguments<wbr></wbr>Infos<wbr></wbr>.visit_<wbr></wbr>Break</div>
+            <div class="url">libstatic._lib.chains.ParseArgumentsInfos.html#visit_Break</div>
+            <div class="type">Attribute</div>
+            <div class="kind">Class Variable</div>
+            <div class="privacy">PUBLIC</div>
+            <div class="summary"><span class="undocumented">Undocumented</span></div>
+          </li><li id="libstatic._lib.chains.ParseArgumentsInfos.visit_Continue">
+            
+            <div class="fullName">libstatic<wbr></wbr>._lib<wbr></wbr>.chains<wbr></wbr>.<wbr></wbr>Parse<wbr></wbr>Arguments<wbr></wbr>Infos<wbr></wbr>.visit_<wbr></wbr>Continue</div>
+            <div class="url">libstatic._lib.chains.ParseArgumentsInfos.html#visit_Continue</div>
+            <div class="type">Attribute</div>
+            <div class="kind">Class Variable</div>
+            <div class="privacy">PUBLIC</div>
+            <div class="summary"><span class="undocumented">Undocumented</span></div>
+          </li><li id="libstatic._lib.chains.ParseArgumentsInfos.visit_Delete">
+            
+            <div class="fullName">libstatic<wbr></wbr>._lib<wbr></wbr>.chains<wbr></wbr>.<wbr></wbr>Parse<wbr></wbr>Arguments<wbr></wbr>Infos<wbr></wbr>.visit_<wbr></wbr>Delete</div>
+            <div class="url">libstatic._lib.chains.ParseArgumentsInfos.html#visit_Delete</div>
+            <div class="type">Attribute</div>
+            <div class="kind">Class Variable</div>
+            <div class="privacy">PUBLIC</div>
+            <div class="summary"><span class="undocumented">Undocumented</span></div>
+          </li><li id="libstatic._lib.chains.ParseArgumentsInfos.visit_Global">
+            
+            <div class="fullName">libstatic<wbr></wbr>._lib<wbr></wbr>.chains<wbr></wbr>.<wbr></wbr>Parse<wbr></wbr>Arguments<wbr></wbr>Infos<wbr></wbr>.visit_<wbr></wbr>Global</div>
+            <div class="url">libstatic._lib.chains.ParseArgumentsInfos.html#visit_Global</div>
+            <div class="type">Attribute</div>
+            <div class="kind">Class Variable</div>
+            <div class="privacy">PUBLIC</div>
+            <div class="summary"><span class="undocumented">Undocumented</span></div>
+          </li><li id="libstatic._lib.chains.ParseArgumentsInfos.visit_Nonlocal">
+            
+            <div class="fullName">libstatic<wbr></wbr>._lib<wbr></wbr>.chains<wbr></wbr>.<wbr></wbr>Parse<wbr></wbr>Arguments<wbr></wbr>Infos<wbr></wbr>.visit_<wbr></wbr>Nonlocal</div>
+            <div class="url">libstatic._lib.chains.ParseArgumentsInfos.html#visit_Nonlocal</div>
+            <div class="type">Attribute</div>
+            <div class="kind">Class Variable</div>
+            <div class="privacy">PUBLIC</div>
+            <div class="summary"><span class="undocumented">Undocumented</span></div>
+          </li><li id="libstatic._lib.chains.ParseArgumentsInfos.visit_Import">
+            
+            <div class="fullName">libstatic<wbr></wbr>._lib<wbr></wbr>.chains<wbr></wbr>.<wbr></wbr>Parse<wbr></wbr>Arguments<wbr></wbr>Infos<wbr></wbr>.visit_<wbr></wbr>Import</div>
+            <div class="url">libstatic._lib.chains.ParseArgumentsInfos.html#visit_Import</div>
+            <div class="type">Attribute</div>
+            <div class="kind">Class Variable</div>
+            <div class="privacy">PUBLIC</div>
+            <div class="summary"><span class="undocumented">Undocumented</span></div>
+          </li><li id="libstatic._lib.chains.ParseArgumentsInfos.visit_ImportFrom">
+            
+            <div class="fullName">libstatic<wbr></wbr>._lib<wbr></wbr>.chains<wbr></wbr>.<wbr></wbr>Parse<wbr></wbr>Arguments<wbr></wbr>Infos<wbr></wbr>.visit_<wbr></wbr>Import<wbr></wbr>From</div>
+            <div class="url">libstatic._lib.chains.ParseArgumentsInfos.html#visit_ImportFrom</div>
+            <div class="type">Attribute</div>
+            <div class="kind">Class Variable</div>
+            <div class="privacy">PUBLIC</div>
             <div class="summary"><span class="undocumented">Undocumented</span></div>
           </li><li id="libstatic._lib.chains.ParseArgumentsInfos.visit_FunctionDef">
             
