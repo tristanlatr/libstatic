@@ -1262,7 +1262,7 @@ class State(_MinimalState):
         """
         if isinstance(node, Def):
             node = node.node
-        return _TypeInference(self).get_type(node)
+        return _TypeInference(self).get_type(node, [])
 
 # class SingleModuleState(State):
 #     """

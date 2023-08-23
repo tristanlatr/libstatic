@@ -12,6 +12,8 @@ from typing import (
     Type,
     Union,
     overload,
+    TypeVar,
+    Generic,
     TYPE_CHECKING,
 )
 
@@ -46,10 +48,8 @@ LiteralValue: "TypeAlias" = (
 )
 ASTOrLiteralValue = Union[LiteralValue, ast.AST]
 
-
-class _ASTEval:
-    # Custom implementation of NodeVisitor which accept one extra argument
-    # to it's visti() method.
+T = TypeVar('T')
+class _EvalBaseVisitor(Generic[T]):
 
     _MAX_JUMPS = int(sys.getrecursionlimit() / 1.5)
     # each visited ast node counts for one jump.
@@ -57,8 +57,8 @@ class _ASTEval:
     def __init__(self, state: '_MinimalState', raise_on_ambiguity: bool = False) -> None:
         self._state = state
         self._raise_on_ambiguity = raise_on_ambiguity
-
-    def _visit(self, node: ast.AST, path: Any) -> ASTOrLiteralValue:
+    
+    def _visit(self, node: ast.AST, path: List[ast.AST]) -> T:
         """Visit a node."""
         method = "visit_" + node.__class__.__name__
         try:
@@ -68,10 +68,10 @@ class _ASTEval:
                                         filename=self._state.get_filename(node))
         else:
             return visitor(node, path) # type: ignore
-
+    
     def _visit_ctx_dependent(
         self, node: Union[ast.Attribute, ast.Name], path: List[ast.AST]
-    ) -> ASTOrLiteralValue:
+    ) -> T:
         ctx = getattr(node, "ctx", ast.Load())
         ctxname = ctx.__class__.__name__
         method = f"visit_{node.__class__.__name__}_{ctxname}"
@@ -82,16 +82,10 @@ class _ASTEval:
                                         filename=self._state.get_filename(node))
         else:
             return visitor(node, path) # type: ignore
-
-    def _returns(self, ob: ast.stmt, _: Any) -> ast.stmt:
-        return ob
-
-    visit_Module = visit_ClassDef = visit_FunctionDef = \
-        visit_AsyncFunctionDef = visit_Lambda = _returns
-
+    
     visit_Name = visit_Attribute = _visit_ctx_dependent
 
-    def visit(self, node: Any, path: List[ast.AST]) -> ASTOrLiteralValue:
+    def visit(self, node: Any, path: List[ast.AST]) -> T:
         if node in path:
             raise StaticValueError(node, "node has cyclic definition", 
                                    filename=self._state.get_filename(node))
@@ -102,6 +96,16 @@ class _ASTEval:
         path = path.copy()
         path.append(node)
         return self._visit(node, path)
+
+class _ASTEval(_EvalBaseVisitor[ASTOrLiteralValue]):
+    # Custom implementation of NodeVisitor which accept one extra argument
+    # to it's visti() method.
+
+    def _returns(self, ob: ast.stmt, _: Any) -> ast.stmt:
+        return ob
+
+    visit_Module = visit_ClassDef = visit_FunctionDef = \
+        visit_AsyncFunctionDef = visit_Lambda = _returns
 
     def visit_Attribute_Load(
         self, node: ast.Attribute, path: List[ast.AST]

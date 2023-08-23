@@ -411,6 +411,8 @@ class Type:
     For example, `typing` if the type is `Iterable`.
     Empty string for built-ins.
     """
+    # TODO: this should be replaced by 'scope' because it can be a class or function as well.
+    # this means we also should remove the support for imports() because it's won;t be working.
 
     # TODO:
     # property: is_class: whether the Type represents a class, i.e not a special form Union/Literal/etc...

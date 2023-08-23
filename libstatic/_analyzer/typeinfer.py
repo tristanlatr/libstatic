@@ -1,5 +1,4 @@
 from __future__ import annotations
-from _ast import AST
 
 import ast
 from dataclasses import dataclass, field
@@ -8,6 +7,7 @@ from typing import Any, Callable, Iterator, TypeVar, Union, List, TYPE_CHECKING
 
 from .._lib.model import Type, Scope
 from .._lib.shared import node2dottedname
+from .asteval import _EvalBaseVisitor
 
 if TYPE_CHECKING:
     from .state import State
@@ -98,7 +98,7 @@ class _AnnotationToType(ast.NodeVisitor):
         self.scope = scope
         self.in_literal = False
 
-    def generic_visit(self, node: AST) -> Any:
+    def generic_visit(self, node: ast.AST) -> Any:
         raise ValueError(f'unexcepted node in annotation: {node}')
 
     def visit(self, expr:ast.AST) -> Type:
@@ -191,7 +191,7 @@ class _AnnotationToType(ast.NodeVisitor):
         # TODO: are the lists supposed to only allowed in callables?
         return Type.new('', args=[self.visit(el) for el in node.elts])
 
-class _TypeInference(ast.NodeVisitor):
+class _TypeInference(_EvalBaseVisitor['Type|None']):
     """
     Find the L{Type} of an expression.
     """
@@ -218,51 +218,44 @@ class _TypeInference(ast.NodeVisitor):
     # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
     # SOFTWARE.
 
-    def __init__(self, state:State) -> None:
-        self.state = state
-
-    def generic_visit(self, node: AST) -> Any:
-        raise ValueError(f'unsupported node: {node}')
-    
-    def visit(self, expr:ast.AST) -> Type:
-        """
-        Callers should catch L{Exception}.
-        """
-        return super().visit(expr)
-    
-    def get_type(self, expr:ast.AST) -> Type|None:
+    _state: State
+ 
+    def get_type(self, expr:ast.AST, path:list[ast.AST]) -> Type|None:
         try:
-            return self.visit(expr)
+            return self.visit(expr, path)
         except Exception:
             return None
 
     # AST expressions
 
-    def visit_Constant(self, node: ast.Constant) -> Type:
+    def visit_Constant(self, node: ast.Constant, path:list[ast.AST]) -> Type:
         if node.value is None:
             return Type.new('None')
         return Type.new(type(node.value).__name__)
     
-    def visit_JoinedStr(self, node: ast.JoinedStr) -> Type:
+    def visit_JoinedStr(self, node: ast.JoinedStr, path:list[ast.AST]) -> Type:
         return Type.new('str')
     
     # container types
 
-    def visit_List(self, node: ast.List|ast.Set, clsname:str='list') -> Type:
+    def visit_List(self, node: ast.List|ast.Set, path:list[ast.AST]) -> Type:
+        clsname = type(node).__name__.lower()
         subtype = Type.new('')
         for element_node in node.elts:
-            element_type = self.get_type(element_node)
+            element_type = self.get_type(element_node, path)
             if element_type is None:
                 return Type.new(clsname)
             subtype = subtype.merge(element_type)
         if subtype.unknown:
             return Type.new(clsname)
         return Type.new(clsname, args=[subtype])
+    
+    visit_Set = visit_List
 
-    def visit_Tuple(self, node: ast.Tuple) -> Type:
+    def visit_Tuple(self, node: ast.Tuple, path:list[ast.AST]) -> Type:
         subtypes = []
         for element_node in node.elts:
-            element_type = self.get_type(element_node)
+            element_type = self.get_type(element_node, path)
             if element_type is None:
                 return Type.new('tuple')
             subtypes.append(element_type)
@@ -270,17 +263,14 @@ class _TypeInference(ast.NodeVisitor):
             return Type.new('tuple')
         return Type.new('tuple', args=subtypes)
 
-    def visit_Set(self, node: ast.Set) -> Type:
-        return self.visit_List(node, clsname='set')
-
-    def visit_Dict(self, node: ast.Dict) -> Type:
+    def visit_Dict(self, node: ast.Dict, path:list[ast.AST]) -> Type:
         keys_type = Type.new('')
         unpack_indexes = set() 
         for i, key_node in enumerate(node.keys):
             if key_node is None:
                 unpack_indexes.add(i)
                 continue
-            key_type = self.get_type(key_node)
+            key_type = self.get_type(key_node, path)
             if key_type is None:
                 key_type = Type.new('')
                 break
@@ -291,7 +281,7 @@ class _TypeInference(ast.NodeVisitor):
             if i in unpack_indexes:
                 # TODO: we could do better here, it ignore unpacking for now.
                 continue
-            value_type = self.get_type(value_node)
+            value_type = self.get_type(value_node, path)
             if value_type is None:
                 value_type = Type.new('')
                 break
@@ -305,21 +295,21 @@ class _TypeInference(ast.NodeVisitor):
             values_type = Type.new('Any', module='typing')
         return Type.new('dict', args=[keys_type, values_type])
     
-    def visit_UnaryOp(self, node: ast.UnaryOp) -> Type | None:
+    def visit_UnaryOp(self, node: ast.UnaryOp, path:list[ast.AST]) -> Type | None:
         if isinstance(node.op, ast.Not):
             return Type.new('bool')
-        result = self.get_type(node.operand)
+        result = self.get_type(node.operand, path)
         if result is not None:
             # result = result.add_ass(Ass.NO_UNARY_OVERLOAD)
             return result
         return None
 
-    def visit_BinOp(self, node: ast.BinOp) -> Type | None:
+    def visit_BinOp(self, node: ast.BinOp, path:list[ast.AST]) -> Type | None:
         assert node.op
-        lt = self.get_type(node.left)
+        lt = self.get_type(node.left, path)
         if lt is None:
             return None
-        rt = self.get_type(node.right)
+        rt = self.get_type(node.right, path)
         if rt is None:
             return None
         if lt.name == rt.name == 'int':
@@ -332,48 +322,65 @@ class _TypeInference(ast.NodeVisitor):
             return rt
         return None
 
-    def visit_BoolOp(self, node: ast.BoolOp) -> Type | None:
+    def visit_BoolOp(self, node: ast.BoolOp, path:list[ast.AST]) -> Type | None:
         assert node.op
         result = Type.new('')
         for subnode in node.values:
-            type = self.get_type(subnode)
+            type = self.get_type(subnode, path)
             if type is None:
                 return None
             result = result.merge(type)
         return result
 
-    def visit_Compare(self, node: ast.Compare) -> Type | None:
+    def visit_Compare(self, node: ast.Compare, path:list[ast.AST]) -> Type | None:
         if isinstance(node.ops[0], ast.Is):
             return Type.new('bool')
         # TODO: Use typeshed here to get preceise type.
         return Type.new('bool')#, ass={Ass.NO_COMP_OVERLOAD})
 
-    def visit_ListComp(self, node: ast.ListComp) -> Type | None:
+    def visit_ListComp(self, node: ast.ListComp, path:list[ast.AST]) -> Type | None:
         return Type.new('list')
 
-    def visit_SetComp(self, node: ast.SetComp) -> Type | None:
+    def visit_SetComp(self, node: ast.SetComp, path:list[ast.AST]) -> Type | None:
         return Type.new('set')
 
-    def visit_DictComp(self, node: ast.DictComp) -> Type | None:
+    def visit_DictComp(self, node: ast.DictComp, path:list[ast.AST]) -> Type | None:
         return Type.new('dict')
 
-    def visit_GeneratorExp(self, node: ast.GeneratorExp) -> Type | None:
+    def visit_GeneratorExp(self, node: ast.GeneratorExp, path:list[ast.AST]) -> Type | None:
         return Type.new('Iterator', module='typing')
     
+    def visit_Name_Store(self, node:ast.Name, path:list[ast.AST]) -> Type|None:
+        ...
+
+    def visit_Attribute_Store(self, node:ast.Attribute, path:list[ast.AST]) -> Type|None:
+        ...
+    
+    def visit_Name_Load(self, node:ast.Name, path:list[ast.AST]) -> Type|None:
+        ...
+
+    def visit_Attribute_Load(self, node:ast.Attribute, path:list[ast.AST]) -> Type|None:
+        ...
+
+    def visit_Subscript(self, node:ast.Subscript, path:list[ast.AST]) -> Type|None:
+        ...
+
     # statements
 
     def visit_FunctionDef(self, node: ast.FunctionDef|ast.AsyncFunctionDef) -> Type:
         # TODO: get better at callables
         argstype = Type.new('')
         if node.returns is not None:
-            returntype = _AnnotationToType(self.state, 
-                            self.state.get_enclosing_scope(node)).visit(node.returns)
+            returntype = _AnnotationToType(self._state, 
+                            self._state.get_enclosing_scope(node)).visit(node.returns)
         elif isinstance(node, ast.AsyncFunctionDef):
             returntype = Type.new('Awaitable', module='typing',
                 args=[Type.new('')])
         else:
             returntype = Type.new('')
         return Type.new('Callable', module='typing', args=[argstype, returntype])
+    
+    visit_AsyncFunctionDef = visit_FunctionDef
     
     def visit_Module(self, node: ast.Module) -> Type:
         return Type.new('ModuleType', module='types')
@@ -382,5 +389,5 @@ class _TypeInference(ast.NodeVisitor):
         #TODO: this implementation ignores inner classes
         return Type.new('Type', module='typing', 
             args=[Type.new(node.name, 
-                           module=self.state.get_qualname(
-                            self.state.get_enclosing_scope(node)))])
+                           module=self._state.get_qualname(
+                            self._state.get_enclosing_scope(node)))])
