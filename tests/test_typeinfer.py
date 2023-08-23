@@ -184,11 +184,11 @@ def test_annotation_to_error(source:str) -> None:
     # ('len(x)',          'int'),
     # ('oct(20)',         'str'),
 
-    # # comprehensions
-    # ('[x for x in y]',      'list'),
-    # ('{x for x in y}',      'set'),
-    # ('{x: y for x in z}',   'dict'),
-    # ('(x for x in y)',      'Iterator'),
+    # comprehensions
+    ('[x for x in y]',      'list'),
+    ('{x for x in y}',      'set'),
+    ('{x: y for x in z}',   'dict'),
+    ('(x for x in y)',      'Iterator'),
 
     # misc
     # ('Some(x)',             'Some'),

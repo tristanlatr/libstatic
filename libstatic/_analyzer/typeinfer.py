@@ -226,7 +226,7 @@ class _TypeInference(ast.NodeVisitor):
     
     def visit(self, expr:ast.AST) -> Type:
         """
-        Callers should catch L{ValueError}.
+        Callers should catch L{Exception}.
         """
         return super().visit(expr)
     
@@ -347,6 +347,18 @@ class _TypeInference(ast.NodeVisitor):
             return Type.new('bool')
         # TODO: Use typeshed here to get preceise type.
         return Type.new('bool')#, ass={Ass.NO_COMP_OVERLOAD})
+
+    def visit_ListComp(self, node: ast.ListComp) -> Type | None:
+        return Type.new('list')
+
+    def visit_SetComp(self, node: ast.SetComp) -> Type | None:
+        return Type.new('set')
+
+    def visit_DictComp(self, node: ast.DictComp) -> Type | None:
+        return Type.new('dict')
+
+    def visit_GeneratorExp(self, node: ast.GeneratorExp) -> Type | None:
+        return Type.new('Iterator', module='typing')
     
     # statements
 
