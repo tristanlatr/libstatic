@@ -21,6 +21,7 @@ from typing import (
     Tuple,
     Union,
     TypeVar,
+    Callable,
     cast,
     overload,
 )
@@ -33,6 +34,7 @@ except ImportError:
 from beniget.beniget import ordered_set  # type: ignore
 import attr as attrs
 from .shared import ast_node_name
+from .exceptions import NodeLocation
 
 if TYPE_CHECKING:
     from typing import Protocol
@@ -388,9 +390,8 @@ class ChainMap(Mapping['_KT', '_VT']):
 # This class has beeen adapted from the 'astypes' project.
 @attrs.s(frozen=True, auto_attribs=True)
 class Type:
-    """The type of a Python expression.
-
-    It is currently limited to what can be represented by type annotations.
+    """
+    The type of a Python expression.
     """
     
     name: str
@@ -398,90 +399,100 @@ class Type:
 
     For example, `Iterable` or `list`.
     """
+
     
-    args: Tuple['Type', ...] = attrs.ib(converter=tuple)
+    scope: str = ''
+    """The scope where the type is defined. This is often a module, 
+    but it migth be a class or a function in some cases.
+
+    For example, `typing` if the type is `Iterable`.
+    Empty string for built-ins or other special cases.
+    """
+
+    args: Sequence['Type'] = attrs.ib(factory=tuple, kw_only=True)
     """Arguments of a generic type if any.
 
     For example, `(str, int)` if the type is `dict[str, int]`.
     """
     
-    module: str
-    """The module where the type is defined.
-
-    For example, `typing` if the type is `Iterable`.
-    Empty string for built-ins.
+    if not TYPE_CHECKING:
+        # mypy is not very smart with the converter option :/
+        scope: str = attrs.ib(default='', converter=lambda v: v if v!='builtins' else '')
+        args: Sequence['Type'] = attrs.ib(factory=tuple, converter=tuple, kw_only=True)
+            
+    location: NodeLocation = attrs.ib(factory=NodeLocation, kw_only=True, eq=False, repr=False)
     """
-    # TODO: this should be replaced by 'scope' because it can be a class or function as well.
-    # this means we also should remove the support for imports() because it's won;t be working.
+    The location of the node that defined this type.
+    It's set to an unknown location by default so special 
+    types can be created dynamically. 
+    """
 
     # TODO:
     # property: is_class: whether the Type represents a class, i.e not a special form Union/Literal/etc...
     #   A Protocol is a normal class
     # property: bases, mro, subclasses
+    
+    # Special types:
+    _UNION: ClassVar = (('typing', 'Union'), )
+    _LITERAL: ClassVar = (('typing', 'Literal'), 
+                          (('typing_extensions', 'Literal')), )
+    _TYPE: ClassVar = (('typing', 'Type'), )
+    _CALLABLE: ClassVar = (('typing', 'Callable'), )
+    _MODULE: ClassVar = (('types', 'ModuleType'), )
 
-    UNION: ClassVar = 'Union'
-    LITERAL: ClassVar = 'Literal'
-
-    @classmethod
-    def new(
-        cls,
-        name: str, *,
-        args: Optional[Iterable['Type']] = None,
-        module: str = "",
-    ) -> 'Type':
-        """Construct a new TypeInfo.
-        """
-        return cls(
-            name=name,
-            args=args or (), #type:ignore[arg-type]
-            module=module,
-        )
+    Any: ClassVar[Type]
+    Union: ClassVar[Type]
+    Literal: ClassVar[Type]
+    Type: ClassVar[Type]
+    Callable: ClassVar[Type]
+    Module: ClassVar[Type]
 
     @property
-    def fullname(self) -> str:
+    def qualname(self) -> str:
         """The full name of the type.
 
         For example, `typing.Iterable` or `list` (for builtins).
         """
-        mod = self.module
-        if mod:
-            return f"{mod}.{self.name}"
+        scope = self.scope
+        if scope:
+            return f"{scope}.{self.name}"
         else:
             return self.name
-
-    @cached_property
-    def imports(self) -> frozenset[str]:
-        """Import statements required to define the type.
-        """
-        result = set()
-        if self.module:
-            result.add(f'from {self.module} import {self.name}')
-        for arg in self.args:
-            result.update(arg.imports)
-        return frozenset(result)
 
     @property
     def unknown(self) -> bool:
         """
-        We can create TypeInfo with empty name.
+        We can create Type with empty name.
         It is used to denote an unknown type.
         """
         return not self.name
 
     @property
     def is_union(self) -> bool:
-        return self.name == Type.UNION
+        return (self.scope, self.name) in Type._UNION
+    
+    @property
+    def is_type(self) -> bool:
+        return (self.scope, self.name) in Type._TYPE
+    
+    @property
+    def is_callable(self) -> bool:
+        return (self.scope, self.name) in Type._CALLABLE
+    
+    @property
+    def is_module(self) -> bool:
+        return (self.scope, self.name) in Type._MODULE
     
     @property
     def is_literal(self) -> bool:
         """
         A literal type means it's literal values can be recovered with:
         
-        >>> type = Type.new(Type.LITERAL, args=[Type.new('"val"')], module='typing')
+        >>> type = Type.Literal.add_args(args=[Type('"val"')])
         >>> ast.literal_eval(type.args[0].name)
         'val'
         """
-        return self.name == Type.LITERAL
+        return (self.scope, self.name) in Type._LITERAL
 
     @cached_property
     def annotation(self) -> str:
@@ -517,32 +528,32 @@ class Type:
 
         # if one type is already union, extend it
         if self.is_union and other.is_union:
-            return type(self).new(
-                name=Type.UNION,
-                args=self.args + other.args,
+            return Type.Union.add_args(
+                args=tuple(chain(self.args, other.args)),
             )
         if self.is_union:
-            return self._replace(args=self.args + (other,))
+            return self._replace(
+                args=tuple(chain(self.args, (other,)))
+            )
         if other.is_union:
-            return other._replace(args=(self,) + other.args)
+            return other._replace(
+                args=tuple(chain((self,), other.args))
+            )
 
         # none goes last
         if self.name == 'None':
             args = (other, self)
         else:
             args = (self, other)
-        return type(self).new(
-            name=Type.UNION,
-            args=args,
-        )
+        return Type.Union.add_args(args=args)
     
-    def _replace(self, **changes:Any) -> Type:
+    def _replace(self, **changes:str|Sequence[Type]|NodeLocation) -> Type:
         return attrs.evolve(self, **changes) # type:ignore
 
-    def add_args(self, args: list[Type]) -> Type:
+    def add_args(self, args: Iterable[Type]) -> Type:
         """Get a copy of the Type with the given args added in the list of args.
         """
-        return self._replace(args=chain(self.args, args))
+        return self._replace(args=tuple(chain(self.args, args)))
 
     def supertype_of(self, other: 'Type') -> bool:
         # TODO: use a mapping of type-promotion instead of this.
@@ -558,8 +569,45 @@ class Type:
         # TODO Look superclasses
         if self.name != other.name:
             return False
-        if self.module != other.module:
+        if self.scope != other.scope:
             return False
         if self.args != other.args:
             return False
         return True
+
+Type.Any = Type('')
+Type.Union = Type('Union', 'typing')
+Type.Literal = Type('Literal', 'typing')
+Type.Type = Type('Type', 'typing')
+Type.Callable = Type('Callable', 'typing')
+Type.Module = Type('ModuleType', 'types')
+
+# class UnionType(Type):
+#     ...
+
+# class LiteralType(Type):
+#     ...
+
+# class FunctionLikeType(Type):
+#     ...
+
+# class CallableType(FunctionLikeType):
+#     ...
+
+# class OverloadedType(FunctionLikeType):
+#     ...
+
+# class AnyType(Type):
+#     ...
+
+# class OpenScopeType(Type):
+#     ...
+
+# class ModuleType(OpenScopeType):
+#     ...
+
+# class InstanceType(OpenScopeType):
+#     ...
+
+# class TypeType(OpenScopeType):
+#     ...

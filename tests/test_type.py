@@ -28,7 +28,7 @@ import pytest
 from libstatic import Type
 
 
-t = Type.new
+t = Type
 
 
 def u(*args):
@@ -37,7 +37,7 @@ def u(*args):
         if isinstance(arg, str):
             arg = t(arg)
         new_args.append(arg)
-    return t('Union', args=new_args)
+    return Type.Union.add_args(args=new_args)
 
 
 @pytest.mark.parametrize('left, right, result', [
@@ -75,6 +75,7 @@ def test_merge(left, right, result):
         right = t(right)
     if isinstance(result, str):
         result = t(result)
+    assert left.merge(right).annotation == result.annotation
     assert left.merge(right) == result
 
 
@@ -87,25 +88,6 @@ def test_merge(left, right, result):
 def test_annotation(given: Type, expected: str):
     assert given.annotation == expected
 
-
-@pytest.mark.parametrize('given, expected', [
-    (t(''), []),
-    (t('int'), []),
-    (
-        t('Iterator', module='typing'),
-        ['from typing import Iterator'],
-    ),
-    (
-        t('list', args=[t('Iterator', module='typing')]),
-        ['from typing import Iterator'],
-    ),
-    (
-        u('list', t('Iterator', module='typing')),
-        ['from typing import Iterator'],
-    ),
-])
-def test_imports(given: Type, expected: str):
-    assert given.imports == frozenset(expected)
 
 
 @pytest.mark.parametrize('left, right, expected', [

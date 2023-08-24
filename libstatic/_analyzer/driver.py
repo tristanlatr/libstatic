@@ -35,31 +35,32 @@ class ChainDefUseOfImports(StmtVisitor):
         else:
             super().generic_visit(node)
 
-    def visit_Import(self, node: Union[ast.Import, ast.ImportFrom]) -> None:
-        for alias in node.names:
-            alias_def = self._state.get_def(alias)
-            orgmodule = self._state.get_module(alias_def.orgmodule)
-            if orgmodule:
-                orgname = alias_def.orgname
-                if orgname:
-                    if orgname == "*":
-                        continue
-                    try:
-                        defs = self._state.get_attribute(
-                            orgmodule, orgname, filter_unreachable=False
-                        )  # todo: handle ignore locals
-                    except StaticException:
-                        continue
-                        # import target not found
-                    else:
-                        for loc in defs:
-                            self._state.add_user(loc, alias_def)
+    def visit_alias(self, node: ast.alias) -> None:
+        alias_def = self._state.get_def(node)
+        orgmodule = self._state.get_module(alias_def.orgmodule)
+        if orgmodule:
+            orgname = alias_def.orgname
+            if orgname:
+                if orgname == "*":
+                    return
+                try:
+                    defs = self._state.get_attribute(
+                        orgmodule, orgname, filter_unreachable=False
+                    )  # todo: handle ignore locals
+                except StaticException:
+                    return
+                    # import target not found
                 else:
-                    self._state.add_user(orgmodule, alias_def)
+                    for loc in defs:
+                        self._state.add_user(loc, alias_def)
             else:
-                # module not found in the system
-                continue
-
+                self._state.add_user(orgmodule, alias_def)
+        else:
+            # module not found in the system
+            return
+    
+    def visit_Import(self, node):
+        self.generic_visit(node)
     visit_ImportFrom = visit_Import
 
 class Analyzer:

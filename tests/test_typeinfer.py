@@ -23,21 +23,22 @@
 
 import ast
 from textwrap import dedent
+from unittest import TestCase
 import pytest
 
-from libstatic import Project
+from libstatic import Project, StaticException
 from libstatic._analyzer.typeinfer import _AnnotationToType
 
 @pytest.mark.parametrize(
         ("source", "expected"), 
         [
         ("var: None", ["None",""]),
-        ("var: typing.Generic[T]", ["Generic[T]","typing"]), 
-        ("var: typing.Generic[T, _KV]", ["Generic[T, _KV]","typing"]),
-        ("from typing import Generic\nvar: Generic[T]", ["Generic[T]","typing"]),
-        ("var: typing.Tuple[T,...]", ["Tuple[T, ...]","typing"]), 
-        ("from mod import _model as m\nfrom typing import Optional\nvar: m.TreeRoot[Optional[T]]", ["TreeRoot[Optional[T]]","typing,mod._model"]),
-        ("from mod import _model as m\nfrom typing import Optional\nvar: 'm.TreeRoot[Optional[T]]'", ["TreeRoot[Optional[T]]","typing,mod._model"]),
+        ("import typing as t\nvar: t.Generic[t.T]",             ["Generic[T]","typing"]), 
+        ("import typing as t\nvar: t.Generic[t.T, t._KV]",      ["Generic[T, _KV]","typing"]),
+        ("import typing as t\nfrom typing import Generic\nvar: Generic[t.T]",       ["Generic[T]","typing"]),
+        ("import typing as t\nvar: t.Tuple[t.T,...]",         ["Tuple[T, ...]","typing"]), 
+        ("import typing as t\nfrom mod import _model as m\nfrom typing import Optional\nvar: m.TreeRoot[Optional[t.T]]",      ["TreeRoot[Optional[T]]","typing,mod._model"]),
+        ("import typing as t\nfrom mod import _model as m\nfrom typing import Optional\nvar: 'm.TreeRoot[Optional[t.T]]'",        ["TreeRoot[Optional[T]]","typing,mod._model"]),
         ("var: dict[str, str]", ["dict[str, str]",'']),
         ("var: dict[str, str] | dict[str, int]", ["dict[str, str] | dict[str, int]",'']),
         ("import typing as t\nvar: t.Union[dict[str, str], dict[str, int]]", ["dict[str, str] | dict[str, int]",'typing']),
@@ -60,14 +61,13 @@ def test_annotation_to_type(source:str, expected:str) -> None:
     # assert type_annotation == type_annotation_method2
 
     assert not type_annotation.unknown
-    imports = '\n'.join(type_annotation.imports)
-    annotation, imports_contains = expected
+
+    annotation, _ = expected
     if annotation.startswith('Union'):
         assert type_annotation.is_union
     if annotation.startswith('Literal'):
         assert type_annotation.is_literal
-    for i in imports_contains.split(','):
-        assert i in imports, f"{i!r} not in {imports}"
+
     assert type_annotation.annotation == annotation
 
     # smoke test
@@ -91,7 +91,7 @@ def test_annotation_to_error(source:str) -> None:
 
     annotation2type = lambda expr: _AnnotationToType(p.state, m).visit(expr)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(StaticException):
         annotation2type(mod.body[-1].annotation)
 
 @pytest.mark.parametrize('expr, type', [
@@ -131,25 +131,7 @@ def test_annotation_to_error(source:str) -> None:
     ('{x,y}',       'set'),
     ('{1,""}',      'set[int | str]'),
 
-    # # collection constructors
-    # ('list()',      'list'),
-    # ('list(x)',     'list'),
-    # ('dict()',      'dict'),
-    # ('dict(x)',     'dict'),
-    # ('set()',       'set'),
-    # ('set(x)',      'set'),
-    # ('tuple()',     'tuple'),
-    # ('tuple(x)',    'tuple'),
-
-    # # other type constructors
-    # ('int()',       'int'),
-    # ('int(x)',      'int'),
-    # ('str()',       'str'),
-    # ('str(x)',      'str'),
-    # ('float()',     'float'),
-    # ('float(x)',    'float'),
-
-    # # math operations
+    # math operations
     ('3 + 2',       'int'),
     ('3 * 2',       'int'),
     ('3 + 2.',      'float'),
@@ -157,32 +139,21 @@ def test_annotation_to_error(source:str) -> None:
     ('3 / 2',       'float'),
     ('"a" + "b"',   'str'),
 
-    # # binary "bool" operations
+    # binary "bool" operations
     ('3 and 2',     'int'),
     ('3 or 2',      'int'),
     ('3. and 2.',   'float'),
     ('3. or 2.',    'float'),
 
-    # # operations with known type
+    # operations with known type
     ('not x',       'bool'),
     ('x is str',    'bool'),
 
-    # # operations with assumptions
+    # operations with assumptions
     ('x in (1, 2, 3)',  'bool'),
     ('x < 10',          'bool'),
     ('~13',             'int'),
     ('+13',             'int'),
-
-    # # methods of builtins
-    # ('"".join(x)',      'str'),
-    # ('[1,2].count(1)',  'int'),
-    # ('list(x).copy()',  'list'),
-    # ('[].copy()',       'list'),
-    # ('[].__iter__()',   'Iterator'),
-
-    # # builtin functions
-    # ('len(x)',          'int'),
-    # ('oct(20)',         'str'),
 
     # comprehensions
     ('[x for x in y]',      'list'),
@@ -198,10 +169,71 @@ def test_expr(expr, type):
     node = mod.body[-1].value
     p = Project()
     p.add_module(mod, 'test')
+    p.analyze_project()
     t = p.state.get_type(node)
     assert t is not None
     assert t.annotation == type
 
+class TestTypeInferStubs(TestCase):
+    def test_expr_stubs(self):
+        cases = [ 
+
+        # collection constructors
+        ('list()',      'list'),
+        ('list(x)',     'list'),
+        ('dict()',      'dict'),
+        ('dict(x)',     'dict'),
+        ('set()',       'set'),
+        ('set(x)',      'set'),
+        ('tuple()',     'tuple'),
+        ('tuple(x)',    'tuple'),
+
+        # other type constructors
+        ('int()',       'int'),
+        ('int(x)',      'int'),
+        ('str()',       'str'),
+        ('str(x)',      'str'),
+        ('float()',     'float'),
+        ('float(x)',    'float'),
+
+        # builtin functions
+        ('len(x)',          'int'),
+        ('oct(20)',         'str'),
+
+        ('import builtins as b; b.len(x)',          'int'),
+        ('import builtins as b; b.oct(20)',         'str'),
+
+        # methods of builtins
+        ('"".join(x)',      'str'),
+        ('[1,2].count(1)',  'int'),
+        ('list(x).copy()',  'list[_T]'),
+        ('[].copy()',       'list[_T]'),
+        ('[].__iter__()',   'Iterator[_T]'),
+
+        ('import math\nmath.sin(x)',  'float'),
+        ('from math import sin\nsin(x)',       'float'),
+        ('my_list = list\nmy_list(x)',   'list'),
+        ('from datetime import *\ndate(1,2,3)',  'date'),
+        # ('def g(x): return 0\ng(x)',         'int'),
+        # ('from pathlib import Path\nx:str|Path=...\nx.as_posix()', 'str'),
+        # ('x = 13\nx',            'int'),
+        # ('x = 1\nif x:\n  x=True\nx',            'int | bool'),
+        
+        ]
+
+        p = Project(dependencies=1)
+        expected = {}
+        for i, (expr, type) in enumerate(cases):
+            p.add_module(ast.parse(f'None\n{expr}'), f'test{i}')
+            expected[f'test{i}'] = (expr, type)
+        
+        p.analyze_project()
+        for (modname, (expr, type)) in expected.items():
+            with self.subTest(expr):
+                node = p.state.get_module(modname).node.body[-1].value
+                t = p.state.get_type(node)
+                assert t is not None, (expr, type)
+                assert t.annotation == type, (expr, type)
 
 @pytest.mark.parametrize('expr', [
     'min(x)',
@@ -234,27 +266,9 @@ def test_cannot_infer_expr(expr):
     node = mod.body[-1].value
     p = Project()
     p.add_module(mod, 'test')
+    p.analyze_project()
     t = p.state.get_type(node)
     assert t is None
-
-# @pytest.mark.parametrize('setup, expr, type', [
-#     ('import math',                 'math.sin(x)',  'float'),
-#     ('from math import sin',        'sin(x)',       'float'),
-#     ('my_list = list',              'my_list(x)',   'list'),
-#     ('def g(x): return 0',          'g(x)',         'int'),
-#     ('x = 13',                      'x',            'int'),
-#     ('x = 1\nif x:\n  x=True',      'x',            'int | bool'),
-#     ('from datetime import *',      'date(1,2,3)',  'date'),
-# ])
-# def test_more_inference(setup, expr, type):
-#     mod = ast.parse(f'{setup}\n{expr}')
-#     node = mod.body[-1].value
-#     p = Project(dependencies=True)
-#     p.add_module(mod, 'test')
-#     t = p.state.get_type(node)
-
-#     assert t is not None
-#     assert t.annotation == type
 
 
 # @pytest.mark.parametrize('sig, type', [
@@ -291,6 +305,7 @@ def test_cannot_infer_expr(expr):
     
 #     p = Project()
 #     p.add_module(mod, 'test')
+#     p.analyze_project()
 #     t = p.state.get_type(node.value)
 
 #     assert t is not None

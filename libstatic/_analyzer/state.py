@@ -788,14 +788,19 @@ class State(_MinimalState):
             node = node.node
         return node not in self._unreachable
 
-    # def dump(self) -> 'list[dict[str, Any]]':
-    #     def _dump_mod(_m:Mod) -> 'dict[str, Any]':
-    #         return {
-    #             'is_package':_m.is_package,
-    #             'modname':_m.name(),
-    #             'node':ast2json(_m.node)
-    #         }
-    #     return [_dump_mod(m) for m in self._modules.values()]
+    def _dump(self) -> 'list[dict[str, Any]]':
+        """
+        Dummy dump function.
+        """
+        from ast2json import ast2json
+        def _dump_mod(_m:Mod) -> 'dict[str, Any]':
+            return {
+                'is_package':_m.is_package,
+                'modname':_m.name(),
+                'node':ast2json(_m.node)
+            }
+        return [_dump_mod(m) for m in self._modules.values()]
+    
     @overload
     def get_enclosing_scope(self, definition: Mod) -> None: # type:ignore[misc]
         ...
@@ -849,7 +854,7 @@ class State(_MinimalState):
             parent = self.get_enclosing_scope(parent)
         return scopes # type:ignore
 
-    def get_qualname(self, definition: Union[NameDef, Scope]) -> "str":
+    def get_qualname(self, definition: Union[NameDef, Scope, ast.AST]) -> "str":
         """
         Returns the qualified name of this definition.
         If the definition is an imported name, returns the qualified 
@@ -859,6 +864,11 @@ class State(_MinimalState):
         The same object could have several qualified
         named depending on where it's imported.
         """
+        if isinstance(definition, ast.AST):
+            definition = self.get_def(definition) # type: ignore
+        if not isinstance(definition, (NameDef, Scope)):
+            raise StaticTypeError(definition, expected='NameDef or Scope', 
+                                  filename=self.get_filename(definition))
         if isinstance(definition, Imp):
             return definition.target()
         name = definition.name()
@@ -1403,12 +1413,16 @@ class MutableState(State):
 
     # loading
 
-    # def load(self, data:'list[dict[str, Any]]') -> None:
-    #     for mod_spec in data:
-    #         assert all(k in mod_spec for k in ['node', 'modname', 'is_package'])
-    #         self.add_module(json2ast(mod_spec['node']),
-    #                        mod_spec['modname'],
-    #                        is_package=mod_spec['is_package'])
+    def _load(self, data:'list[dict[str, Any]]') -> None:
+        """
+        Dummy load function, loads data dumped by `State._dump`.
+        """
+        from json2ast import json2ast
+        for mod_spec in data:
+            assert all(k in mod_spec for k in ['node', 'modname', 'is_package'])
+            self.add_module(json2ast(mod_spec['node']),
+                           mod_spec['modname'],
+                           is_package=mod_spec['is_package'])
 
 
 @attrs.s(auto_attribs=True, frozen=True, kw_only=True)

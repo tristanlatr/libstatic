@@ -8,12 +8,14 @@ if TYPE_CHECKING:
 
 from .shared import ast_node_name
 
-@attrs.s(auto_attribs=True, kw_only=True, str=False)
+@attrs.s(auto_attribs=True, kw_only=True, str=False, frozen=True)
 class NodeLocation:
     filename:'str|None' = None
     nodecls:'str|None' = None
     lineno:'int|None' = None
-    col_offset:'int|None' = None
+    # older python version don't alwasy set the col_offset field so we can't 
+    # use it to compare locations.
+    col_offset:'int|None' = attrs.ib(default=None, eq=False)
 
     @classmethod
     def make(cls, thing:object, filename:'str|None'=None) -> 'NodeLocation':
