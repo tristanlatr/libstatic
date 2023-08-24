@@ -23,11 +23,13 @@
 
 import ast
 from textwrap import dedent
+from typing import Any
 from unittest import TestCase
 import pytest
 
 from libstatic import Project, StaticException
 from libstatic._analyzer.typeinfer import _AnnotationToType
+from libstatic._lib.shared import StmtVisitor, unparse
 
 @pytest.mark.parametrize(
         ("source", "expected"), 
@@ -342,3 +344,85 @@ def test_cannot_infer_type_from_signature(sig):
     t = p.state.get_type(node.value)
 
     assert t is None
+
+
+###
+
+@pytest.mark.parametrize('src', [])
+def test_reveal(src:str) -> None:
+    node = ast.parse(dedent(src))
+    p = Project()
+    p.add_module(node, 'test')
+    p.analyze_project()
+
+    class RevealVisitor(StmtVisitor):
+        def visit_Expr(self, node: ast.Expr) -> Any:
+            v = node.value
+            if not isinstance(v, ast.Call): 
+                return
+            f = v.func
+            if not isinstance(f, ast.Name): 
+                return
+            if f.id == 'reveal_type':
+                expr, expected = v.args
+                assert isinstance(expected, ast.Constant)
+                typ = p.state.get_type(expr)
+                expected_value = getattr(expected, 'value')
+                if expected_value is None:
+                    assert typ is None
+                else:
+                    assert typ is not None, f'cannot infer {unparse(ast.Expr(expr))}'
+                    assert typ.annotation == expected_value
+    
+    RevealVisitor().visit(node)
+
+@pytest.mark.parametrize('src', [
+    r'''
+    v = 2
+    reveal_type(v,'int')
+    ''',
+
+    r'''
+    class C:
+        v = 2
+    reveal_type(C.v,'int')
+    ''',
+
+    r'''
+    from typing import AnyStr
+    v:AnyStr = b'bb'
+    reveal_type(v,'AnyStr')
+    ''',
+
+    r'''
+    from typing import Union
+    def f(x:int, v, y:Union[list[int], tuple[int]]) -> None:
+        reveal_type(v, None)
+        reveal_type(x,'int')
+        reveal_type(y,'list[int] | tuple[int]')
+    ''',
+
+    '''
+    class C:
+        ...
+    reveal_type(C,'Type[C]')
+    ''',
+
+    '''
+    def func_no_ann(x:int):
+        ...
+    def func_ann(x:int) -> None:
+        ...
+    reveal_type(func_no_ann,'Callable[Any, Any]')
+    reveal_type(func_ann,'Callable[Any, None]')
+    ''',
+
+    '''
+    v = None
+    x: None
+    reveal_type(v,'None')
+    reveal_type(x,'None')
+    ''',
+])
+def test_reveal_types(src:str) -> None:
+    test_reveal(src)
