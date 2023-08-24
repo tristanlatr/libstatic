@@ -88,7 +88,7 @@ class _EvalBaseVisitor(Generic[T]):
     def visit(self, node: Any, path: List[ast.AST]) -> T:
         if node in path:
             raise StaticValueError(node, f"node has cyclic definition, "
-                                   f'path={[str(self._state.get_location(n)) for n in path]+[str(self._state.get_location(node))]}', 
+                                   f'path={[str(self._state.get_location(n)) for n in path]+[str(self._state.get_location(node))]}', # type:ignore
                                    filename=self._state.get_filename(node))
         if len(path) > self._MAX_JUMPS:
             raise StaticCodeUnsupported(node, "expression is too complex", 

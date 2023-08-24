@@ -61,7 +61,7 @@ T = TypeVar("T", bound=ast.AST)
 
 class _Msg(Protocol):
     def __call__(
-        self, msg: str, ctx: Optional[ast.AST] = None, thresh: int = 0
+        self, msg: str, ctx: object = None, thresh: int = 0
     ) -> None:
         ...
 
@@ -792,7 +792,7 @@ class State(_MinimalState):
         """
         Dummy dump function.
         """
-        from ast2json import ast2json
+        from ast2json import ast2json # type:ignore
         def _dump_mod(_m:Mod) -> 'dict[str, Any]':
             return {
                 'is_package':_m.is_package,
@@ -1417,7 +1417,7 @@ class MutableState(State):
         """
         Dummy load function, loads data dumped by `State._dump`.
         """
-        from json2ast import json2ast
+        from json2ast import json2ast # type:ignore
         for mod_spec in data:
             assert all(k in mod_spec for k in ['node', 'modname', 'is_package'])
             self.add_module(json2ast(mod_spec['node']),
@@ -1518,7 +1518,7 @@ class Project:
         return cast(MutableState, self.state).add_typeshed_module(modname)
 
     # TODO: introduce a generic reporter object used by System.msg, Documentable.report and here.
-    def msg(self, msg: str, ctx: Optional[ast.AST|Def|NodeLocation] = None, thresh: int = 0) -> None:
+    def msg(self, msg: str, ctx: Optional[ast.AST|Def|NodeLocation|object] = None, thresh: int = 0) -> None:
         """
         Log a message about this ast node.
         """
@@ -1527,7 +1527,10 @@ class Project:
         context = ""
         if ctx is not None:
             if not isinstance(ctx, NodeLocation):
-                location = self.state.get_location(ctx)
+                if isinstance(ctx, (ast.AST, Def)):
+                    location = self.state.get_location(ctx)
+                else:
+                    location = NodeLocation.make(ctx)
             else:
                 location = ctx
 

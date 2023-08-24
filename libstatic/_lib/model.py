@@ -438,9 +438,11 @@ class Type:
     Any: ClassVar[Type]
     Union: ClassVar[Type]
     Literal: ClassVar[Type]
-    Type: ClassVar[Type]
     Callable: ClassVar[Type]
     Module: ClassVar[Type]
+    # must be declared last otherwise mypy complains
+    ClsType: ClassVar[Type]
+    
 
     @property
     def qualname(self) -> str:
@@ -570,9 +572,10 @@ class Type:
             return False
         return True
 
+
 Type.Any = Type('')
 Type.Union = Type('Union', 'typing')
 Type.Literal = Type('Literal', 'typing')
-Type.Type = Type('Type', 'typing')
+Type.ClsType = Type('Type', 'typing')
 Type.Callable = Type('Callable', 'typing')
 Type.Module = Type('ModuleType', 'types')

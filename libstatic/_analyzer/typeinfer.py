@@ -14,7 +14,7 @@ from .._lib.exceptions import (NodeLocation, StaticAmbiguity, StaticException,
                                StaticStateIncomplete, )
 from .asteval import _EvalBaseVisitor, _GotoDefinition
 
-from beniget.beniget import BuiltinsSrc
+from beniget.beniget import BuiltinsSrc # type: ignore
 
 if TYPE_CHECKING:
     from .state import State
@@ -237,7 +237,7 @@ class _TypeInference(_EvalBaseVisitor['Type|None']):
         try:
             return self.visit(expr, path)
         except StaticException as e:
-            self._state.msg(f'type inference failed: {e.msg()}', ctx=e.node)
+            self._state.msg(f'type inference failed: {e.msg()}', ctx=expr)
         except Exception as e:
             self._state.msg(f'unexpected {type(e).__name__} in type inference: {e}', ctx=expr)
             if __debug__:
@@ -370,7 +370,6 @@ class _TypeInference(_EvalBaseVisitor['Type|None']):
     
     def visit_Name_Store(self, node:ast.Name|ast.Attribute, path:list[ast.AST]) -> Type|None:
         # doesn't support augmented assignments
-        # TODO: refactor this code
         try:
             assign = self._state.get_parent_instance(node, (ast.Assign, ast.AnnAssign))
         except StaticException as e:
@@ -384,6 +383,10 @@ class _TypeInference(_EvalBaseVisitor['Type|None']):
             # TODO: Detect if the given assignment is an implicit
             # type alias and use _AnnotationToType in these cases.
             return self.get_type(value, path)
+        raise StaticValueError(node, 
+            # it must be bogus because get_stored_value() already raises on unsupported constructs.
+            f'bogus {"name" if isinstance(node, ast.Name) else "attribute"}',
+            filename=self._state.get_filename(node))
 
     visit_Attribute_Store = visit_Name_Store
     
@@ -391,15 +394,21 @@ class _TypeInference(_EvalBaseVisitor['Type|None']):
         try:
             name_defs = self._state.goto_defs(node)
         except StaticException as e: 
-            self._state.msg(f'cannot infer definition of name {ast_node_name(node)!r}: {str(e)}', ctx=node)
-            return None
+            raise StaticValueError(node, 
+                f'cannot find definition of name {ast_node_name(node)!r}: {str(e)}', 
+                filename=self._state.get_filename(node)) from e
         if len(name_defs)>1 and self._raise_on_ambiguity:
             raise StaticAmbiguity(node, f"{len(name_defs)} potential definitions found", 
                                       filename=self._state.get_filename(node))
         newtype = Type.Any
         for d in name_defs:
             other = self.get_type(d.node, path)
-            newtype = newtype.merge(other)
+            if other:
+                newtype = newtype.merge(other)
+        if newtype.unknown:
+            raise StaticValueError(node, 
+                f'found {len(name_defs)} definition for name {ast_node_name(node)!r}, but none of them have a known type', 
+                filename=self._state.get_filename(node))
         return newtype
 
     visit_alias = visit_Name_Load
@@ -413,6 +422,7 @@ class _TypeInference(_EvalBaseVisitor['Type|None']):
         """
         for arg in type.args:
             ...
+        return type
 
     def _get_typedef_from_qualname(self, qualname:str, location:NodeLocation) -> Def:
         try:
@@ -497,7 +507,7 @@ class _TypeInference(_EvalBaseVisitor['Type|None']):
             scopedefs.append(definition)
             try:
                 defs = self._state.get_attribute(
-                    definition, node.attr, include_ivars=not type.is_type)
+                    definition, node.attr, include_ivars=not type.is_type) # type: ignore
             except StaticException:
                 continue
 
@@ -518,8 +528,11 @@ class _TypeInference(_EvalBaseVisitor['Type|None']):
             othertype = self.get_type(definition.node, path)
             if othertype is not None:
                 newtype = newtype.merge(othertype)
+        if newtype.unknown:
+            raise StaticValueError(node, 
+                f'found {len(attrdefs)} definition for attribute {ast_node_name(node)!r}, but none of them have a known type', 
+                filename=self._state.get_filename(node))
         return newtype
-
 
     def visit_Call(self, node:ast.Call, path:list[ast.AST]) -> Type|None:
         assert node.func
@@ -566,7 +579,7 @@ class _TypeInference(_EvalBaseVisitor['Type|None']):
                 ))
     
     def visit_ClassDef(self, node: ast.ClassDef, path:list[ast.AST]) -> Type:
-        return Type.Type.add_args(
+        return Type.ClsType.add_args(
             args=(Type(node.name, self._state.get_qualname(
                             self._state.get_enclosing_scope(node)), 
                         location=self._state.get_location(node)),))
