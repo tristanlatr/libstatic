@@ -54,9 +54,8 @@ class _EvalBaseVisitor(Generic[T]):
     _MAX_JUMPS = int(sys.getrecursionlimit() / 1.5)
     # each visited ast node counts for one jump.
 
-    def __init__(self, state: '_MinimalState', raise_on_ambiguity: bool = False) -> None:
+    def __init__(self, state: '_MinimalState') -> None:
         self._state = state
-        self._raise_on_ambiguity = raise_on_ambiguity
     
     def _visit(self, node: ast.AST, path: List[ast.AST]) -> T:
         """Visit a node."""
@@ -102,6 +101,10 @@ class _ASTEval(_EvalBaseVisitor[ASTOrLiteralValue]):
     # Custom implementation of NodeVisitor which accept one extra argument
     # to it's visti() method.
 
+    def __init__(self, state: '_MinimalState', raise_on_ambiguity: bool = False) -> None:
+        super().__init__(state)
+        self._raise_on_ambiguity = raise_on_ambiguity
+
     def _returns(self, ob: ast.stmt, _: Any) -> ast.stmt:
         return ob
 
@@ -124,7 +127,7 @@ class _ASTEval(_EvalBaseVisitor[ASTOrLiteralValue]):
             raise StaticTypeError(namespace, expected="Module or ClassDef", 
                                   filename=self._state.get_filename(node))
 
-    def visit_Name_Load(self:_EvalBaseVisitor, node: ast.Name, path: List[ast.AST]) -> ASTOrLiteralValue:
+    def visit_Name_Load(self, node: ast.Name, path: List[ast.AST]) -> ASTOrLiteralValue:
         # TODO: integrate with reachability analysis
         # Use goto to compute the value of this symbol
         name_def = self._state.goto_def(node,
@@ -171,7 +174,7 @@ class _GotoDefinition(_ASTEval):
         return v
 
     def visit_alias(
-        self: _EvalBaseVisitor, node: ast.alias, path: List[ast.AST]
+        self: _ASTEval, node: ast.alias, path: List[ast.AST]
     ) -> ASTOrLiteralValue:
         name_def = self._state.goto_def(node, 
                     raise_on_ambiguity=self._raise_on_ambiguity)

@@ -9,11 +9,10 @@ from inspect import Parameter
 from .._lib.model import Type, Scope, Def, Cls, Arg, LazySeq
 from .._lib.shared import node2dottedname, ast_node_name
 from .._lib.assignment import get_stored_value
-from .._lib.exceptions import (NodeLocation, StaticAmbiguity, StaticException, 
-                               StaticNameError, StaticAttributeError, 
-                               StaticValueError, StaticCodeUnsupported,
-                               StaticStateIncomplete, )
-from .asteval import _EvalBaseVisitor, _GotoDefinition
+from .._lib.exceptions import (NodeLocation, StaticException, 
+                               StaticNameError,
+                               StaticValueError, StaticCodeUnsupported,)
+from .asteval import _EvalBaseVisitor
 
 from beniget.beniget import BuiltinsSrc # type: ignore
 
@@ -400,9 +399,7 @@ class _TypeInference(_EvalBaseVisitor['Type|None']):
             raise StaticValueError(node, 
                 f'cannot find definition of name {ast_node_name(node)!r}: {str(e)}', 
                 filename=self._state.get_filename(node)) from e
-        if len(name_defs)>1 and self._raise_on_ambiguity:
-            raise StaticAmbiguity(node, f"{len(name_defs)} potential definitions found", 
-                                      filename=self._state.get_filename(node))
+
         newtype = Type.Any
         for d in name_defs:
             other = self.get_type(d.node, path)
@@ -535,11 +532,6 @@ class _TypeInference(_EvalBaseVisitor['Type|None']):
             except StaticException:
                 continue
 
-            if len(defs) > 1 and self._raise_on_ambiguity:
-                raise StaticAmbiguity(
-                    node, f"{len(defs)} potential definitions found",
-                    filename=self._state.get_filename(node)
-                )
             attrdefs.extend(defs)
             
         if len(attrdefs) == 0:
