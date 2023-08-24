@@ -124,7 +124,7 @@ class _ASTEval(_EvalBaseVisitor[ASTOrLiteralValue]):
             raise StaticTypeError(namespace, expected="Module or ClassDef", 
                                   filename=self._state.get_filename(node))
 
-    def visit_Name_Load(self, node: ast.Name, path: List[ast.AST]) -> ASTOrLiteralValue:
+    def visit_Name_Load(self:_EvalBaseVisitor, node: ast.Name, path: List[ast.AST]) -> ASTOrLiteralValue:
         # TODO: integrate with reachability analysis
         # Use goto to compute the value of this symbol
         name_def = self._state.goto_def(node,
@@ -171,7 +171,7 @@ class _GotoDefinition(_ASTEval):
         return v
 
     def visit_alias(
-        self: _ASTEval, node: ast.alias, path: List[ast.AST]
+        self: _EvalBaseVisitor, node: ast.alias, path: List[ast.AST]
     ) -> ASTOrLiteralValue:
         name_def = self._state.goto_def(node, 
                     raise_on_ambiguity=self._raise_on_ambiguity)
@@ -193,8 +193,8 @@ class _GotoDefinition(_ASTEval):
         # TODO: refactor this code
         try:
             assign = self._state.get_parent_instance(node, (ast.Assign, ast.AnnAssign))
-        except:
-            raise StaticCodeUnsupported(node, "name", filename=self._state.get_filename(node))
+        except StaticException as e:
+            raise StaticCodeUnsupported(node, "name", filename=self._state.get_filename(node)) from e
         value = get_stored_value(node, assign=assign) # type:ignore[arg-type]
         if node2dottedname(value) is not None:
             # it's an alias, so follow-it

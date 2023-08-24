@@ -46,7 +46,7 @@ T = TypeVar("T", bound=ast.AST)
 
 class _Msg(Protocol):
     def __call__(
-        self, msg: str, ctx: Optional[ast.AST] = None, thresh: int = 0
+        self, msg: str, ctx: Optional[ast.AST|Def|NodeLocation] = None, thresh: int = 0
     ) -> None:
         ...
 
@@ -426,11 +426,6 @@ class Type:
     It's set to an unknown location by default so special 
     types can be created dynamically. 
     """
-
-    # TODO:
-    # property: is_class: whether the Type represents a class, i.e not a special form Union/Literal/etc...
-    #   A Protocol is a normal class
-    # property: bases, mro, subclasses
     
     # Special types:
     _UNION: ClassVar = (('typing', 'Union'), )
@@ -581,33 +576,3 @@ Type.Literal = Type('Literal', 'typing')
 Type.Type = Type('Type', 'typing')
 Type.Callable = Type('Callable', 'typing')
 Type.Module = Type('ModuleType', 'types')
-
-# class UnionType(Type):
-#     ...
-
-# class LiteralType(Type):
-#     ...
-
-# class FunctionLikeType(Type):
-#     ...
-
-# class CallableType(FunctionLikeType):
-#     ...
-
-# class OverloadedType(FunctionLikeType):
-#     ...
-
-# class AnyType(Type):
-#     ...
-
-# class OpenScopeType(Type):
-#     ...
-
-# class ModuleType(OpenScopeType):
-#     ...
-
-# class InstanceType(OpenScopeType):
-#     ...
-
-# class TypeType(OpenScopeType):
-#     ...

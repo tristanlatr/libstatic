@@ -215,9 +215,12 @@ class TestTypeInferStubs(TestCase):
         ('my_list = list\nmy_list(x)',   'list'),
         ('from datetime import *\ndate(1,2,3)',  'date'),
         # ('def g(x): return 0\ng(x)',         'int'),
-        # ('from pathlib import Path\nx:str|Path=...\nx.as_posix()', 'str'),
-        # ('x = 13\nx',            'int'),
-        # ('x = 1\nif x:\n  x=True\nx',            'int | bool'),
+        ('from pathlib import Path\nx:str|Path=...\nx.as_posix()', 'str'),
+        ('from pathlib import Path,Patate\nx:str|Path|Patate=...\nx.as_posix()', 'str'),
+        ('x = 13\nx',            'int'),
+        ('import typing as t; x:t.Literal[13] = ...\nx.real',            'int'),
+        ('import typing as t; x:t.Literal[None] = ...\nx',            'Literal[None]'),
+        ('x = 1\nif x:\n  x=True\nx',            'int | bool'),
         
         ]
 

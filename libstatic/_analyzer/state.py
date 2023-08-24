@@ -1518,22 +1518,22 @@ class Project:
         return cast(MutableState, self.state).add_typeshed_module(modname)
 
     # TODO: introduce a generic reporter object used by System.msg, Documentable.report and here.
-    def msg(self, msg: str, ctx: Optional[ast.AST] = None, thresh: int = 0) -> None:
+    def msg(self, msg: str, ctx: Optional[ast.AST|Def|NodeLocation] = None, thresh: int = 0) -> None:
         """
         Log a message about this ast node.
         """
         if self.options.verbosity < thresh:
             return
         context = ""
-        if ctx:
-            if isinstance(ctx, Def):
-                ctx = ctx.node
-            filename = self.state.get_filename(ctx)
-            lineno = getattr(ctx, "lineno", "?")
-            col_offset = getattr(ctx, "col_offset", None)
-            if col_offset:
-                context = f"{filename or '<unknown>'}:{lineno}:{col_offset}: "
+        if ctx is not None:
+            if not isinstance(ctx, NodeLocation):
+                location = self.state.get_location(ctx)
             else:
-                context = f"{filename or '<unknown>'}:{lineno}: "
+                location = ctx
+
+            if location.col_offset:
+                context = f"{location.filename or '<unknown>'}:{location.lineno or '?'}:{location.col_offset}: "
+            else:
+                context = f"{location.filename or '<unknown>'}:{location.lineno or '?'}: "
 
         print(f"{context}{msg}", file=self.options.outstream)
