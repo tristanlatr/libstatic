@@ -4,8 +4,9 @@ import ast
 from dataclasses import dataclass, field
 from itertools import chain
 from typing import Any, Callable, Iterator, Sequence, Tuple, TypeVar, Union, List, TYPE_CHECKING
+from inspect import Parameter
 
-from .._lib.model import Type, Scope, Def, Cls
+from .._lib.model import Type, Scope, Def, Cls, Arg, LazySeq
 from .._lib.shared import node2dottedname, ast_node_name
 from .._lib.assignment import get_stored_value
 from .._lib.exceptions import (NodeLocation, StaticAmbiguity, StaticException, 
@@ -154,15 +155,17 @@ class _AnnotationToType(ast.NodeVisitor):
         left = self.visit(node.value)
         if left.is_literal:
             self.in_literal = True
-        
-        if isinstance(node.slice, ast.Tuple):
-            args = [self.visit(el) for el in node.slice.elts]
-            left = left._replace(args=args)
-        else:
-            arg = self.visit(node.slice)
-            if arg:
-                left = left._replace(args=[arg])    
-        # nested literal are considered invalid annotations
+        try:
+            if isinstance(node.slice, ast.Tuple):
+                args = [self.visit(el) for el in node.slice.elts]
+                left = left._replace(args=args)
+            else:
+                arg = self.visit(node.slice)
+                if arg:
+                    left = left._replace(args=[arg])    
+            # nested literal are considered invalid annotations
+        except StaticException as e:
+            self.state.msg(e.msg(), ctx=e.node)
         if left.is_literal:
             self.in_literal = False
         return left
@@ -413,9 +416,30 @@ class _TypeInference(_EvalBaseVisitor['Type|None']):
 
     visit_alias = visit_Name_Load
 
-    def visit_arg(self, node, path):
-        ...
-    
+    def visit_arg(self, node:ast.arg, path:list[ast.AST]) -> Type|None:
+        arg_def:Arg = self._state.get_def(node) # type:ignore
+        if arg_def.node.annotation is not None:
+            try:
+                annotation = _AnnotationToType(self._state, 
+                            LazySeq(self._state.get_all_enclosing_scopes(node))[1]
+                            ).visit(arg_def.node.annotation)
+            except StaticException:
+                pass
+            else:
+                if arg_def.kind == Parameter.VAR_POSITIONAL:
+                    annotation = Type('tuple', args=[annotation, Type('...')])
+                if arg_def.kind == Parameter.VAR_KEYWORD:
+                    annotation = Type('dict', args=[Type('str'), annotation])
+                return annotation
+        if arg_def.default is not None and \
+            getattr(arg_def.default, 'value', object()) is not None:
+            return self.get_type(arg_def.default, path)
+        if arg_def.kind == Parameter.VAR_POSITIONAL:
+            return Type('tuple')
+        if arg_def.kind == Parameter.VAR_KEYWORD:
+            return Type('dict', args=[Type('str'), Type.Any])
+        return None
+
     def _replace_typevars_by_any(self, type:Type) -> Type:
         """
         Sine we don't support typevars at the moment, we simply replace them by Any :/

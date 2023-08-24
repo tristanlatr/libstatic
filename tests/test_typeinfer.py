@@ -259,6 +259,7 @@ class TestTypeInferStubs(TestCase):
     'super().something()',
     'len(x).something()',
     '[].__getitem__(x)',
+    '[1][2]',
     'x or y',
     'x and y',
     'x = None; x = b(); x',
@@ -274,66 +275,70 @@ def test_cannot_infer_expr(expr):
     assert t is None
 
 
-# @pytest.mark.parametrize('sig, type', [
-#     ('a: int', 'int'),
-#     ('b, a: int, c', 'int'),
-#     ('b: float, a: int, c: float', 'int'),
-#     ('*, a: int', 'int'),
-#     ('a: int, /', 'int'),
-#     ('a: list', 'list'),
+@pytest.mark.parametrize('sig, type', [
+    ('a: int', 'int'),
+    ('b, a: int, c', 'int'),
+    ('b: float, a: int, c: float', 'int'),
+    ('*, a: int', 'int'),
+    ('a: int, /', 'int'),
+    ('a: list', 'list'),
 
-#     # *args and **kwargs
-#     ('*a: int', 'tuple[int]'),
-#     ('*a: garbage', 'tuple'),
-#     ('*a', 'tuple'),
-#     ('**a: int', 'dict[str, int]'),
-#     ('**a: garbage', 'dict[str, Any]'),
-#     ('**a', 'dict[str, Any]'),
+    # *args and **kwargs
+    ('*a: int', 'tuple[int, ...]'),
+    ('*a: garbage', 'tuple'),
+    ('*a', 'tuple'),
+    ('**a: int', 'dict[str, int]'),
+    ('**a: garbage', 'dict[str, Any]'),
+    ('**a', 'dict[str, Any]'),
 
-#     # parametrized generics
-#     ('a: list[str]', 'list[str]'),
-#     ('a: list[garbage]', 'list'),
-#     ('a: dict[str, int]', 'dict[str, int]'),
-#     ('a: tuple[str, int, float]', 'tuple[str, int, float]'),
-#     ('a: tuple[str, garbage]', 'tuple'),
-# ])
-# def test_infer_type_from_signature(sig, type):
-#     given = f"""
-#         def f({sig}):
-#             return a
-#     """
-#     mod = ast.parse(dedent(given))
-#     node = mod.body[-1].body[-1]
-#     assert isinstance(node, ast.Return)
+    # parametrized generics
+    ('a: list[str]', 'list[str]'),
+    ('a: list[garbage]', 'list'),
+    ('a: dict[str, int]', 'dict[str, int]'),
+    ('a: tuple[str, int, float]', 'tuple[str, int, float]'),
+    ('a: tuple[str, garbage]', 'tuple'),
+
+    # from default value
+    ('a=2', 'int'),
+])
+def test_infer_type_from_signature(sig, type):
+    given = f"""
+        def f({sig}):
+            return a
+    """
+    mod = ast.parse(dedent(given))
+    node = mod.body[-1].body[-1]
+    assert isinstance(node, ast.Return)
     
-#     p = Project()
-#     p.add_module(mod, 'test')
-#     p.analyze_project()
-#     t = p.state.get_type(node.value)
+    p = Project()
+    p.add_module(mod, 'test')
+    p.analyze_project()
+    t = p.state.get_type(node.value)
 
-#     assert t is not None
-#     assert t.annotation == type
+    assert t is not None
+    assert t.annotation == type
 
 
-# @pytest.mark.parametrize('sig', [
-#     '',
-#     'b',
-#     'b: int',
-#     'a',
-#     'a: garbage',
-#     'a: garbage[int]',
-# ])
-# def test_cannot_infer_type_from_signature(sig):
-#     given = f"""
-#         def f({sig}):
-#             return a
-#     """
-#     mod = ast.parse(dedent(given))
-#     node = mod.body[-1].body[-1]
-#     assert isinstance(node, ast.Return)
+@pytest.mark.parametrize('sig', [
+    '',
+    'b',
+    'b: int',
+    'a',
+    'a: garbage',
+    'a: garbage[int]',
+    'a=None',
+])
+def test_cannot_infer_type_from_signature(sig):
+    given = f"""
+        def f({sig}):
+            return a
+    """
+    mod = ast.parse(dedent(given))
+    node = mod.body[-1].body[-1]
+    assert isinstance(node, ast.Return)
     
-#     p = Project()
-#     p.add_module(mod, 'test')
-#     t = p.state.get_type(node.value)
+    p = Project()
+    p.add_module(mod, 'test')
+    t = p.state.get_type(node.value)
 
-#     assert t is None
+    assert t is None
