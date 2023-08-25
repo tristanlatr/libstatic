@@ -412,7 +412,7 @@ class Type:
     args: Sequence['Type'] = attrs.ib(factory=tuple, kw_only=True)
     """Arguments of a generic type if any.
 
-    For example, `(str, int)` if the type is `dict[str, int]`.
+    For example, ``(str, int`)` if the type is ``dict[str, int]``.
     """
     
     if not TYPE_CHECKING:
@@ -496,7 +496,7 @@ class Type:
         """Represent the type as a string suitable for type annotations.
 
         The string is a valid Python 3.10 expression.
-        For example, `str | dict[str, Any]`.
+        For example, ``str | dict[str, Any]``.
         """
         if self.unknown:
             return 'Any'
@@ -511,7 +511,7 @@ class Type:
         """Get a union of the two given types.
 
         If any of the types is unknown, the other is returned.
-        When possible, the type is simplified. For instance, `int | int` will be
+        When possible, the type is simplified. For instance, ``int | int`` will be
         simplified to just `int`.
         """
         if self.unknown:

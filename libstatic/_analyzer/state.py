@@ -1269,6 +1269,14 @@ class State(_MinimalState):
 
         While *basic* type inference is provided, libstatic does 
         not carry the complexity to support full-featured type-checking.
+
+        Notably missing features includes:
+            - Overload matching
+            - Type variable support
+            - Type aliases detection
+            - TypedDict and a lot more of the typing features
+
+        Limited support for some of these items might be added in the future. 
         """
         if isinstance(node, Def):
             node = node.node
