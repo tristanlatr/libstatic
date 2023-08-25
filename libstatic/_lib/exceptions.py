@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 import ast
 import abc
 import attr as attrs
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
-    from .model import Scope
+    from .model import Scope, Def, Type
 
 from .shared import ast_node_name
 
@@ -18,10 +20,14 @@ class NodeLocation:
     col_offset:'int|None' = attrs.ib(default=None, eq=False)
 
     @classmethod
-    def make(cls, thing:object, filename:'str|None'=None) -> 'NodeLocation':
+    def make(cls, thing:ast.AST|Def|Type|object, filename:'str|None'=None) -> 'NodeLocation':
         """
         :param thing: A definition or an ast node.
         """
+        if thing.__class__.__name__ == 'Type':
+            loc = getattr(thing, 'location', None)
+            if loc:
+                return loc
         node = getattr(thing, 'node', thing)
         if not isinstance(node, ast.AST):
             return NodeLocation(filename=filename)
@@ -55,7 +61,7 @@ class StaticException(Exception, abc.ABC):
     Base exception for the library.
     """
     
-    node: object
+    node: ast.AST|Def|Type|object
     desrc: Optional[str] = None
     filename: Optional[str] = attrs.ib(kw_only=True, default=None)
 
@@ -74,9 +80,13 @@ class StaticNameError(StaticException):
     """
     Unbound name.
     """
+    node:ast.Name|str
     desrc: None = attrs.ib(init=False, default=None)
     def msg(self) -> str:
-        name = ast_node_name(self.node)
+        if isinstance(self.node, str):
+            name = self.node
+        else:
+            name = ast_node_name(self.node)
         return f"Unbound name {name!r}"
 
 @attrs.s
@@ -118,7 +128,7 @@ class StaticValueError(StaticException):
     """
     Can't make sens of analyzed syntax tree.
     """
-    node: ast.AST
+    node: ast.AST|Type
 
     def msg(self) -> str:
         return f"Error, {self.desrc}"
@@ -129,7 +139,7 @@ class StaticStateIncomplete(StaticException):
     Missing required information about analyzed tree.
     Shouldn't be raised under normal usage of the library.
     """
-
+    node:object
     def msg(self) -> str:
         return f"Incomplete state, {self.desrc}"
 

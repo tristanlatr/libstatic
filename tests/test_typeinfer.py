@@ -35,18 +35,18 @@ from libstatic._lib.shared import StmtVisitor, unparse
         ("source", "expected"), 
         [
         ("var: None", ["None",""]),
-        ("import typing as t\nvar: t.Generic[t.T]",             ["Generic[T]","typing"]), 
-        ("import typing as t\nvar: t.Generic[t.T, t._KV]",      ["Generic[T, _KV]","typing"]),
-        ("import typing as t\nfrom typing import Generic\nvar: Generic[t.T]",       ["Generic[T]","typing"]),
-        ("import typing as t\nvar: t.Tuple[t.T,...]",         ["Tuple[T, ...]","typing"]), 
-        ("import typing as t\nfrom mod import _model as m\nfrom typing import Optional\nvar: m.TreeRoot[Optional[t.T]]",      ["TreeRoot[Optional[T]]","typing,mod._model"]),
-        ("import typing as t\nfrom mod import _model as m\nfrom typing import Optional\nvar: 'm.TreeRoot[Optional[t.T]]'",        ["TreeRoot[Optional[T]]","typing,mod._model"]),
+        ("import typing as t\nvar: t.Generic[t.T]",             ["Generic[T]",""]), 
+        ("import typing as t\nvar: t.Generic[t.T, t._KV]",      ["Generic[T, _KV]",""]),
+        ("import typing as t\nfrom typing import Generic\nvar: Generic[t.T]",       ["Generic[T]",""]),
+        ("import typing as t\nvar: t.Tuple[t.T,...]",         ["tuple[T, ...]",""]), 
+        ("import typing as t\nfrom mod import _model as m\nfrom typing import Optional\nvar: m.TreeRoot[Optional[t.T]]",      ["TreeRoot[Optional[T]]",""]),
+        ("import typing as t\nfrom mod import _model as m\nfrom typing import Optional\nvar: 'm.TreeRoot[Optional[t.T]]'",        ["TreeRoot[Optional[T]]",""]),
         ("var: dict[str, str]", ["dict[str, str]",'']),
         ("var: dict[str, str] | dict[str, int]", ["dict[str, str] | dict[str, int]",'']),
-        ("import typing as t\nvar: t.Union[dict[str, str], dict[str, int]]", ["dict[str, str] | dict[str, int]",'typing']),
-        ("import typing as t\nvar: t.Literal[True, False]", ["Literal[True, False]",'typing']),
-        ("import typing as t\nvar: t.Literal['string']", ["Literal['string']",'typing']),
-        ("import typing as t\nvar: dict[t.Type, t.Callable[[t.Any], t.Type]]", ["dict[Type, Callable[Any, Type]]",'typing'])
+        ("import typing as t\nvar: t.Union[dict[str, str], dict[str, int]]", ["dict[str, str] | dict[str, int]",'']),
+        ("import typing as t\nvar: t.Literal[True, False]", ["Literal[True, False]",'']),
+        ("import typing as t\nvar: t.Literal['string']", ["Literal['string']",'']),
+        ("import typing as t\nvar: dict[t.Type, t.Callable[[t.Any], t.Type]]", ["dict[Type, Callable[Any, Type]]",''])
         ]
     )
 def test_annotation_to_type(source:str, expected:str) -> None:
@@ -168,6 +168,7 @@ def test_annotation_to_error(source:str) -> None:
     ('(1,2,3)[1]',      'int'),
     ('{"key":1.14}["key"]',      'float'),
     ('c:dict[str, tuple[dict[str, str],...]]\nc[x][3][z]',      'str'),
+    ('import typing as t;c:t.Dict[str, t.Tuple[t.Dict[str, str],...]]\nc[x][3]',      'dict[str, str]'),
     ('c:tuple[int, bytes, str, bool|None]\nc[1]',      'bytes'),
     ('c:tuple[int, bytes, str, bool|None]\nc[x]',      'int | bytes | str | bool | None'),
 

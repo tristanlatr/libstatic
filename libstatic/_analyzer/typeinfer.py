@@ -9,10 +9,11 @@ from typing import (
     Union,
     List,
     TYPE_CHECKING,
+    cast,
 )
 from inspect import Parameter
 
-from .._lib.model import Type, Scope, Def, Cls, Arg, LazySeq
+from .._lib.model import Type, Scope, Def, Mod, Func, Cls, Arg, LazySeq, NameDef
 from .._lib.shared import node2dottedname, ast_node_name
 from .._lib.assignment import get_stored_value
 from .._lib.exceptions import (
@@ -28,9 +29,6 @@ from beniget.beniget import BuiltinsSrc  # type: ignore
 
 if TYPE_CHECKING:
     from .state import State
-
-import attr
-
 
 class _AnnotationStringParser(ast.NodeTransformer):
     """When given an expression, the node returned by L{ast.NodeVisitor.visit()}
@@ -120,6 +118,17 @@ class _AnnotationToType(ast.NodeVisitor):
     # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
     # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+    _redirects = {
+        'typing.Dict'           :   'builtins.dict', 
+        'typing.Tuple'          :   'builtins.tuple',
+        'typing.List'           :   'builtins.list',
+        'typing.Set'            :   'builtins.set',
+        'typing.FrozenSet'      :   'builtins.frozenset',
+        'typing.Text'           :   'builtins.str',
+        'typing.DefaultDict'    :   'collections.defaultdict',
+        'typing.NamedTuple'     :   'collections.namedtuple', 
+    }
+
     def __init__(self, state: State, scope: Scope) -> None:
         self.state = state
         self.scope = scope
@@ -140,8 +149,9 @@ class _AnnotationToType(ast.NodeVisitor):
             self.scope, node.id
         )
         if qualname:
+            qualname = self._redirects.get(qualname, qualname)
             module, _, name = qualname.rpartition(".")
-            return Type(name, module, location=self.state.get_location(node))
+            return Type(name, module)
             # TODO: This ignores the fact that the parent of the imported symbol migt be a class.
         elif node.id in BuiltinsSrc:
             # the builtin module might not be in the system
@@ -167,8 +177,9 @@ class _AnnotationToType(ast.NodeVisitor):
             self.scope, ".".join(dottedname)
         )
         if qualname:
+            qualname = self._redirects.get(qualname, qualname)
             module, _, name = qualname.rpartition(".")
-            return Type(name, module, location=self.state.get_location(node))
+            return Type(name, module)
             # TODO: This ignores the fact that the parent of the imported symbol migt be a class.
         else:
             # TODO: Leave a warning, the name is unbound
@@ -291,7 +302,9 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
                 raise
         return None
 
-    # AST expressions
+    #########################################
+    ###      expressions                  ###
+    #########################################
 
     def visit_Constant(self, node: ast.Constant, path: list[ast.AST]) -> Type:
         if node.value is None:
@@ -300,8 +313,6 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
 
     def visit_JoinedStr(self, node: ast.JoinedStr, path: list[ast.AST]) -> Type:
         return Type("str")
-
-    # container types
 
     def visit_List(self, node: ast.List | ast.Set, path: list[ast.AST]) -> Type:
         clsname = type(node).__name__.lower()
@@ -377,13 +388,14 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
         rt = self.get_type(node.right, path)
         if rt is None:
             return None
-        if lt.name == rt.name == "int":
+        if lt.qualname == rt.qualname == "builtins.int":
             if isinstance(node.op, ast.Div):
                 return Type("float")
             return lt
-        if lt.name in ("float", "int") and rt.name in ("float", "int"):
+        if lt.qualname in ("builtins.float", "builtins.int") and \
+            rt.qualname in ("builtins.float", "builtins.int"):
             return Type("float")
-        if lt.name == rt.name:
+        if lt.qualname == rt.qualname:
             return rt
         return None
 
@@ -416,6 +428,63 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
         self, node: ast.GeneratorExp, path: list[ast.AST]
     ) -> Type | None:
         return Type("Iterator", "typing")
+
+    def visit_Call(self, node: ast.Call, path: list[ast.AST]) -> Type | None:
+        assert node.func
+        functype = self.get_type(node.func, path)
+        if functype:
+            if functype.is_type and len(functype.args) == 1:
+                return functype.args[0]
+            if functype.is_callable and len(functype.args) == 2:
+                # TODO: Find and match overloads
+                returntype = functype.args[1]
+                if returntype.unknown:
+                    return None
+                return returntype
+            raise StaticValueError(
+                node,
+                f"cannot infer call result of type: {functype!r}",
+                filename=self._state.get_filename(node),
+            )
+        return None
+
+    def visit_Subscript(self, node: ast.Subscript, path: list[ast.AST]) -> Type | None:
+        assert node.value
+        valuetype = self.get_type(node.value, path)
+        if valuetype is None:
+            return None
+        if valuetype.qualname in ("builtins.str", "builtins.bytes"):
+            return valuetype
+        if valuetype.qualname in ("builtins.dict",) and len(valuetype.args) == 2:
+            return valuetype.args[1]
+        if valuetype.qualname in ("builtins.list",) and len(valuetype.args) == 1:
+            return valuetype.args[0]
+        if valuetype.qualname in ("builtins.tuple",):
+            if len(valuetype.args) == 0:
+                return None
+            if len(valuetype.args) == 2 and valuetype.args[1].annotation == "...":
+                return valuetype.args[0]
+            try:
+                indexvalue = self._state.literal_eval(node.slice)
+            except StaticException:
+                pass
+            else:
+                if not isinstance(indexvalue, int):
+                    return None
+                try:
+                    return valuetype.args[indexvalue]
+                except IndexError:
+                    return None
+
+            newtype = Type.Any
+            for t in valuetype.args:
+                newtype = newtype.merge(t)
+            return newtype
+        return None
+    
+    #########################################
+    ###      jumps                        ###
+    #########################################
 
     def visit_Name_Store(
         self, node: ast.Name | ast.Attribute, path: list[ast.AST]
@@ -513,60 +582,9 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
             return None
         return self._get_type_attribute(valuetype, node.attr, node, path)
 
-    def visit_Call(self, node: ast.Call, path: list[ast.AST]) -> Type | None:
-        assert node.func
-        functype = self.get_type(node.func, path)
-        if functype:
-            if functype.is_type and len(functype.args) == 1:
-                return functype.args[0]
-            if functype.is_callable and len(functype.args) == 2:
-                # TODO: Find and match overloads
-                returntype = functype.args[1]
-                if returntype.unknown:
-                    return None
-                return returntype
-            raise StaticValueError(
-                node,
-                f"cannot infer call result of type: {functype.annotation}",
-                filename=self._state.get_filename(node),
-            )
-        return None
-
-    def visit_Subscript(self, node: ast.Subscript, path: list[ast.AST]) -> Type | None:
-        assert node.value
-        valuetype = self.get_type(node.value, path)
-        if valuetype is None:
-            return None
-        if valuetype.qualname in ("str", "bytes"):
-            return valuetype
-        if valuetype.qualname in ("dict",) and len(valuetype.args) == 2:
-            return valuetype.args[1]
-        if valuetype.qualname in ("list",) and len(valuetype.args) == 1:
-            return valuetype.args[0]
-        if valuetype.qualname in ("tuple",):
-            if len(valuetype.args) == 0:
-                return None
-            if len(valuetype.args) == 2 and valuetype.args[1].annotation == "...":
-                return valuetype.args[0]
-            try:
-                indexvalue = self._state.literal_eval(node.slice)
-            except StaticException:
-                pass
-            else:
-                if not isinstance(indexvalue, int):
-                    return None
-                try:
-                    return valuetype.args[indexvalue]
-                except IndexError:
-                    return None
-
-            newtype = Type.Any
-            for t in valuetype.args:
-                newtype = newtype.merge(t)
-            return newtype
-        return None
-
-    # statements
+    #########################################
+    ###      statements                   ###
+    #########################################
 
     def visit_FunctionDef(
         self, node: ast.FunctionDef | ast.AsyncFunctionDef, path: list[ast.AST]
@@ -587,20 +605,21 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
             for n in node.decorator_list
         ):
             return returntype
-        return Type.Callable.add_args(args=(argstype, returntype))._replace(
-            location=self._state.get_location(node)
+        return Type.Callable.add_args(args=(argstype, returntype)).add_meta(
+            qualname=self._state.get_qualname(node),
+            location=self._state.get_location(node), 
         )
 
     visit_AsyncFunctionDef = visit_FunctionDef
 
     def visit_Module(self, node: ast.Module, path: list[ast.AST]) -> Type:
         modname = self._state.get_qualname(node)
-        return Type.Module.add_args(
-            args=(Type(modname, location=self._state.get_location(node)),)
-        )
+        return Type.ModuleType.add_meta(
+            qualname=modname, 
+            location=self._state.get_location(node))
 
     def visit_ClassDef(self, node: ast.ClassDef, path: list[ast.AST]) -> Type:
-        return Type.ClsType.add_args(
+        return Type.TypeType.add_args(
             args=(Type(
                     node.name,
                     self._state.get_qualname(self._state.get_enclosing_scope(node)),
@@ -612,13 +631,22 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
     #########################################
 
     def _get_type_attribute(
-        self, valuetype: Type, attr: str, ctx: ast.AST, path: list[ast.AST]
+        self, valuetype: Type, 
+        attr: str, 
+        ctx: ast.AST, 
+        path: list[ast.AST]
     ) -> Type | None:
+        """
+        Get the type of an attribute access ``attr`` on the given ``valuetype``.
+        """
         scopedefs: List[Def] = []
         attrdefs: List[Def] = []
-        for type, definition in self._unwrap_typedefs_for_attribute_access(
+        for type, definition in self._flatten_typedefs(
             valuetype, set()
         ):
+            if not isinstance(definition, (Mod, Cls)):
+                continue
+
             scopedefs.append(definition)
             try:
                 defs = self._state.get_attribute( # type: ignore
@@ -630,12 +658,26 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
             attrdefs.extend(defs)
 
         if len(attrdefs) == 0:
-            raise StaticValueError(
-                ctx,
-                f"attribute {attr} not found "
-                f'in any of {[f"{d.name()}:{self._state.get_location(d)}" for d in scopedefs]}',
-                filename=self._state.get_filename(ctx),
+            if len(scopedefs)>1:
+                raise StaticValueError(
+                    ctx,
+                    f"attribute {attr} not found "
+                    f'in any of {[f"{d.name()}:{self._state.get_location(d)}" for d in scopedefs]}',
+                    filename=self._state.get_filename(ctx),
+                )
+            elif len(scopedefs)==1:
+                raise StaticValueError(
+                    ctx,
+                    f"attribute {attr} not found "
+                    f'in {next(f"{d.name()}:{self._state.get_location(d)}" for d in scopedefs)}',
+                    filename=self._state.get_filename(ctx),
             )
+            else:
+                raise StaticValueError(
+                    ctx,
+                    f"no valid attribute access namespace found on type {valuetype.annotation}, "
+                    f"can't look for attribute {attr}",
+                    filename=self._state.get_filename(ctx),)
 
         newtype = Type.Any
         for definition in attrdefs:
@@ -662,35 +704,74 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
         """
         Sine we don't support typevars at the moment, we simply replace them by Any :/
         """
+        # lectures about unification of typevars: 
+        # https://stackoverflow.com/questions/65362422/type-unification-algorithm-in-python-how-to-reject-unifya-b-int-int
+        # https://gist.github.com/dhilst/b5b198af93302ade61ccbfe3b094621a
+        # https://eli.thegreenplace.net/2018/unification/
+        # https://github.com/caterinaurban/Typpete/blob/master/typpete/src/annotation_resolver.py
+        # https://github.com/pfalcon/picompile
+        # https://github.com/eliphatfs/typhon/tree/master/typhon/core/type_system/intrinsics
+        # https://github.com/serge-sans-paille/tog/blob/master/tog.py#L391
+
         for arg in type.args:
             ...
         return type
     
-    def _get_typedef(self, type:Type) -> Def:
-        # assume it's an instance of a type in the project
-        location = type.location
-        qualname = (
-            type.qualname if type.scope else f"builtins.{type.name}"
-        )
-        return self._get_typedef_from_qualname(qualname, location)
+    def _get_typedef(self, typ:Type) -> Def:
+        """
+        Find the definition of a Type.
+        """
+        # supports classes, modules and functions at the moment.
+        location:NodeLocation|None
+        qualname:str
+        if typ.is_module:
+            qualname = typ.get_meta('qualname', str) # type:ignore[assignment]
+            if qualname is None:
+                raise StaticValueError(typ, "no module definition")
+            hint:type[Def] = Mod
+            location = typ.get_meta('location', NodeLocation)
+        elif typ.is_callable:
+            qualname = typ.get_meta('qualname', str) # type:ignore[assignment]
+            if qualname is None:
+                raise StaticValueError(typ, "no function definition")
+            hint = Func
+            location = typ.get_meta('location', NodeLocation)
+        else:
+            location = typ.location
+            qualname = typ.qualname
+            hint = Cls
+            # this will not include type aliases
+        if hint is Mod:
+            m = self._state.get_module(qualname)
+            if m is None:
+                raise StaticValueError(typ, 
+                    f"unknown module {typ.name!r}",)
+            return m
+        else:
+            return self._find_typedef(qualname, hint=hint, location=location)
 
 
-    def _get_typedef_from_qualname(self, qualname: str, location: NodeLocation) -> Def:
+    def _find_typedef(self, qualname: str, *, hint:type[Def], location: NodeLocation|None=None) -> Def:
+        """
+        Get the definition of this type or raise an exception.
+        """
         try:
             defs = self._state.get_defs_from_qualname(qualname)
         except StaticException as e:
             raise StaticValueError(
-                e.node, f"unknown type: {qualname!r}: {e.msg()}", filename=e.filename
+                e.node, f"unknown symbol: {qualname!r}: {e.msg()}", filename=e.filename
             ) from e
-        if len(defs) > 1:
+        init_defs = defs
+        defs = list(filter(lambda d: isinstance(d, hint), defs))
+        if len(defs) == 0:
+            raise StaticValueError(
+             f"cannot find symbol {qualname!r} of type {hint.__name__} but found {len(init_defs)} other definitions",
+            )
+        if len(defs) > 1 and location is not None:
             try:
                 # try to find the class with the same location as the Type
                 # TODO: It might be a type alias?
-                defs = [
-                    next(filter(
-                            lambda d: isinstance(d, Cls)
-                            and location == self._state.get_location(d),
-                            defs,)) ]
+                defs = [next(filter(lambda d: location == self._state.get_location(d), defs,)) ]
             except StopIteration:
                 # should report warning here,
                 # fallback to another definiton that doesn't match the location.
@@ -699,26 +780,20 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
         *_, node = defs
         return node
 
-    def _unwrap_typedefs_for_attribute_access(
+    def _flatten_typedefs(
         self, valuetype: Type, seen: set[Type]
     ) -> Iterator[Tuple[Type, Def]]:
+        """
+        Get the definition of each resolvable 
+        top-level types in this type instance.
+        """
         if valuetype in seen:
             return
         seen.add(valuetype)
 
-        if valuetype.is_module and len(valuetype.args) == 1:
-            modname = valuetype.args[0].name
-            modnode = self._state.get_module(modname)
-            if modnode is None:
-                self._state.msg(
-                    f"cannot infer attribute of unknown module {modname!r}",
-                    ctx=valuetype.location,
-                )
-                return
-            yield valuetype, modnode
-        elif valuetype.is_union:
+        if valuetype.is_union:
             for subtype in valuetype.args:
-                nested = self._unwrap_typedefs_for_attribute_access(
+                nested = self._flatten_typedefs(
                     subtype, seen.copy()
                 )
                 while 1:
@@ -726,8 +801,8 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
                         yield next(nested)
                     except StopIteration:
                         break
-                    except StaticException:
-                        continue
+                    except StaticException as e:
+                        self._state.msg(f'incomplete union: {e.msg()}', ctx=e.location())
 
         elif valuetype.is_literal:
             try:
@@ -735,19 +810,15 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
             except Exception:
                 return
             if val is None:
-                yield valuetype, self._get_typedef_from_qualname(
-                    "types.NoneType", NodeLocation()
-                )
+                yield valuetype, self._find_typedef("types.NoneType", hint=Cls)
             else:
-                yield valuetype, self._get_typedef_from_qualname(
-                    f"builtins.{type(val).__name__}", NodeLocation()
-                )
-        elif valuetype.is_callable:
-            # doesn't support function attributes
-            return
-        elif valuetype.is_type and len(valuetype.args) == 1:
-            # Class variable attribute
-            yield valuetype, self._get_typedef(valuetype.args[0])
+                yield valuetype, self._find_typedef(f"builtins.{type(val).__name__}", hint=Cls)
+        elif valuetype.is_type:
+            if len(valuetype.args) == 1:
+                # Class variable attribute
+                yield valuetype, self._get_typedef(valuetype.args[0])
+            else:
+                self._state.msg(f'incomplete type: {valuetype.annotation}', ctx=valuetype.location)
         else:
             # assume it's an instance of a type in the project
             yield valuetype, self._get_typedef(valuetype)

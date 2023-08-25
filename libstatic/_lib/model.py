@@ -31,7 +31,7 @@ try:
 except ImportError:
     cached_property = property  # type: ignore
 
-from beniget.beniget import ordered_set  # type: ignore
+from beniget.beniget import ordered_set, BuiltinsSrc  # type: ignore
 import attr as attrs
 from .shared import ast_node_name
 from .exceptions import NodeLocation
@@ -387,6 +387,41 @@ class ChainMap(Mapping['_KT', '_VT']):
             d.update(dict.fromkeys(mapping))    # reuses stored hash values if possible
         return iter(d)
 
+class FrozenDict(Mapping['_KT', '_VT']):
+    # copied from https://stackoverflow.com/a/2704866
+
+    def __init__(self, *args:Any, **kwargs:Any):
+        self._d = dict(*args, **kwargs)
+        self._hash:int|None = None
+
+    def __iter__(self) -> Iterator[_KT]:
+        return iter(self._d)
+
+    def __len__(self) -> int:
+        return len(self._d)
+
+    def __getitem__(self, key:_KT) -> _VT:
+        return self._d[key]
+    
+    def __repr__(self) -> str:
+        return repr(self._d)
+    
+    def __str__(self) -> str:
+        return str(self._d)
+
+    def __hash__(self) -> int:
+        # It would have been simpler and maybe more obvious to 
+        # use hash(tuple(sorted(self._d.iteritems()))) from this discussion
+        # so far, but this solution is O(n). I don't know what kind of 
+        # n we are going to run into, but sometimes it's hard to resist the 
+        # urge to optimize when it will gain improved algorithmic performance.
+        if self._hash is None:
+            hash_ = 0
+            for pair in self.items():
+                hash_ ^= hash(pair)
+            self._hash = hash_
+        return self._hash
+
 # This class has beeen adapted from the 'astypes' project.
 @attrs.s(frozen=True, auto_attribs=True)
 class Type:
@@ -398,8 +433,8 @@ class Type:
     """The name of the type.
 
     For example, `Iterable` or `list`.
+    If this Type wraps a module this will the module name.
     """
-
     
     scope: str = ''
     """The scope where the type is defined. This is often a module, 
@@ -426,10 +461,20 @@ class Type:
     It's set to an unknown location by default so special 
     types can be created dynamically. 
     """
+
+    meta: Mapping[str, object] = attrs.ib(factory=FrozenDict)
+    """
+    Stores meta information when the type 
+    annotations are not expressive enougth.
+    Mainly used for intermediate inference steps.
+    Meta information should only be added to one of the special cased types.
+    """
+    if not TYPE_CHECKING:
+        meta: Mapping[str, object] = attrs.ib(factory=FrozenDict, converter=FrozenDict)
     
     # Special types:
     _UNION: ClassVar = (('typing', 'Union'), )
-    _LITERAL: ClassVar = (('typing', 'Literal'), 
+    _LITERAL: ClassVar = (('typing', 'Literal'),
                           (('typing_extensions', 'Literal')), )
     _TYPE: ClassVar = (('typing', 'Type'), )
     _CALLABLE: ClassVar = (('typing', 'Callable'), )
@@ -437,22 +482,22 @@ class Type:
 
     Any: ClassVar[Type]
     Union: ClassVar[Type]
-    Literal: ClassVar[Type]
+    TypeType: ClassVar[Type]
     Callable: ClassVar[Type]
-    Module: ClassVar[Type]
-    # must be declared last otherwise mypy complains
-    ClsType: ClassVar[Type]
-    
+    ModuleType: ClassVar[Type]
+    Literal: ClassVar[Type]
 
     @property
     def qualname(self) -> str:
         """The full name of the type.
 
-        For example, `typing.Iterable` or `list` (for builtins).
+        For example, `typing.Iterable` or `builtins.list`.
         """
         scope = self.scope
         if scope:
             return f"{scope}.{self.name}"
+        elif self.name in BuiltinsSrc:
+            return f"builtins.{self.name}"
         else:
             return self.name
 
@@ -544,13 +589,28 @@ class Type:
             args = (self, other)
         return Type.Union.add_args(args=args)
     
-    def _replace(self, **changes:str|Sequence[Type]|NodeLocation) -> Type:
+    def _replace(self, **changes:str|Sequence[Type]|NodeLocation|dict) -> Type:
         return attrs.evolve(self, **changes) # type:ignore
 
     def add_args(self, args: Iterable[Type]) -> Type:
-        """Get a copy of the Type with the given args added in the list of args.
+        """
+        Get a copy of the Type with the given args added in the list of args.
         """
         return self._replace(args=tuple(chain(self.args, args)))
+
+    def add_meta(self, **meta:object) -> Type:
+        """
+        Get a copy of the Type with the given meta informations updated.
+        """
+        return self._replace(meta={**self.meta, **meta})
+    
+    def get_meta(self, key:str, typ:type[_T]) -> _T|None:
+        val = self.meta.get(key)
+        if val is None:
+            return None
+        if not isinstance(val, typ):
+            raise TypeError(f'expected {typ}, got {type(val)}')
+        return val
 
     def supertype_of(self, other: 'Type') -> bool:
         # TODO: use a mapping of type-promotion instead of this.
@@ -576,6 +636,6 @@ class Type:
 Type.Any = Type('')
 Type.Union = Type('Union', 'typing')
 Type.Literal = Type('Literal', 'typing')
-Type.ClsType = Type('Type', 'typing')
+Type.TypeType = Type('Type', 'typing')
 Type.Callable = Type('Callable', 'typing')
-Type.Module = Type('ModuleType', 'types')
+Type.ModuleType = Type('ModuleType', 'types')

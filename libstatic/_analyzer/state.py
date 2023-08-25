@@ -24,7 +24,6 @@ from typing import (
     TextIO,
     Tuple,
     Union,
-    Type as typingType,
     TypeVar,
     cast,
     overload,
@@ -80,7 +79,7 @@ class _MinimalState(Protocol):
     def get_def(self, node:ast.AST) -> 'Def':...
     def goto_defs(self, node:ast.AST) -> Sequence['Def']:...
     def goto_def(self, node: ast.AST, raise_on_ambiguity: bool = False) -> Def:...
-    def get_parent_instance(self, node: ast.AST, cls: typingType[T]|Tuple[typingType[T],...]) -> T:...
+    def get_parent_instance(self, node: ast.AST, cls: type[T]|Tuple[type[T],...]) -> T:...
     def expand_expr(self, node:ast.AST) -> 'str|None':
         ...
 
@@ -732,7 +731,7 @@ class State(_MinimalState):
         except KeyError as e:
             raise StaticStateIncomplete(node, "no parents in the system") from e
 
-    def get_parent_instance(self, node: ast.AST | Def, cls: typingType[T]|Tuple[typingType[T],...]) -> T:
+    def get_parent_instance(self, node: ast.AST | Def, cls: type[T]|Tuple[type[T],...]) -> T:
         """
         Returns the first parent of the node in the syntax tree matching the given type info.
 
