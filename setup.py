@@ -11,6 +11,8 @@ setup(
         'typeshed_client',
         'beniget',
         'astor',
+        'json2ast', 
+        'ast2json',
         ],
     python_requires='>=3.7',
     )
