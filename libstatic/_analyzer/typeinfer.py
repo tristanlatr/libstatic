@@ -179,11 +179,19 @@ class _AnnotationToType(ast.NodeVisitor):
         if left.is_literal:
             self.in_literal = True
         try:
-            if isinstance(node.slice, ast.Tuple):
-                args = [self.visit(el) for el in node.slice.elts]
+            if sys.version_info < (3,9):
+                if isinstance(node.slice, ast.Index):
+                    slicevalue = node.slice.value
+                else:
+                    # raises
+                    self.generic_visit(node.slice) 
+            else:
+                slicevalue = node.slice
+            if isinstance(slicevalue, ast.Tuple):
+                args = [self.visit(el) for el in slicevalue.elts]
                 left = left._replace(args=args)
             else:
-                arg = self.visit(node.slice)
+                arg = self.visit(slicevalue)
                 if arg:
                     left = left._replace(args=[arg])
             # nested literal are considered invalid annotations
@@ -234,9 +242,6 @@ class _AnnotationToType(ast.NodeVisitor):
     visit_Num = visit_Constant
     visit_NameConstant = visit_Constant
 
-    if sys.version_info < (3,9):
-        def visit_Index(self, node: ast.Index) -> Type:
-            return self.visit(node.value)
 
     def visit_List(self, node: ast.List) -> Type:
         # ast.List is used in Callable, but we do not fully support it at the moment.
