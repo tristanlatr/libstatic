@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import sys
 from typing import (
     Any,
     Iterator,
@@ -221,8 +222,9 @@ class _AnnotationToType(ast.NodeVisitor):
     visit_Num = visit_Constant
     visit_NameConstant = visit_Constant
 
-    def visit_Index(self, node: ast.Index) -> Type:
-        return self.visit(node.value)
+    if sys.version_info < (3,9):
+        def visit_Index(self, node: ast.Index) -> Type:
+            return self.visit(node.value)
 
     def visit_List(self, node: ast.List) -> Type:
         # ast.List is used in Callable, but we do not fully support it at the moment.
