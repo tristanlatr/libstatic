@@ -522,22 +522,25 @@ class _TypeInference(_EvalBaseVisitor['Type|None']):
         valuetype = self.get_type(node.value, path)
         if valuetype is None:
             return None
+        return self._get_type_attribute(valuetype, node.attr, node, path)
+    
+    def _get_type_attribute(self, valuetype:Type, attr:str, ctx:ast.AST, path:list[ast.AST]) -> Type|None:
         scopedefs:List[Def] = []
         attrdefs:List[Def] = []
         for type, definition in self._unwrap_typedefs_for_attribute_access(valuetype, set()):
             scopedefs.append(definition)
             try:
                 defs = self._state.get_attribute(
-                    definition, node.attr, include_ivars=not type.is_type) # type: ignore
+                    definition, attr, include_ivars=not type.is_type) # type: ignore
             except StaticException:
                 continue
 
             attrdefs.extend(defs)
             
         if len(attrdefs) == 0:
-            raise StaticValueError(node, f'attribute {node.attr} not found '
+            raise StaticValueError(ctx, f'attribute {attr} not found '
                                    f'in any of {[f"{d.name()}:{self._state.get_location(d)}" for d in scopedefs]}',
-                    filename=self._state.get_filename(node))
+                    filename=self._state.get_filename(ctx))
 
         newtype = Type.Any
         for definition in attrdefs:
@@ -545,9 +548,14 @@ class _TypeInference(_EvalBaseVisitor['Type|None']):
             if othertype is not None:
                 newtype = newtype.merge(othertype)
         if newtype.unknown:
-            raise StaticValueError(node, 
-                f'found {len(attrdefs)} definition for attribute {ast_node_name(node)!r}, but none of them have a known type', 
-                filename=self._state.get_filename(node))
+            if len(attrdefs)>1:
+                raise StaticValueError(ctx, 
+                    f'found {len(attrdefs)} definitions for attribute {attr!r}, but none of them have a known type', 
+                    filename=self._state.get_filename(ctx))
+            else:
+                raise StaticValueError(ctx, 
+                    f'found a definition for attribute {attr!r}, but it does not have a known type', 
+                    filename=self._state.get_filename(ctx))
         return newtype
 
     def visit_Call(self, node:ast.Call, path:list[ast.AST]) -> Type|None:
@@ -558,14 +566,48 @@ class _TypeInference(_EvalBaseVisitor['Type|None']):
                 return functype.args[0]
             if functype.is_callable and len(functype.args)==2:
                 # TODO: Find and match overloads
-                return functype.args[1]
+                returntype = functype.args[1]
+                if returntype.unknown:
+                    return None
+                return returntype
             raise StaticValueError(node, f'cannot infer call result of type: {functype.annotation}', 
                                    filename=self._state.get_filename(node))
         return None
 
-    # def visit_Subscript(self, node:ast.Subscript, path:list[ast.AST]) -> Type|None:
-    #     ...
+    def visit_Subscript(self, node:ast.Subscript, path:list[ast.AST]) -> Type|None:
+        assert node.value
+        valuetype = self.get_type(node.value, path)
+        if valuetype is None:
+            return None
+        if valuetype.qualname in ('str', 'bytes'):
+            return valuetype
+        if valuetype.qualname in ('dict',) and len(valuetype.args)==2:
+            return valuetype.args[1]
+        if valuetype.qualname in ('list',) and len(valuetype.args)==1:
+            return valuetype.args[0]
+        if valuetype.qualname in ('tuple',):
+            if len(valuetype.args)==0:
+                return None
+            if len(valuetype.args)==2 and valuetype.args[1].annotation=='...':
+                return valuetype.args[0]
+            try:
+                indexvalue = self._state.literal_eval(node.slice)
+            except StaticException:
+                pass
+            else:
+                if not isinstance(indexvalue, int):
+                    return None
+                try:
+                    return valuetype.args[indexvalue]
+                except IndexError:
+                    return None
 
+            newtype = Type.Any
+            for t in valuetype.args:
+                newtype = newtype.merge(t)
+            return newtype
+        return None
+    
     # statements
 
     def visit_FunctionDef(self, node: ast.FunctionDef|ast.AsyncFunctionDef, path:list[ast.AST]) -> Type:
@@ -578,7 +620,6 @@ class _TypeInference(_EvalBaseVisitor['Type|None']):
             # TODO: better support for async functions
             returntype = Type('Awaitable', 'typing', args=(Type.Any,))
         else:
-            # TODO: Look at returns and infer that.
             returntype = Type.Any
         if any(self._state.expand_expr(n) in ('property', 'builtins.property') 
                for n in node.decorator_list):

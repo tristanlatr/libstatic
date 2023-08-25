@@ -163,8 +163,14 @@ def test_annotation_to_error(source:str) -> None:
     ('{x: y for x in z}',   'dict'),
     ('(x for x in y)',      'Iterator'),
 
-    # misc
-    # ('Some(x)',             'Some'),
+    # subscripts
+    ('[1,2,3][0]',      'int'),
+    ('(1,2,3)[1]',      'int'),
+    ('{"key":1.14}["key"]',      'float'),
+    ('c:dict[str, tuple[dict[str, str],...]]\nc[x][3][z]',      'str'),
+    ('c:tuple[int, bytes, str, bool|None]\nc[1]',      'bytes'),
+    ('c:tuple[int, bytes, str, bool|None]\nc[x]',      'int | bytes | str | bool | None'),
+
 ])
 def test_expr(expr, type):
     mod = ast.parse(f'None\n{expr}')
@@ -216,7 +222,7 @@ class TestTypeInferStubs(TestCase):
         ('from math import sin\nsin(x)',       'float'),
         ('my_list = list\nmy_list(x)',   'list'),
         ('from datetime import *\ndate(1,2,3)',  'date'),
-        # ('def g(x): return 0\ng(x)',         'int'),
+
         ('from pathlib import Path\nx:str|Path=...\nx.as_posix()', 'str'),
         ('from pathlib import Path,Patate\nx:str|Path|Patate=...\nx.as_posix()', 'str'),
         ('x = 13\nx',            'int'),
@@ -261,11 +267,13 @@ class TestTypeInferStubs(TestCase):
     'super().something()',
     'len(x).something()',
     '[].__getitem__(x)',
-    '[1][2]',
+    '[][2]',
     'x or y',
     'x and y',
     'x = None; x = b(); x',
     'def g() -> x: pass\ng()',
+    'def g(x): return 0\ng(24)',
+    'c:tuple[int, bytes, str, bool|None]\nc[33]',
 ])
 def test_cannot_infer_expr(expr):
     mod = ast.parse(expr)
@@ -344,7 +352,6 @@ def test_cannot_infer_type_from_signature(sig):
     t = p.state.get_type(node.value)
 
     assert t is None
-
 
 ###
 
