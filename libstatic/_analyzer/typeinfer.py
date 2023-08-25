@@ -39,10 +39,14 @@ class _AnnotationStringParser(ast.NodeTransformer):
     invalid Python or not a singular expression, L{SyntaxError} is raised.
     """
 
-    def _parse_string(self, value: str) -> ast.expr:
+    def __init__(self, filename:str) -> None:
+        self.filename = filename
+
+    def _parse_string(self, value: str, ctx:ast.AST) -> ast.expr:
         statements = ast.parse(value).body
         if len(statements) != 1:
-            raise StaticValueError("expected expression, found multiple statements")
+            raise StaticValueError(ctx, "expected expression, found multiple statements", 
+                                   filename=self.filename)
         (stmt,) = statements
         if isinstance(stmt, ast.Expr):
             # Expression wrapped in an Expr statement.
@@ -50,7 +54,8 @@ class _AnnotationStringParser(ast.NodeTransformer):
             assert isinstance(expr, ast.expr), expr
             return expr
         else:
-            raise StaticValueError("expected expression, found statement")
+            raise StaticValueError(ctx, "expected expression, found statement", 
+                                   filename=self.filename)
 
     def visit_Subscript(self, node: ast.Subscript) -> ast.Subscript:
         value = self.visit(node.value)
@@ -63,14 +68,16 @@ class _AnnotationStringParser(ast.NodeTransformer):
         else:
             # Other subscript; unstring the slice.
             slice = self.visit(node.slice)
-        return ast.copy_location(ast.Subscript(value, slice, node.ctx), node)
+        return ast.fix_missing_locations(
+            ast.copy_location(ast.Subscript(value, slice, node.ctx), node))
 
     # For Python >= 3.8:
 
     def visit_Constant(self, node: ast.Constant) -> ast.expr:
         value = node.value
         if isinstance(value, str):
-            return ast.copy_location(self._parse_string(value), node)
+            return ast.fix_missing_locations(
+                ast.copy_location(self._parse_string(value, node), node))
         else:
             const = self.generic_visit(node)
             assert isinstance(const, ast.Constant), const
@@ -79,7 +86,8 @@ class _AnnotationStringParser(ast.NodeTransformer):
     # For Python < 3.8:
 
     def visit_Str(self, node: ast.Str) -> ast.expr:
-        return ast.copy_location(self._parse_string(node.s), node)
+        return ast.fix_missing_locations(
+            ast.copy_location(self._parse_string(node.s, node), node))
 
 
 def _union(*args: Union[Type, str]) -> Type:
@@ -118,7 +126,8 @@ class _AnnotationToType(ast.NodeVisitor):
         self.in_literal = False
 
     def generic_visit(self, node: ast.AST) -> Any:
-        raise StaticValueError(f"unexcepted node in annotation: {node}")
+        raise StaticValueError(node, f"unexcepted node in annotation: {node}", 
+                               filename=self.state.get_filename(node))
 
     def visit(self, expr: ast.AST) -> Type:
         """
@@ -191,8 +200,9 @@ class _AnnotationToType(ast.NodeVisitor):
             right = self.visit(node.right)
             return _union(left, right)
         else:
-            raise StaticValueError(
-                f"binary operation not supported: {node.op.__class__.__name__}"
+            raise StaticValueError(node, 
+                f"binary operation not supported: {node.op.__class__.__name__}",
+                filename=self.state.get_filename(node)
             )
 
     def visit_Ellipsis(self, _: Any) -> Type:
@@ -210,11 +220,13 @@ class _AnnotationToType(ast.NodeVisitor):
         else:
             try:
                 # unstring annotations as strings
-                expr = _AnnotationStringParser().visit(node)
+                expr = _AnnotationStringParser(self.state.get_filename(node)).visit(node)
                 if expr is node:
-                    raise StaticValueError(f"unexpected {type(node.value).__name__}")
+                    raise StaticValueError(node, f"unexpected {type(node.value).__name__}",
+                            filename=self.state.get_filename(node))
             except SyntaxError as e:
-                raise StaticValueError("error in annotation") from e
+                raise StaticValueError(node, "error in annotation", 
+                        filename=self.state.get_filename(node)) from e
             return self.visit(expr)
 
     visit_Str = visit_Constant
