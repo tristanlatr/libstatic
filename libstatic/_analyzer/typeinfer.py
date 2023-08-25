@@ -39,7 +39,7 @@ class _AnnotationStringParser(ast.NodeTransformer):
     invalid Python or not a singular expression, L{SyntaxError} is raised.
     """
 
-    def __init__(self, filename:str) -> None:
+    def __init__(self, filename:str|None) -> None:
         self.filename = filename
 
     def _parse_string(self, value: str, ctx:ast.AST) -> ast.expr:
@@ -622,7 +622,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
             scopedefs.append(definition)
             try:
                 defs = self._state.get_attribute( # type: ignore
-                    definition, attr, include_ivars=not type.is_type
+                    definition, attr, include_ivars=not type.is_type # type: ignore
                 )
             except StaticException:
                 continue
