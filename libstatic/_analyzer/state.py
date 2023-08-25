@@ -788,18 +788,18 @@ class State(_MinimalState):
             node = node.node
         return node not in self._unreachable
 
-    def _dump(self) -> 'list[dict[str, Any]]':
-        """
-        Dummy dump function.
-        """
-        from ast2json import ast2json # type:ignore
-        def _dump_mod(_m:Mod) -> 'dict[str, Any]':
-            return {
-                'is_package':_m.is_package,
-                'modname':_m.name(),
-                'node':ast2json(_m.node)
-            }
-        return [_dump_mod(m) for m in self._modules.values()]
+    # def _dump(self) -> 'list[dict[str, Any]]':
+    #     """
+    #     Dummy dump function.
+    #     """
+    #     from ast2json import ast2json # type:ignore
+    #     def _dump_mod(_m:Mod) -> 'dict[str, Any]':
+    #         return {
+    #             'is_package':_m.is_package,
+    #             'modname':_m.name(),
+    #             'node':ast2json(_m.node)
+    #         }
+    #     return [_dump_mod(m) for m in self._modules.values()]
     
     @overload
     def get_enclosing_scope(self, definition: Mod) -> None: # type:ignore[misc]
@@ -1421,16 +1421,16 @@ class MutableState(State):
 
     # loading
 
-    def _load(self, data:'list[dict[str, Any]]') -> None:
-        """
-        Dummy load function, loads data dumped by `State._dump`.
-        """
-        from json2ast import json2ast # type:ignore
-        for mod_spec in data:
-            assert all(k in mod_spec for k in ['node', 'modname', 'is_package'])
-            self.add_module(json2ast(mod_spec['node']),
-                           mod_spec['modname'],
-                           is_package=mod_spec['is_package'])
+    # def _load(self, data:'list[dict[str, Any]]') -> None:
+    #     """
+    #     Dummy load function, loads data dumped by `State._dump`.
+    #     """
+    #     from json2ast import json2ast # type:ignore
+    #     for mod_spec in data:
+    #         assert all(k in mod_spec for k in ['node', 'modname', 'is_package'])
+    #         self.add_module(json2ast(mod_spec['node']),
+    #                        mod_spec['modname'],
+    #                        is_package=mod_spec['is_package'])
 
 
 @attrs.s(auto_attribs=True, frozen=True, kw_only=True)
