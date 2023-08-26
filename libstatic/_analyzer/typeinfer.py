@@ -746,7 +746,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
             qualname = typ.get_meta('qualname', str) # type:ignore[assignment]
             if qualname is None:
                 raise StaticValueError(typ, "no module definition")
-            hint:type[Def] = Mod
+            hint:type[Def]|tuple[type[Def],...] = Mod
             location = typ.get_meta('location', NodeLocation)
         elif typ.is_callable:
             qualname = typ.get_meta('qualname', str) # type:ignore[assignment]
