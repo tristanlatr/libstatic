@@ -403,7 +403,9 @@ def test_reveal(src:str) -> None:
                 assert isinstance(expected, (ast.Constant, ast.Str, ast.NameConstant))
                 typ = p.state.get_type(expr)
                 expected_value = getattr(expected, 'value', 
-                                         getattr(expected, 's'))
+                                         getattr(expected, 's', object))
+                if expected_value is object:
+                    raise RuntimeError()
                 if expected_value is None:
                     assert typ is None
                 else:
