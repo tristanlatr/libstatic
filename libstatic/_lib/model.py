@@ -359,7 +359,8 @@ class LazySeq(Sequence[_T]):
 _KT = TypeVar("_KT")
 _VT = TypeVar("_VT")
 class ChainMap(Mapping['_KT', '_VT']):
-    """Combine multiple mappings for sequential lookup.
+    """
+    Combine multiple mappings for sequential lookup.
 
     For example, to emulate Python's normal lookup sequence:
 
@@ -452,7 +453,6 @@ class Type:
     
     if not TYPE_CHECKING:
         # mypy is not very smart with the converter option :/
-        scope: str = attrs.ib(default='', converter=lambda v: v if v!='builtins' else '')
         args: Sequence['Type'] = attrs.ib(factory=tuple, converter=tuple, kw_only=True)
             
     location: NodeLocation = attrs.ib(factory=NodeLocation, kw_only=True, eq=False, repr=False)
@@ -462,7 +462,7 @@ class Type:
     types can be created dynamically. 
     """
 
-    meta: Mapping[str, object] = attrs.ib(factory=FrozenDict)
+    meta: Mapping[str, object] = attrs.ib(factory=FrozenDict, kw_only=True)
     """
     Stores meta information when the type 
     annotations are not expressive enougth.
@@ -470,7 +470,7 @@ class Type:
     Meta information should only be added to one of the special cased types.
     """
     if not TYPE_CHECKING:
-        meta: Mapping[str, object] = attrs.ib(factory=FrozenDict, converter=FrozenDict)
+        meta: Mapping[str, object] = attrs.ib(factory=FrozenDict, converter=FrozenDict, kw_only=True)
     
     # Special types:
     _UNION: ClassVar = (('typing', 'Union'), )
@@ -543,14 +543,27 @@ class Type:
         The string is a valid Python 3.10 expression.
         For example, ``str | dict[str, Any]``.
         """
+        return self._make_annotation(False)
+    
+    @cached_property
+    def long_annotation(self) -> str:
+        """
+        Like `annotation` but returns the type with qualified names.
+        """
+        return self._make_annotation(True)
+    
+    def _make_annotation(self, use_qualnames:bool) -> str:
         if self.unknown:
-            return 'Any'
+            return 'typing.Any' if use_qualnames else 'Any'
         if self.is_union:
-            return ' | '.join(arg.annotation for arg in self.args)
+            return ' | '.join((arg.long_annotation) if use_qualnames 
+                              else (arg.annotation) for arg in self.args)
+        name = self.qualname if use_qualnames else self.name
         if self.args:
-            args = ', '.join(arg.annotation for arg in self.args)
-            return f'{self.name}[{args}]'
-        return self.name
+            args = ', '.join((arg.long_annotation) if use_qualnames 
+                             else (arg.annotation) for arg in self.args)
+            return f'{name}[{args}]'
+        return name
 
     def merge(self, other: 'Type') -> 'Type':
         """Get a union of the two given types.
@@ -605,6 +618,14 @@ class Type:
         return self._replace(meta={**self.meta, **meta})
     
     def get_meta(self, key:str, typ:type[_T]) -> _T|None:
+        """
+        Only valid keys currently are 'qualname' or 'location'. 
+        Both are the respective qualname and location of the wrapped 
+        function or module for `Callable` and `ModuleType`. 
+        Set in the case of a known function or module only. 
+        Won't be set for explicit 'Callable' annotations for instance, only for the once
+        created from ast.FunctionDef instances, idem for modules.
+        """
         val = self.meta.get(key)
         if val is None:
             return None

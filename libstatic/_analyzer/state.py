@@ -1269,9 +1269,15 @@ class State(_MinimalState):
         While *basic* type inference is provided, libstatic does 
         not carry the complexity to support full-featured type-checking.
 
+        It can infer the type of any literal expression, when a name is encountered
+        all it's potential defintions are looked up and the inferred type is derived from a 
+        union of all the possible types. There is support for attribute annotations, 
+        functions, modules or attribute access, instance variables and methods, properties 
+        and other fundamentals.
+
         Notably missing features includes:
             - Overload matching
-            - Type variable support
+            - Type variable and generics support (there is simple support for builtins generics)
             - Type aliases detection
             - TypedDict and a lot more of the typing features
 

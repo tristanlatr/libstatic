@@ -34,19 +34,44 @@ from libstatic._lib.shared import StmtVisitor, unparse
 @pytest.mark.parametrize(
         ("source", "expected"), 
         [
-        ("var: None", ["None",""]),
-        ("import typing as t\nvar: t.Generic[t.T]",             ["Generic[T]",""]), 
-        ("import typing as t\nvar: t.Generic[t.T, t._KV]",      ["Generic[T, _KV]",""]),
-        ("import typing as t\nfrom typing import Generic\nvar: Generic[t.T]",       ["Generic[T]",""]),
-        ("import typing as t\nvar: t.Tuple[t.T,...]",         ["tuple[T, ...]",""]), 
-        ("import typing as t\nfrom mod import _model as m\nfrom typing import Optional\nvar: m.TreeRoot[Optional[t.T]]",      ["TreeRoot[Optional[T]]",""]),
-        ("import typing as t\nfrom mod import _model as m\nfrom typing import Optional\nvar: 'm.TreeRoot[Optional[t.T]]'",        ["TreeRoot[Optional[T]]",""]),
-        ("var: dict[str, str]", ["dict[str, str]",'']),
-        ("var: dict[str, str] | dict[str, int]", ["dict[str, str] | dict[str, int]",'']),
-        ("import typing as t\nvar: t.Union[dict[str, str], dict[str, int]]", ["dict[str, str] | dict[str, int]",'']),
-        ("import typing as t\nvar: t.Literal[True, False]", ["Literal[True, False]",'']),
-        ("import typing as t\nvar: t.Literal['string']", ["Literal['string']",'']),
-        ("import typing as t\nvar: dict[t.Type, t.Callable[[t.Any], t.Type]]", ["dict[Type, Callable[Any, Type]]",''])
+        ("var: None", 
+         ["None","builtins.None"]),
+        
+        ("import typing as t\nvar: t.Generic[t.T]",             
+         ["Generic[T]", "typing.Generic[typing.T]"]), 
+        
+        ("import typing as t\nvar: t.Generic[t.T, t._KV]",      
+         ["Generic[T, _KV]", "typing.Generic[typing.T, typing._KV]"]),
+        
+        ("import typing as t\nvar: t.Tuple[t.T,...]",         
+         ["tuple[T, ...]", "builtins.tuple[typing.T, ...]"]), 
+        
+        ("import typing as t\nfrom mod import _model as m\nfrom typing import Optional\nvar: m.TreeRoot[Optional[t.T]]",      
+         ["TreeRoot[Optional[T]]", "mod._model.TreeRoot[typing.Optional[typing.T]]"]),
+        
+        ("import typing as t\nfrom mod import _model as m\nfrom typing import Optional\nvar: 'm.TreeRoot[Optional[t.T]]'",        
+         ["TreeRoot[Optional[T]]","mod._model.TreeRoot[typing.Optional[typing.T]]"]),
+        
+        ("var: dict[str, str]", 
+         ["dict[str, str]", 'builtins.dict[builtins.str, builtins.str]']),
+        
+        ("var: dict[str, str] | dict[str, int]", 
+         ["dict[str, str] | dict[str, int]",'builtins.dict[builtins.str, builtins.str] | builtins.dict[builtins.str, builtins.int]']),
+        
+        ("import typing as t\nvar: t.Union[dict[str, str], dict[str, int]]", 
+         ["dict[str, str] | dict[str, int]",'builtins.dict[builtins.str, builtins.str] | builtins.dict[builtins.str, builtins.int]']),
+        
+        ("import typing as t\nvar: t.Literal[True, False]", 
+         ["Literal[True, False]",'typing.Literal[builtins.True, builtins.False]']),
+        
+        ("import typing as t\nvar: t.Literal['string']", 
+         ["Literal['string']","typing.Literal['string']"]),
+        
+        ("import typing as t\nvar: dict[t.Type, t.Callable[[t.Any], t.Type]]", 
+         ["dict[Type, Callable[Any, Type]]",'builtins.dict[typing.Type, typing.Callable[typing.Any, typing.Type]]']),
+
+        ("import typing as t\n_T = t.TypeVar('_T')\nvar: dict[t.Type, _T]", 
+         ["dict[Type, _T]",'builtins.dict[typing.Type, test._T]']),
         ]
     )
 def test_annotation_to_type(source:str, expected:str) -> None:
@@ -64,13 +89,14 @@ def test_annotation_to_type(source:str, expected:str) -> None:
 
     assert not type_annotation.unknown
 
-    annotation, _ = expected
+    annotation, long_annotation = expected
     if annotation.startswith('Union'):
         assert type_annotation.is_union
     if annotation.startswith('Literal'):
         assert type_annotation.is_literal
 
     assert type_annotation.annotation == annotation
+    assert type_annotation.long_annotation == long_annotation
 
     # smoke test
     ast.parse(type_annotation.annotation)
@@ -215,9 +241,9 @@ class TestTypeInferStubs(TestCase):
         # methods of builtins
         ('"".join(x)',      'str'),
         ('[1,2].count(1)',  'int'),
-        ('list(x).copy()',  'list[_T]'),
-        ('[].copy()',       'list[_T]'),
-        ('[].__iter__()',   'Iterator[_T]'),
+        ('list(x).copy()',  'list'),
+        ('[].copy()',       'list'),
+        ('[].__iter__()',   'Iterator'),
 
         ('import math\nmath.sin(x)',  'float'),
         ('from math import sin\nsin(x)',       'float'),
@@ -431,6 +457,25 @@ def test_reveal(src:str) -> None:
     reveal_type(v,'None')
     reveal_type(x,'None')
     ''',
+
+    '''
+    from typing import TypeVar, Generic
+    T = TypeVar('T')
+    
+    a:'A[B]' = ...
+    
+    reveal_type(a.f(), None)
+
+    class A(Generic[T]):
+        def f(self) -> T: pass
+    ''',
+
+    """
+    class C:
+        def _setup(self):
+            self.a:dict[str, str] = {}
+    reveal_type(C().a, 'dict[str, str]')
+    """,
 ])
 def test_reveal_types(src:str) -> None:
     test_reveal(src)
