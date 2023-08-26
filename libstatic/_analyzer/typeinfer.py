@@ -230,12 +230,18 @@ class _AnnotationToType(ast.NodeVisitor):
     def visit_Constant(
         self, node: Union[ast.Constant, ast.Str, ast.NameConstant, ast.Bytes, ast.Num]
     ) -> Type:
-        if node.value is None:
+        if isinstance(node, (ast.Str, ast.Bytes)):
+            value: object = node.s
+        elif isinstance(node, ast.Num):
+            value = node.n
+        else:
+            value = node.value
+        if value is None:
             return Type("None")
-        elif isinstance(node.value, type(...)):
+        elif isinstance(value, type(...)):
             return self.visit_Ellipsis(None)
         if self.in_literal:
-            return Type(repr(node.s if isinstance(node, ast.Str) else node.value))
+            return Type(repr(value))
         else:
             try:
                 # unstring annotations as strings
@@ -306,10 +312,23 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
     ###      expressions                  ###
     #########################################
 
-    def visit_Constant(self, node: ast.Constant, path: list[ast.AST]) -> Type:
-        if node.value is None:
+    def visit_Constant(
+        self, node: Union[ast.Constant, ast.Str, ast.NameConstant, ast.Bytes, ast.Num]
+    ) -> Type:
+        if isinstance(node, (ast.Str, ast.Bytes)):
+            value: object = node.s
+        elif isinstance(node, ast.Num):
+            value = node.n
+        else:
+            value = node.value
+        if value is None:
             return Type("None")
-        return Type(type(node.value).__name__)
+        return Type(type(value).__name__)
+    
+    visit_Str = visit_Constant
+    visit_Bytes = visit_Constant
+    visit_Num = visit_Constant
+    visit_NameConstant = visit_Constant
 
     def visit_JoinedStr(self, node: ast.JoinedStr, path: list[ast.AST]) -> Type:
         return Type("str")
