@@ -22,6 +22,7 @@
 # SOFTWARE.
 
 import ast
+import sys
 from textwrap import dedent
 from typing import Any
 from unittest import TestCase
@@ -317,7 +318,7 @@ def test_cannot_infer_expr(expr):
     ('b, a: int, c', 'int'),
     ('b: float, a: int, c: float', 'int'),
     ('*, a: int', 'int'),
-    ('a: int, /', 'int'),
+    ('a: int, /' if sys.version_info >= (3,8) else 'a: int', 'int'),
     ('a: list', 'list'),
 
     # *args and **kwargs
@@ -399,9 +400,10 @@ def test_reveal(src:str) -> None:
                 return
             if f.id == 'reveal_type':
                 expr, expected = v.args
-                assert isinstance(expected, ast.Constant)
+                assert isinstance(expected, (ast.Constant, ast.Str, ast.NameConstant))
                 typ = p.state.get_type(expr)
-                expected_value = getattr(expected, 'value')
+                expected_value = getattr(expected, 'value', 
+                                         getattr(expected, 's'))
                 if expected_value is None:
                     assert typ is None
                 else:
