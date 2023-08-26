@@ -313,7 +313,9 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
     #########################################
 
     def visit_Constant(
-        self, node: Union[ast.Constant, ast.Str, ast.NameConstant, ast.Bytes, ast.Num]
+        self, node: Union[ast.Constant, ast.Str, ast.NameConstant, 
+                          ast.Bytes, ast.Num],
+        path: list[ast.AST],
     ) -> Type:
         if isinstance(node, (ast.Str, ast.Bytes)):
             value: object = node.s
