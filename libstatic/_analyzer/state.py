@@ -1322,12 +1322,11 @@ class MutableState(State):
     data structure.
     """
     search_context = None
-
+    # UNPROCESSED = 0
+    # PROCESSING = 1
+    # PROCESSED = 2
 
     def add_typeshed_module(self, modname: str) -> "Mod|None":
-        """
-        Add a module from typeshed or from locally installed .pyi files or typed packages.
-        """
         search_context = self.search_context
         if search_context is None:
             # cache search_context
@@ -1346,13 +1345,6 @@ class MutableState(State):
     def add_module(
         self, node: ast.Module, name: str, *, is_package: bool, filename: Optional[str]=None
     ) -> "Mod":
-        """
-        Adds a module to the project.
-        All modules should be added before calling `analyze_project()`.
-        This will slightly transform the AST... see `Transform`.
-
-        :raises StaticValueError: If the module name is already in the project.
-        """
         if name in self._modules:
             raise StaticValueError(node, f"duplicate module {name!r}")
         # TODO: find an extensible way to transform the tree
@@ -1491,7 +1483,7 @@ class Project:
         :param kw: All parameters are passed to `Options` constructor.
         """
         self.options = Options(**kw)
-        self.state: State = MutableState(msg=self.msg)
+        self.state = MutableState(msg=self.msg)
 
     def analyze_project(self) -> None:
         """
@@ -1516,18 +1508,22 @@ class Project:
     ) -> "Mod":
         """
         Add a module to the project, all module should be added before calling `analyze_project`.
+        This will slightly transform the AST... see `Transform`.
 
         :param node: Parsed `ast.Module` instance, see `ast.parse`.
         :param name: The fully qualified name of the module.
         :param is_package: Whether the module is a package (the node represents ``__init__.py`` file)
         :param filename: The filename of the module or ``__init__.py`` file for packages.
+        :raises StaticValueError: If the module name is already in the project.
         """
         return cast(MutableState, self.state).add_module(
             node, name, is_package=is_package, filename=filename
         )
 
     def add_typeshed_module(self, modname: str) -> "Mod|None":
-        __doc__ = MutableState.add_typeshed_module
+        """
+        Add a module from typeshed or from locally installed .pyi files or typed packages.
+        """
         return cast(MutableState, self.state).add_typeshed_module(modname)
 
     # TODO: introduce a generic reporter object used by System.msg, Documentable.report and here.

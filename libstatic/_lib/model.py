@@ -423,240 +423,39 @@ class FrozenDict(Mapping['_KT', '_VT']):
             self._hash = hash_
         return self._hash
 
-# This class has beeen adapted from the 'astypes' project.
-@attrs.s(frozen=True, auto_attribs=True)
-class Type:
+class Type(Protocol):
     """
     The type of a Python expression.
     """
     
-    name: str
-    """The name of the type.
+    @property
+    def name(self) -> str:
+        """
+        The name of the type.
 
-    For example, `Iterable` or `list`.
-    If this Type wraps a module this will the module name.
-    """
+        For example, `Iterable` or `list`.
+        """
     
-    scope: str = ''
-    """The scope where the type is defined. This is often a module, 
-    but it migth be a class or a function in some cases.
-
-    For example, `typing` if the type is `Iterable`.
-    Empty string for built-ins or other special cases.
-    """
-
-    args: Sequence['Type'] = attrs.ib(factory=tuple, kw_only=True)
-    """Arguments of a generic type if any.
-
-    For example, ``(str, int`)` if the type is ``dict[str, int]``.
-    """
-    
-    if not TYPE_CHECKING:
-        # mypy is not very smart with the converter option :/
-        args: Sequence['Type'] = attrs.ib(factory=tuple, converter=tuple, kw_only=True)
-            
-    location: NodeLocation = attrs.ib(factory=NodeLocation, kw_only=True, eq=False, repr=False)
-    """
-    The location of the node that defined this type.
-    It's set to an unknown location by default so special 
-    types can be created dynamically. 
-    """
-
-    meta: Mapping[str, object] = attrs.ib(factory=FrozenDict, kw_only=True)
-    """
-    Stores meta information when the type 
-    annotations are not expressive enougth.
-    Mainly used for intermediate inference steps.
-    Meta information should only be added to one of the special cased types.
-    """
-    if not TYPE_CHECKING:
-        meta: Mapping[str, object] = attrs.ib(factory=FrozenDict, converter=FrozenDict, kw_only=True)
-    
-    # Special types:
-    _UNION: ClassVar = (('typing', 'Union'), )
-    _LITERAL: ClassVar = (('typing', 'Literal'),
-                          (('typing_extensions', 'Literal')), )
-    _TYPE: ClassVar = (('typing', 'Type'), )
-    _CALLABLE: ClassVar = (('typing', 'Callable'), )
-    _MODULE: ClassVar = (('types', 'ModuleType'), )
-
-    Any: ClassVar[Type]
-    Union: ClassVar[Type]
-    TypeType: ClassVar[Type]
-    Callable: ClassVar[Type]
-    ModuleType: ClassVar[Type]
-    Literal: ClassVar[Type]
-
     @property
     def qualname(self) -> str:
-        """The full name of the type.
+        """
+        The full name of the type.
 
         For example, `typing.Iterable` or `builtins.list`.
         """
-        scope = self.scope
-        if scope:
-            return f"{scope}.{self.name}"
-        elif self.name in BuiltinsSrc:
-            return f"builtins.{self.name}"
-        else:
-            return self.name
+    
+    @property
+    def args(self) -> Sequence[Type]:
+        """
+        Arguments of a generic type if any.
 
-    @property
-    def unknown(self) -> bool:
+        For example, ``(str, int)`` if the type is ``dict[str, int]``.
         """
-        We can create Type with empty name.
-        It is used to denote an unknown type.
-        """
-        return not self.name
-
-    @property
-    def is_union(self) -> bool:
-        return (self.scope, self.name) in Type._UNION
     
     @property
-    def is_type(self) -> bool:
-        return (self.scope, self.name) in Type._TYPE
-    
-    @property
-    def is_callable(self) -> bool:
-        return (self.scope, self.name) in Type._CALLABLE
-    
-    @property
-    def is_module(self) -> bool:
-        return (self.scope, self.name) in Type._MODULE
-    
-    @property
-    def is_literal(self) -> bool:
-        """
-        A literal type means it's literal values can be recovered with:
-        
-        >>> type = Type.Literal.add_args(args=[Type('"val"')])
-        >>> ast.literal_eval(type.args[0].name)
-        'val'
-        """
-        return (self.scope, self.name) in Type._LITERAL
-
-    @cached_property
     def annotation(self) -> str:
         """Represent the type as a string suitable for type annotations.
 
         The string is a valid Python 3.10 expression.
         For example, ``str | dict[str, Any]``.
         """
-        return self._make_annotation(False)
-    
-    @cached_property
-    def long_annotation(self) -> str:
-        """
-        Like `annotation` but returns the type with qualified names.
-        """
-        return self._make_annotation(True)
-    
-    def _make_annotation(self, use_qualnames:bool) -> str:
-        if self.unknown:
-            return 'typing.Any' if use_qualnames else 'Any'
-        if self.is_union:
-            return ' | '.join((arg.long_annotation) if use_qualnames 
-                              else (arg.annotation) for arg in self.args)
-        name = self.qualname if use_qualnames else self.name
-        if self.args:
-            args = ', '.join((arg.long_annotation) if use_qualnames 
-                             else (arg.annotation) for arg in self.args)
-            return f'{name}[{args}]'
-        return name
-
-    def merge(self, other: 'Type') -> 'Type':
-        """Get a union of the two given types.
-
-        If any of the types is unknown, the other is returned.
-        When possible, the type is simplified. For instance, ``int | int`` will be
-        simplified to just `int`.
-        """
-        if self.unknown:
-            return other
-        if other.unknown:
-            return self
-        if self.supertype_of(other):
-            return self
-        if other.supertype_of(self):
-            return other
-
-        # if one type is already union, extend it
-        if self.is_union and other.is_union:
-            return Type.Union.add_args(
-                args=tuple(chain(self.args, other.args)),
-            )
-        if self.is_union:
-            return self._replace(
-                args=tuple(chain(self.args, (other,)))
-            )
-        if other.is_union:
-            return other._replace(
-                args=tuple(chain((self,), other.args))
-            )
-
-        # none goes last
-        if self.name == 'None':
-            args = (other, self)
-        else:
-            args = (self, other)
-        return Type.Union.add_args(args=args)
-    
-    def _replace(self, **changes:str|Sequence[Type]|NodeLocation|dict) -> Type:
-        return attrs.evolve(self, **changes) # type:ignore
-
-    def add_args(self, args: Iterable[Type]) -> Type:
-        """
-        Get a copy of the Type with the given args added in the list of args.
-        """
-        return self._replace(args=tuple(chain(self.args, args)))
-
-    def add_meta(self, **meta:object) -> Type:
-        """
-        Get a copy of the Type with the given meta informations updated.
-        """
-        return self._replace(meta={**self.meta, **meta})
-    
-    def get_meta(self, key:str, typ:type[_T]) -> _T|None:
-        """
-        Only valid keys currently are 'qualname' or 'location'. 
-        Both are the respective qualname and location of the wrapped 
-        function or module for `Callable` and `ModuleType`. 
-        Set in the case of a known function or module only. 
-        Won't be set for explicit 'Callable' annotations for instance, only for the once
-        created from ast.FunctionDef instances, idem for modules.
-        """
-        val = self.meta.get(key)
-        if val is None:
-            return None
-        if not isinstance(val, typ):
-            raise TypeError(f'expected {typ}, got {type(val)}')
-        return val
-
-    def supertype_of(self, other: 'Type') -> bool:
-        # TODO: use a mapping of type-promotion instead of this.
-        if self.name == 'float' and other.name == 'int':
-            return True
-        if self.name in ('Any', 'object'):
-            return True
-        if self.is_union:
-            for arg in self.args:
-                if arg.supertype_of(other):
-                    return True
-
-        # TODO Look superclasses
-        if self.name != other.name:
-            return False
-        if self.scope != other.scope:
-            return False
-        if self.args != other.args:
-            return False
-        return True
-
-
-Type.Any = Type('')
-Type.Union = Type('Union', 'typing')
-Type.Literal = Type('Literal', 'typing')
-Type.TypeType = Type('Type', 'typing')
-Type.Callable = Type('Callable', 'typing')
-Type.ModuleType = Type('ModuleType', 'types')

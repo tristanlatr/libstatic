@@ -1,10 +1,17 @@
 from __future__ import annotations
 
 import ast
+from functools import cached_property
+from itertools import chain
 import sys
 from typing import (
     Any,
+    ClassVar,
+    Iterable,
     Iterator,
+    Mapping,
+    Sequence,
+    TypeVar,
     Tuple,
     Union,
     List,
@@ -13,7 +20,9 @@ from typing import (
 )
 from inspect import Parameter
 
-from .._lib.model import Type, Scope, Def, Mod, Func, Cls, Arg, LazySeq, NameDef, Var
+from .._lib.model import (Scope, Def, Mod, 
+                          Func, Cls, Arg, LazySeq, FrozenDict, 
+                          NameDef, Var)
 from .._lib.shared import node2dottedname, ast_node_name
 from .._lib.assignment import get_stored_value
 from .._lib.exceptions import (
@@ -25,10 +34,238 @@ from .._lib.exceptions import (
 )
 from .asteval import _EvalBaseVisitor
 
+import attr as attrs
+from attrs import validators
+
 from beniget.beniget import BuiltinsSrc  # type: ignore
 
 if TYPE_CHECKING:
     from .state import State
+    from typing import NoReturn
+
+def _raise(e:Exception) -> NoReturn: 
+    raise e
+
+_T = TypeVar('_T')
+
+# This class has beeen adapted from the 'astypes' project.
+@attrs.s(frozen=True, auto_attribs=True)
+class Type:
+    """
+    Internal implementation of `libstatic.Type`.
+    """
+    
+    name: str = attrs.ib(validator=[validators.instance_of(str),
+                                    validators.min_len(1)])
+    scope: str = ''
+    """The scope where the type is defined. This is often a module, 
+    but it migth be a class or a function in some cases.
+
+    For example, `typing` if the type is `Iterable`.
+    Empty string for built-ins or other special cases.
+    """
+
+    args: Sequence['Type'] = attrs.ib(factory=tuple, kw_only=True)
+    
+    if not TYPE_CHECKING:
+        # mypy is not very smart with the converter option :/
+        args: Sequence['Type'] = attrs.ib(factory=tuple, converter=tuple, kw_only=True)
+            
+    location: NodeLocation = attrs.ib(factory=NodeLocation, kw_only=True, eq=False, repr=False)
+    """
+    The location of the node that defined this type.
+    It's set to an unknown location by default so special 
+    types can be created dynamically. 
+    """
+
+    meta: Mapping[str, object] = attrs.ib(factory=FrozenDict, kw_only=True)
+    """
+    Stores meta information when the type 
+    annotations are not expressive enougth.
+    Mainly used for intermediate inference steps.
+    Meta information should only be added to one of the special cased types.
+    """
+    if not TYPE_CHECKING:
+        meta: Mapping[str, object] = attrs.ib(factory=FrozenDict, converter=FrozenDict, kw_only=True)
+    
+    # Special types:
+    Any: ClassVar[Type]
+    Union: ClassVar[Type]
+    TypeType: ClassVar[Type]
+    Callable: ClassVar[Type]
+    ModuleType: ClassVar[Type]
+    Literal: ClassVar[Type]
+
+    @property
+    def qualname(self) -> str:
+        scope = self.scope
+        if scope:
+            return f"{scope}.{self.name}"
+        elif self.name in BuiltinsSrc:
+            return f"builtins.{self.name}"
+        else:
+            return self.name
+
+    @property
+    def unknown(self) -> bool:
+        return (self.qualname == 'typing.Any' and self.get_meta('unknown', bool) is True)
+
+    @property
+    def is_union(self) -> bool:
+        return self.qualname == 'typing.Union'
+    
+    @property
+    def is_type(self) -> bool:
+        return self.qualname == 'typing.Type'
+    
+    @property
+    def is_callable(self) -> bool:
+        return self.qualname == 'typing.Callable'
+    
+    @property
+    def is_module(self) -> bool:
+        return self.qualname == 'types.ModuleType'
+    
+    @property
+    def is_literal(self) -> bool:
+        """
+        A literal type means it's literal values can be recovered with:
+        
+        >>> type = Type.Literal.add_args(args=[Type('"val"')])
+        >>> ast.literal_eval(type.args[0].name)
+        'val'
+        """
+        return self.qualname in ('typing.Literal', 
+                                 'typing._extensions.Literal')
+
+    def merge(self, other: 'Type') -> 'Type':
+        """Get a union of the two given types.
+
+        If any of the types is unknown, the other is returned.
+        When possible, the type is simplified. For instance, ``int | int`` will be
+        simplified to just `int`.
+        """
+        if self.unknown:
+            return other
+        if other.unknown:
+            return self
+        if self.supertype_of(other):
+            return self
+        if other.supertype_of(self):
+            return other
+
+        # if one type is already union, extend it
+        if self.is_union and other.is_union:
+            return Type.Union.add_args(
+                args=tuple(chain(self.args, other.args)),
+            )
+        if self.is_union:
+            return self._replace(
+                args=tuple(chain(self.args, (other,)))
+            )
+        if other.is_union:
+            return other._replace(
+                args=tuple(chain((self,), other.args))
+            )
+
+        # none goes last
+        if self.name == 'None':
+            args = (other, self)
+        else:
+            args = (self, other)
+        return Type.Union.add_args(args=args)
+    
+    def _replace(self, **changes:str|Sequence[Type]|NodeLocation|dict) -> Type:
+        return attrs.evolve(self, **changes) # type:ignore
+
+    def add_args(self, args: Iterable[Type]) -> Type:
+        """
+        Get a copy of the Type with the given args added in the list of args.
+        """
+        return self._replace(args=tuple(chain(self.args, args)))
+
+    def add_meta(self, **meta:object) -> Type:
+        """
+        Get a copy of the Type with the given meta informations updated.
+        """
+        return self._replace(meta={**self.meta, **meta})
+    
+    def get_meta(self, key:str, typ:type[_T]) -> _T|None:
+        """
+        Valid keys currently are 
+        - 'qualname' or 'location'. 
+            Both are the respective qualname and location of the wrapped 
+            function or module for `Callable` and `ModuleType`. 
+            Set in the case of a known function or module only. 
+            Won't be set for explicit 'Callable' annotations for instance, only for the once
+            created from ast.FunctionDef instances, idem for modules.
+        - 'unknown'. 
+            Set on generated Any types to differenciate an unknown type from an
+            explicit typing.Any annotation, which is known to be Any, so should
+            not be considered unknown.
+        """
+        val = self.meta.get(key)
+        if val is None:
+            return None
+        if not isinstance(val, typ):
+            raise TypeError(f'expected {typ}, got {type(val)}')
+        return val
+
+    def supertype_of(self, other: 'Type') -> bool:
+        # TODO: use a mapping of type-promotion instead of this.
+        if self.name == 'float' and other.name == 'int':
+            return True
+        if self.name in ('Any', 'object'):
+            return True
+        if self.is_union:
+            for arg in self.args:
+                if arg.supertype_of(other):
+                    return True
+
+        # TODO Look superclasses
+        if self.name != other.name:
+            return False
+        if self.scope != other.scope:
+            return False
+        if self.args != other.args:
+            return False
+        return True
+    
+    @cached_property
+    def annotation(self) -> str:
+        """Represent the type as a string suitable for type annotations.
+
+        The string is a valid Python 3.10 expression.
+        For example, ``str | dict[str, Any]``.
+        """
+        if self.is_union:
+            return ' | '.join(arg.annotation for arg in self.args)
+        name = self.name
+        if self.args:
+            args = ', '.join(arg.annotation for arg in self.args)
+            return f'{name}[{args}]'
+        return name
+    
+    @cached_property
+    def long_annotation(self) -> str:
+        """
+        Like `annotation` but returns the type with qualified names.
+        """
+        if self.is_union:
+            return ' | '.join(arg.long_annotation for arg in self.args)
+        name = self.qualname
+        if self.args:
+            args = ', '.join(arg.long_annotation for arg in self.args)
+            return f'{name}[{args}]'
+        return name
+
+
+Type.Union = Type('Union', 'typing')
+Type.Literal = Type('Literal', 'typing')
+Type.TypeType = Type('Type', 'typing')
+Type.Callable = Type('Callable', 'typing')
+Type.ModuleType = Type('ModuleType', 'types')
+Type.Any = Type('Any', 'typing').add_meta(unknown=True)
 
 class _AnnotationStringParser(ast.NodeTransformer):
     """When given an expression, the node returned by L{ast.NodeVisitor.visit()}
@@ -261,9 +498,10 @@ class _AnnotationToType(ast.NodeVisitor):
 
 
     def visit_List(self, node: ast.List) -> Type:
+        return Type.Any
         # ast.List is used in Callable, but we do not fully support it at the moment.
         # TODO: are the lists supposed to only allowed in callables?
-        return Type("", args=tuple(self.visit(el) for el in node.elts))
+        # return Type("", args=tuple(self.visit(el) for el in node.elts))
 
 
 class _TypeInference(_EvalBaseVisitor["Type|None"]):

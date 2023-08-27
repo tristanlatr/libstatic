@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import pytest
 
-from libstatic import Type
+from libstatic._analyzer.typeinfer import Type
 
 
 t = Type
@@ -51,9 +51,9 @@ def u(*args):
     ('int',     'int',      'int'),
 
     # simplify one unknown
-    ('',        'int',      'int'),
-    ('int',     '',         'int'),
-    ('',        '',         ''),
+    (t.Any,        'int',      'int'),
+    ('int',     t.Any,         'int'),
+    (t.Any,        t.Any,         t.Any),
 
     # actual unions
     ('str',     'int',      u('str', 'int')),
@@ -83,7 +83,7 @@ def test_merge(left, right, result):
     (t('int'),                      'int'),
     (u('int', 'str'),               'int | str'),
     (t('list', args=[t('int')]),    'list[int]'),
-    (t(''),                         'Any'),
+    (t.Any,                         'Any'),
 ])
 def test_annotation(given: Type, expected: str):
     assert given.annotation == expected
