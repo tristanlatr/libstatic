@@ -356,8 +356,71 @@ class LazySeq(Sequence[_T]):
         self._consume_all()
         return len(self._values)
 
+    def __bool__(self) -> bool:
+        if self._curr() > -1:
+            return True
+        try:
+            self._consume_next()
+        except StopIteration:
+            return False
+        return True
+
 _KT = TypeVar("_KT")
 _VT = TypeVar("_VT")
+
+class LazyMap(Mapping[_KT, _VT]):
+    """
+    A lazy map makes an iterator look like an immutable mapping.
+    """
+    def __init__(self, iterator:Iterator[Tuple[_KT, _VT]]):
+        self._dict: dict[_KT, _VT] = {}
+        self._iterator = iterator
+    
+    def _curr(self,) ->int:
+        return len(self._dict)-1
+    
+    def _consume_next(self) -> Tuple[_KT, _VT]:
+        k,v = next(self._iterator)
+        self._dict[k] = v
+        return k,v
+    
+    def _consume_all(self) -> None:
+        while 1:
+            try:
+                self._consume_next()
+            except StopIteration:
+                break
+
+    def __getitem__(self, key:_KT) -> _VT:
+        if key in self:
+            return self._dict[key]
+        else:
+            raise KeyError(key)
+
+    def __contains__(self, key:object) -> bool:
+        if key in self._dict:
+            return True
+        while 1:
+            try:
+                k, _ = self._consume_next()
+            except StopIteration:
+                return False
+            if k is key:
+                return True
+    
+    def __iter__(self) -> Iterator[_KT]:
+        yield from self._dict
+        while 1:
+            try:
+                k, _ = self._consume_next()
+            except StopIteration:
+                break
+            yield k
+    
+    def __len__(self) -> int:
+        self._consume_all()
+        return len(self._dict)
+
 class ChainMap(Mapping['_KT', '_VT']):
     """
     Combine multiple mappings for sequential lookup.
@@ -454,8 +517,10 @@ class Type(Protocol):
     
     @property
     def annotation(self) -> str:
-        """Represent the type as a string suitable for type annotations.
+        """
+        Express this type as a string.
 
-        The string is a valid Python 3.10 expression.
-        For example, ``str | dict[str, Any]``.
+        **The string might not be a valid Python expression**.
+
+        For example, ``str | dict[str, Any]`` or ``(int) -> str`` for callables.
         """

@@ -13,7 +13,7 @@ class TestTypeshedLoading(TestCase):
 
     def test_builtins_module_load_dependencies(self):
         proj = Project(dependencies=1)
-        builtinsmodule = proj.add_typeshed_module('builtins')
+        builtinsmodule = proj.state.get_module('builtins')
         # assert len(proj._modules)>40
         proj.analyze_project()
         modlist = [mod.name() for mod in proj.state.get_all_modules()]

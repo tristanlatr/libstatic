@@ -765,6 +765,28 @@ class State(_MinimalState):
             return self.get_def(node)
         return self.get_def(
             self.get_parent_instance(node, ast.Module))
+    
+    def get_sibling(self, node:ast.stmt, direction:int=1) -> ast.AST | None:
+        """
+        Should only be called for statements.
+        """
+        scope = self.get_parent(node)
+        for fieldname, value in ast.iter_fields(scope):
+            if isinstance(value, (list, tuple)) and node in value:
+                break
+        else:
+            raise StaticValueError(node, f"node {node} not found in {scope}", 
+                                   filename=self.get_filename(node))
+
+        body = getattr(scope, fieldname)
+        assert isinstance(body, (list, tuple))
+
+        assign_index = body.index(node)
+        try:
+            sibling = body[assign_index + direction]
+        except IndexError:
+            return None
+        return sibling
 
     def get_filename(self, node: 'ast.AST|Def') -> Optional[str]:
         """
@@ -1216,7 +1238,7 @@ class State(_MinimalState):
         for imp in imports_references:
             yield from self._goto_attr_references(imp, set(), filter_unreachable)
 
-    def get_defs_from_qualname(self, qualname:str) -> List[Def]:
+    def get_defs_from_qualname(self, qualname:str) -> List[NameDef]:
         r"""
         Finds the definitions having the given qualname.
 
@@ -1228,7 +1250,7 @@ class State(_MinimalState):
         >>> p.state.get_defs_from_qualname('test.Reactor.System.target')
         [<Var(name=target)>]
         """
-        def find(current:List[Def], path:Sequence[str]) -> List[Def]:
+        def find(current:List[NameDef], path:Sequence[str]) -> List[NameDef]:
             curr, *parts = path
             while curr:
                 current = list(chain.from_iterable(
@@ -1241,7 +1263,7 @@ class State(_MinimalState):
         # support getting modules by name in modules mapping
         noraise=True
         names:Tuple[str, ...] = ()
-        module: Optional[Def] = None
+        module: Optional[NameDef] = None
         qnameparts = qualname.split('.')
         while qnameparts:
             module = self.get_module('.'.join(qnameparts))
@@ -1482,8 +1504,13 @@ class Project:
 
         :param kw: All parameters are passed to `Options` constructor.
         """
-        self.options = Options(**kw)
+        self.options = options = Options(**kw)
         self.state = MutableState(msg=self.msg)
+
+        if (options.dependencies or options.builtins):
+            from .minimal_stubs import TYPING, BUILTINS
+            self.add_module(ast.parse(BUILTINS), 'builtins', filename='builtins.pyi')
+            self.add_module(ast.parse(TYPING), 'typing', filename='typing.pyi')
 
     def analyze_project(self) -> None:
         """

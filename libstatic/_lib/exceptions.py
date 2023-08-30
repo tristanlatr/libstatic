@@ -24,8 +24,8 @@ class NodeLocation:
         """
         :param thing: A definition or an ast node.
         """
-        if thing.__class__.__name__ == 'Type':
-            loc = getattr(thing, 'location', None)
+        if thing.__class__.__name__ == 'Type' and hasattr(thing, 'get_meta'):
+            loc = getattr(thing, 'get_meta')('location')
             if loc:
                 return loc
         node = getattr(thing, 'node', thing)

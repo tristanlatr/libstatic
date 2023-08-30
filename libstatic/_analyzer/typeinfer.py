@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import ast
-from functools import cached_property
+from collections import deque
+from functools import cache, cached_property
+import inspect
 from itertools import chain
+import itertools
 import sys
 from typing import (
     Any,
@@ -21,8 +24,10 @@ from typing import (
 from inspect import Parameter
 
 from .._lib.model import (Scope, Def, Mod, 
-                          Func, Cls, Arg, LazySeq, FrozenDict, 
+                          Func, Cls, Arg, LazySeq, 
+                          FrozenDict, ChainMap, LazyMap, 
                           NameDef, Var)
+from .._lib.ivars import is_instance_method
 from .._lib.shared import node2dottedname, ast_node_name
 from .._lib.assignment import get_stored_value
 from .._lib.exceptions import (
@@ -31,6 +36,7 @@ from .._lib.exceptions import (
     StaticNameError,
     StaticValueError,
     StaticCodeUnsupported,
+    StaticStateIncomplete,
 )
 from .asteval import _EvalBaseVisitor
 
@@ -48,6 +54,41 @@ def _raise(e:Exception) -> NoReturn:
 
 _T = TypeVar('_T')
 
+__docformat__ = 'google'
+
+@cache
+def find_typedef(state:State, qualname: str, *, 
+                 hint:type[Def]|tuple[type[Def],...]=Def, 
+                 location: NodeLocation|None=None) -> NameDef:
+    """
+    Get the definition of the object qualified by the given name, 
+    type hint and location or raise an exception.
+
+    Wrapper arround `get_defs_from_qualname`.
+    """
+    try:
+        defs = state.get_defs_from_qualname(qualname)
+    except StaticException as e:
+        raise StaticValueError(
+            e.node, f"unknown symbol: {qualname!r}: {e.msg()}", filename=e.filename
+        ) from e
+    init_defs = defs
+    defs = list(filter(lambda d: isinstance(d, hint), defs))
+    if len(defs) == 0:
+        raise StaticValueError(
+            f"cannot find symbol {qualname!r} of type {hint} but found {len(init_defs)} other definitions",
+        )
+    if len(defs) > 1 and location is not None:
+        try:
+            # try to find the definition with the given location
+            defs = [next(filter(lambda d: location == state.get_location(d), defs,)) ]
+        except StopIteration:
+            # should report warning here,
+            # fallback to another definiton that doesn't match the location.
+            pass
+    *_, node = defs
+    return node
+
 # This class has beeen adapted from the 'astypes' project.
 @attrs.s(frozen=True, auto_attribs=True)
 class Type:
@@ -56,7 +97,7 @@ class Type:
     """
     
     name: str = attrs.ib(validator=[validators.instance_of(str),
-                                    validators.min_len(1)])
+                                    validators.min_len(1)]) # type: ignore
     scope: str = ''
     """The scope where the type is defined. This is often a module, 
     but it migth be a class or a function in some cases.
@@ -82,12 +123,18 @@ class Type:
     """
     Stores meta information when the type 
     annotations are not expressive enougth.
-    Mainly used for intermediate inference steps.
-    Meta information should only be added to one of the special cased types.
+    Used for intermediate inference steps.
     """
     if not TYPE_CHECKING:
-        meta: Mapping[str, object] = attrs.ib(factory=FrozenDict, converter=FrozenDict, kw_only=True)
+        meta: Mapping[str, object] = attrs.ib(factory=FrozenDict, converter=FrozenDict, kw_only=True, hash=False)
     
+    definition: Def|None = attrs.ib(default=None, eq=False, hash=False)
+    """
+    The type symbol definition, if it has one. 
+    Can be None for builtins (if the builtins module is not in the system) 
+    and other special cases like Callable or Unions.
+    """
+
     # Special types:
     Any: ClassVar[Type]
     Union: ClassVar[Type]
@@ -95,6 +142,7 @@ class Type:
     Callable: ClassVar[Type]
     ModuleType: ClassVar[Type]
     Literal: ClassVar[Type]
+    overload: ClassVar[Type]
 
     @property
     def qualname(self) -> str:
@@ -125,6 +173,25 @@ class Type:
     @property
     def is_module(self) -> bool:
         return self.qualname == 'types.ModuleType'
+    
+    @property
+    def is_typevar(self) -> bool:
+        return self.name.startswith('@TypeVar')
+
+    @property
+    def is_protocol(self) -> bool:
+        return self.get_meta('is_protocol', bool) or False
+
+    @property
+    def is_overload(self) -> bool:
+        """
+        >>> t = Type.overload.add_args(args=[Type.Callable.add_args([Type('int', 'builtins'), Type('int', 'builtins'),]), 
+        ... Type.Callable.add_args([Type('str', 'builtins'), Type('str', 'builtins'),])])
+        >>> print(t.annotation)
+        (int) -> int | (str) -> str
+        >>> assert t.is_overload
+        """
+        return self.name == '@overload'
     
     @property
     def is_literal(self) -> bool:
@@ -191,19 +258,19 @@ class Type:
         return self._replace(meta={**self.meta, **meta})
     
     def get_meta(self, key:str, typ:type[_T]) -> _T|None:
-        """
-        Valid keys currently are 
-        - 'qualname' or 'location'. 
-            Both are the respective qualname and location of the wrapped 
-            function or module for `Callable` and `ModuleType`. 
-            Set in the case of a known function or module only. 
-            Won't be set for explicit 'Callable' annotations for instance, only for the once
-            created from ast.FunctionDef instances, idem for modules.
-        - 'unknown'. 
-            Set on generated Any types to differenciate an unknown type from an
-            explicit typing.Any annotation, which is known to be Any, so should
-            not be considered unknown.
-        """
+        # """
+        # Valid keys currently are 
+        # - 'qualname' or 'location'. 
+        #     Both are the respective qualname and location of the wrapped 
+        #     function or module for `Callable` and `ModuleType`. 
+        #     Set in the case of a known function or module only. 
+        #     Won't be set for explicit 'Callable' annotations for instance, only for the once
+        #     created from ast.FunctionDef instances, idem for modules.
+        # - 'unknown'. 
+        #     Set on generated Any types to differenciate an unknown type from an
+        #     explicit typing.Any annotation, which is known to be Any, so should
+        #     not be considered unknown.
+        # """
         val = self.meta.get(key)
         if val is None:
             return None
@@ -215,21 +282,52 @@ class Type:
         # TODO: use a mapping of type-promotion instead of this.
         if self.name == 'float' and other.name == 'int':
             return True
+        
+        # bottom type match
         if self.name in ('Any', 'object'):
             return True
+        
+        # union match
         if self.is_union:
             for arg in self.args:
                 if arg.supertype_of(other):
                     return True
+        
+        if other.is_union:
+            # all the other types must be a subtype of self.
+            return all(self.supertype_of(o) for o in other.args)
 
-        # TODO Look superclasses
-        if self.name != other.name:
-            return False
-        if self.scope != other.scope:
-            return False
-        if self.args != other.args:
-            return False
-        return True
+        # exact match        
+        if self.name == other.name and self.scope == other.scope and self.args == other.args:
+            return True
+        
+        # Check protocol based matches.
+        if self.is_protocol:
+            members: Mapping[str, Type]|None = self.get_meta('members', LazyMap)
+            other_members: Mapping[str, Type]|None = other.get_meta('members', LazyMap)
+            if members is not None and other_members is not None:
+                for name, membertype in members.items():
+                    other_membertype = other_members.get(name)
+                    if other_membertype is None:
+                        # the name is not declared
+                        break
+                    if membertype.is_callable and other_membertype.qualname == 'builtins.None':
+                        # the name is declared but assigned to None, 
+                        # this means it does NOT implement that method.
+                        break
+                    # due to the incompleteness of our type inferrer, we cannot check more
+                    # precise protocol members types. So delcaring a name is enougth to implement
+                    # a protocol at this time.
+                else:
+                    return True
+
+        # seek for superclasses
+        mro: Sequence[Type] | None = other.get_meta('mro', LazySeq)
+        # super class match
+        if mro: 
+            return self.supertype_of(mro[0])
+    
+        return False
     
     @cached_property
     def annotation(self) -> str:
@@ -238,12 +336,24 @@ class Type:
         The string is a valid Python 3.10 expression.
         For example, ``str | dict[str, Any]``.
         """
-        if self.is_union:
+        if self.is_union or self.is_overload:
             return ' | '.join(arg.annotation for arg in self.args)
         name = self.name
         if self.args:
-            args = ', '.join(arg.annotation for arg in self.args)
-            return f'{name}[{args}]'
+            if self.is_callable:
+                def format_arg(p:Type) -> str:
+                    ann = p.annotation
+                    keyword = p.get_meta('keyword', str)
+                    if keyword:
+                        return f'{keyword}:{ann}'
+                    else:
+                        return ann
+                *argstypes, rtype = self.args
+                paramtypes = ', '.join(format_arg(arg) for arg in argstypes)
+                return f'({paramtypes}) -> {rtype.annotation}'
+            else:
+                args = ', '.join(arg.annotation for arg in self.args)
+                return f'{name}[{args}]'
         return name
     
     @cached_property
@@ -255,10 +365,120 @@ class Type:
             return ' | '.join(arg.long_annotation for arg in self.args)
         name = self.qualname
         if self.args:
-            args = ', '.join(arg.long_annotation for arg in self.args)
+            if self.is_callable:
+                *argstypes, rtype = self.args
+                paramtypes = ', '.join(arg.long_annotation for arg in argstypes)
+                args = f'[{paramtypes}], {rtype.long_annotation}'
+            else:
+                args = ', '.join(arg.long_annotation for arg in self.args)
             return f'{name}[{args}]'
         return name
 
+def AnnotationType(state:State, qualname:str) -> Type:
+    """
+    Create a `Type` from it's qualified name.
+
+    :raises StaticException: If the name is not in the system and the qualname
+        does not refer to a builtin or a typing name. In these cases, a type with no
+        definition is returned because we can still account for it
+        even if the modules 'typing' or 'buitlins' are not in the system.
+    """
+    try:
+        typedef = find_typedef(state, qualname)
+    except StaticException:
+        return SimpleType(qualname)
+        # if qualname.startswith('builtins.') or \
+        #     qualname.startswith('typing.') or qualname == 'types.ModuleType':
+            
+        # raise
+    if isinstance(typedef, Cls):
+        return ClsType(state, typedef)
+    elif typedef is not None:
+        # Else it could be a type alias/typevar etc.
+        return SymbolType(state, typedef)
+
+def SimpleType(qualname:str) -> Type:
+    """
+    Create a `Type` that is not in the system.
+    """
+    module, _, name = qualname.rpartition(".")
+    return Type(name, module)
+
+def SymbolType(state:State, definition:NameDef) -> Type:
+    """
+    Create a `Type` that is defined in the system but that's not a classdef.
+    """
+    name = definition.name()
+    scopedef = state.get_enclosing_scope(definition)
+    if scopedef is not None:
+        scope = state.get_qualname(scopedef)
+    else:
+        # rare cases where a module is used in an annotation?
+        scope = ''
+    location = state.get_location(definition)
+    return Type(name=name, 
+                scope=scope, 
+                definition=definition, 
+                location=location)
+
+def ClsType(state:State, definition:Cls) -> Type:
+    """
+    Create a `Type` from a classdef.
+    """
+    return SymbolType(state, definition).add_meta(
+            is_protocol=any(state.expand_expr(n) in ('typing.Protocol', 
+                                                            'typing_extensions.Protocol')
+                            for n in definition.node.bases), 
+            mro=SuperTypes(state, definition),
+            members=MembersTypes(state, definition),
+            )
+
+def SuperTypes(state:State, definition:Cls) -> Sequence[Type]:
+    """
+    Fetch the super-types in mro order of this classdef.
+    """
+    def get_type(o:Cls|str) -> Type:
+        if isinstance(o, Cls):
+            return ClsType(state, o)
+        else:
+            # not in the system
+            return SimpleType(o)
+
+    return LazySeq((get_type(d) for d in 
+                    state.get_mro(definition, include_unknown=True, include_self=False)))
+
+def _merge_types(state:State, defs:Sequence[NameDef|None]) -> Type:
+    nt = Type.Any
+    for d in (d for d in defs if d):
+        nt = nt.merge(state.get_type(d) or Type.Any)
+    return nt
+
+def unwrap_type_classdef(typ:Type) -> Def:
+    # should onyl be called for typing.Type types.
+    assert typ.is_type
+    if len(typ.args) == 1:
+        # Class variable attribute
+        definition = typ.args[0].definition
+        if definition is None:
+            raise StaticNameError(typ.args[0].qualname, filename='<missing>')
+        return definition
+    elif typ.args:
+       raise StaticValueError(typ.get_meta('location', NodeLocation), 
+                              f'Type has to many argument: {typ.annotation}')
+    else:
+       raise StaticValueError(typ.get_meta('location', NodeLocation), 
+                              f'Type has no argument: {typ.annotation}')
+
+def MembersTypes(state:State, definition:Cls) -> Mapping[str, Type]:
+    """
+    Get a lazy mapping of all types of the members of this class, including inherited.
+    """
+    return LazyMap(((k, _merge_types(state, v)) for k,v in 
+                        ChainMap([state.get_locals(definition), 
+                                  state.get_ivars(definition)]).items()))
+
+def BuiltinType(state:State, name:str) -> Type:
+    return AnnotationType(state, f'builtins.{name}')
 
 Type.Union = Type('Union', 'typing')
 Type.Literal = Type('Literal', 'typing')
@@ -266,6 +486,7 @@ Type.TypeType = Type('Type', 'typing')
 Type.Callable = Type('Callable', 'typing')
 Type.ModuleType = Type('ModuleType', 'types')
 Type.Any = Type('Any', 'typing').add_meta(unknown=True)
+Type.overload = Type('@overload')
 
 class _AnnotationStringParser(ast.NodeTransformer):
     """When given an expression, the node returned by L{ast.NodeVisitor.visit()}
@@ -387,8 +608,8 @@ class _AnnotationToType(ast.NodeVisitor):
         )
         if qualname:
             qualname = self._redirects.get(qualname, qualname)
-            module, _, name = qualname.rpartition(".")
-            return Type(name, module).add_meta(location=self.state.get_location(node))
+            return AnnotationType(self.state, qualname).add_meta(
+                location=self.state.get_location(node))
             # TODO: This ignores the fact that the parent of the imported symbol migt be a class.
         elif node.id in BuiltinsSrc:
             # the builtin module might not be in the system
@@ -415,8 +636,8 @@ class _AnnotationToType(ast.NodeVisitor):
         )
         if qualname:
             qualname = self._redirects.get(qualname, qualname)
-            module, _, name = qualname.rpartition(".")
-            return Type(name, module)
+            return AnnotationType(self.state, qualname).add_meta(
+                location=self.state.get_location(node))
             # TODO: This ignores the fact that the parent of the imported symbol migt be a class.
         else:
             # TODO: Leave a warning, the name is unbound
@@ -435,8 +656,14 @@ class _AnnotationToType(ast.NodeVisitor):
                     self.generic_visit(node.slice) 
             else:
                 slicevalue = node.slice
+            is_callable = left.is_callable
             if isinstance(slicevalue, ast.Tuple):
-                args = [self.visit(el) for el in slicevalue.elts]
+                args: List[Type] = []
+                for i,el in enumerate(slicevalue.elts):
+                    if i==0 and is_callable and isinstance(el, ast.List):
+                        args.extend(self._handle_list(el))
+                    else:
+                        args.append(self.visit(el))
                 left = left._replace(args=args)
             else:
                 arg = self.visit(slicevalue)
@@ -447,22 +674,23 @@ class _AnnotationToType(ast.NodeVisitor):
             self.state.msg(e.msg(), ctx=e.node)
         if left.is_literal:
             self.in_literal = False
-        return left
+        return left.add_meta(location=self.state.get_location(node))
 
     def visit_BinOp(self, node: ast.BinOp) -> Type:
         # support new style unions
         if isinstance(node.op, ast.BitOr):
             left = self.visit(node.left)
             right = self.visit(node.right)
-            return _union(left, right)
+            return _union(left, right).add_meta(location=self.state.get_location(node))
         else:
             raise StaticValueError(node, 
                 f"binary operation not supported: {node.op.__class__.__name__}",
                 filename=self.state.get_filename(node)
             )
 
-    def visit_Ellipsis(self, _: Any) -> Type:
-        return Type("...")
+    def visit_Ellipsis(self, node: ast.Ellipsis | ast.Constant) -> Type:
+        return Type("...").add_meta(
+            location=self.state.get_location(node))
 
     def visit_Constant(
         self, node: Union[ast.Constant, ast.Str, ast.NameConstant, ast.Bytes, ast.Num]
@@ -474,11 +702,13 @@ class _AnnotationToType(ast.NodeVisitor):
         else:
             value = node.value
         if value is None:
-            return Type("None")
+            return Type("None").add_meta(
+                location=self.state.get_location(node))
         elif isinstance(value, type(...)):
-            return self.visit_Ellipsis(None)
+            return self.visit_Ellipsis(node)
         if self.in_literal:
-            return Type(repr(value))
+            return Type(repr(value)).add_meta(
+                location=self.state.get_location(node))
         else:
             try:
                 # unstring annotations as strings
@@ -497,11 +727,10 @@ class _AnnotationToType(ast.NodeVisitor):
     visit_NameConstant = visit_Constant
 
 
-    def visit_List(self, node: ast.List) -> Type:
-        return Type.Any
+    def _handle_list(self, node: ast.List) -> tuple[Type,...]:
+        return tuple(self.visit(el) for el in node.elts)
         # ast.List is used in Callable, but we do not fully support it at the moment.
         # TODO: are the lists supposed to only allowed in callables?
-        # return Type("", args=tuple(self.visit(el) for el in node.elts))
 
 
 class _TypeInference(_EvalBaseVisitor["Type|None"]):
@@ -538,6 +767,9 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
             return self.visit(expr, path)
         except StaticException as e:
             self._state.msg(f"type inference failed: {e.msg()}", ctx=expr)
+            if __debug__:
+                import traceback
+                traceback.print_exc()
         except Exception as e:
             self._state.msg(
                 f"unexpected {type(e).__name__} in type inference: {e}", ctx=expr
@@ -545,6 +777,9 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
             if __debug__:
                 raise
         return None
+
+    def builtin(self, name) -> Type:
+        return BuiltinType(self._state, name)
 
     #########################################
     ###      expressions                  ###
@@ -562,8 +797,10 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
         else:
             value = node.value
         if value is None:
-            return Type("None")
-        return Type(type(value).__name__)
+            return self.builtin("None").add_meta(
+                location=self._state.get_location(node))
+        return self.builtin(type(value).__name__).add_meta(
+            location=self._state.get_location(node))
     
     visit_Str = visit_Constant
     visit_Bytes = visit_Constant
@@ -571,7 +808,8 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
     visit_NameConstant = visit_Constant
 
     def visit_JoinedStr(self, node: ast.JoinedStr, path: list[ast.AST]) -> Type:
-        return Type("str")
+        return self.builtin("str").add_meta(
+            location=self._state.get_location(node))
 
     def visit_List(self, node: ast.List | ast.Set, path: list[ast.AST]) -> Type:
         clsname = type(node).__name__.lower()
@@ -579,11 +817,13 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
         for element_node in node.elts:
             element_type = self.get_type(element_node, path)
             if element_type is None:
-                return Type(clsname)
+                return self.builtin(clsname)
             subtype = subtype.merge(element_type)
         if subtype.unknown:
-            return Type(clsname)
-        return Type(clsname, args=(subtype,))
+            return self.builtin(clsname).add_meta(
+                location=self._state.get_location(node))
+        return self.builtin(clsname).add_args(args=(subtype,)).add_meta(
+            location=self._state.get_location(node))
 
     visit_Set = visit_List
 
@@ -592,11 +832,14 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
         for element_node in node.elts:
             element_type = self.get_type(element_node, path)
             if element_type is None:
-                return Type("tuple")
+                return self.builtin("tuple").add_meta(
+                    location=self._state.get_location(node))
             subtypes += (element_type,)
         if not subtypes:
-            return Type("tuple")
-        return Type("tuple", args=subtypes)
+            return self.builtin("tuple").add_meta(
+                location=self._state.get_location(node))
+        return self.builtin("tuple").add_args(args=subtypes).add_meta(
+            location=self._state.get_location(node))
 
     def visit_Dict(self, node: ast.Dict, path: list[ast.AST]) -> Type:
         keys_type = Type.Any
@@ -623,16 +866,20 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
             values_type = values_type.merge(value_type)
 
         if keys_type.unknown and values_type.unknown:
-            return Type("dict")
+            return self.builtin("dict").add_meta(
+                location=self._state.get_location(node))
         if keys_type.unknown:
             keys_type = Type.Any
         if values_type.unknown:
             values_type = Type.Any
-        return Type("dict", args=(keys_type, values_type))
+        return self.builtin("dict").add_args(
+            args=(keys_type, values_type)).add_meta(
+            location=self._state.get_location(node))
 
     def visit_UnaryOp(self, node: ast.UnaryOp, path: list[ast.AST]) -> Type | None:
         if isinstance(node.op, ast.Not):
-            return Type("bool")
+            return self.builtin("bool").add_meta(
+                location=self._state.get_location(node))
         result = self.get_type(node.operand, path)
         if result is not None:
             # result = result.add_ass(Ass.NO_UNARY_OVERLOAD)
@@ -649,11 +896,13 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
             return None
         if lt.qualname == rt.qualname == "builtins.int":
             if isinstance(node.op, ast.Div):
-                return Type("float")
+                return self.builtin("float").add_meta(
+                    location=self._state.get_location(node))
             return lt
         if lt.qualname in ("builtins.float", "builtins.int") and \
             rt.qualname in ("builtins.float", "builtins.int"):
-            return Type("float")
+            return self.builtin("float").add_meta(
+                location=self._state.get_location(node))
         if lt.qualname == rt.qualname:
             return rt
         return None
@@ -666,40 +915,54 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
             if type is None:
                 return None
             result = result.merge(type)
-        return result
+        return result.add_meta(
+            location=self._state.get_location(node))
 
     def visit_Compare(self, node: ast.Compare, path: list[ast.AST]) -> Type | None:
         if isinstance(node.ops[0], ast.Is):
-            return Type("bool")
+            return self.builtin("bool").add_meta(
+                location=self._state.get_location(node))
         # TODO: Use typeshed here to get precise type.
-        return Type("bool")  # , ass={Ass.NO_COMP_OVERLOAD})
+        return self.builtin("bool").add_meta(
+            location=self._state.get_location(node))  # , ass={Ass.NO_COMP_OVERLOAD})
 
     def visit_ListComp(self, node: ast.ListComp, path: list[ast.AST]) -> Type | None:
-        return Type("list")
+        return self.builtin("list").add_meta(
+            location=self._state.get_location(node))
 
     def visit_SetComp(self, node: ast.SetComp, path: list[ast.AST]) -> Type | None:
-        return Type("set")
+        return self.builtin("set").add_meta(
+            location=self._state.get_location(node))
 
     def visit_DictComp(self, node: ast.DictComp, path: list[ast.AST]) -> Type | None:
-        return Type("dict")
+        return self.builtin("dict").add_meta(
+            location=self._state.get_location(node))
 
     def visit_GeneratorExp(
         self, node: ast.GeneratorExp, path: list[ast.AST]
     ) -> Type | None:
-        return Type("Iterator", "typing")
+        return AnnotationType(self._state, 'typing.Iterator').add_meta(
+            location=self._state.get_location(node))
 
     def visit_Call(self, node: ast.Call, path: list[ast.AST]) -> Type | None:
         assert node.func
         functype = self.get_type(node.func, path)
         if functype:
             if functype.is_type and len(functype.args) == 1:
-                return functype.args[0]
-            if functype.is_callable and len(functype.args) == 2:
-                # TODO: Find and match overloads
-                returntype = functype.args[1]
-                if returntype.unknown:
-                    return None
-                return returntype
+                return functype.args[0].add_meta(
+                    location=self._state.get_location(node))
+            if functype.is_callable  or functype.is_overload:
+                posargs = (self.get_type(n, path) or Type.Any for n in node.args)
+                keywordargs = ((self.get_type(n.value, path) or Type.Any).add_meta(keyword=n.arg) for n in node.keywords)
+                exprtype = Type.Callable.add_args(args=(*posargs, *keywordargs, TypeVariable()))
+                try:
+                    unified = unify(functype, exprtype, {})
+                except RuntimeError as e:
+                    raise StaticValueError(node, f'Type unification failed: {e}', 
+                                           filename=self._state.get_filename(node))
+
+                return unified.args[-1].add_meta(
+                    location=self._state.get_location(node))
             raise StaticValueError(
                 node,
                 f"cannot infer call result of type: {functype!r}",
@@ -713,16 +976,20 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
         if valuetype is None:
             return None
         if valuetype.qualname in ("builtins.str", "builtins.bytes"):
-            return valuetype
+            return valuetype.add_meta(
+                location=self._state.get_location(node))
         if valuetype.qualname in ("builtins.dict",) and len(valuetype.args) == 2:
-            return valuetype.args[1]
+            return valuetype.args[1].add_meta(
+                location=self._state.get_location(node))
         if valuetype.qualname in ("builtins.list",) and len(valuetype.args) == 1:
-            return valuetype.args[0]
+            return valuetype.args[0].add_meta(
+                location=self._state.get_location(node))
         if valuetype.qualname in ("builtins.tuple",):
             if len(valuetype.args) == 0:
                 return None
             if len(valuetype.args) == 2 and valuetype.args[1].annotation == "...":
-                return valuetype.args[0]
+                return valuetype.args[0].add_meta(
+                    location=self._state.get_location(node))
             try:
                 indexvalue = self._state.literal_eval(node.slice)
             except StaticException:
@@ -731,14 +998,16 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
                 if not isinstance(indexvalue, int):
                     return None
                 try:
-                    return valuetype.args[indexvalue]
+                    return valuetype.args[indexvalue].add_meta(
+                        location=self._state.get_location(node))
                 except IndexError:
                     return None
 
             newtype = Type.Any
             for t in valuetype.args:
                 newtype = newtype.merge(t)
-            return newtype
+            return newtype.add_meta(
+                location=self._state.get_location(node))
         return None
     
     #########################################
@@ -756,9 +1025,9 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
                 node, "name", filename=self._state.get_filename(node)
             ) from e
         if isinstance(assign, ast.AnnAssign):
-            ann = self._replace_typevars_by_any(_AnnotationToType(
+            ann = _AnnotationToType(
                 self._state, self._state.get_enclosing_scope(node)
-            ).visit(assign.annotation))
+            ).visit(assign.annotation)
             if not ann.unknown:
                 return ann
         value = get_stored_value(node, assign=assign)  # type:ignore[arg-type]
@@ -805,36 +1074,10 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
                     f"found a definition for name {ast_node_name(node)!r}, but it does not have a known type",
                     filename=self._state.get_filename(node),
                 )
-        return newtype
+        return newtype.add_meta(
+            location=self._state.get_location(node))
 
     visit_alias = visit_Name_Load
-
-    def visit_arg(self, node: ast.arg, path: list[ast.AST]) -> Type | None:
-        arg_def: Arg = self._state.get_def(node)  # type:ignore
-        if arg_def.node.annotation is not None:
-            try:
-                annotation = self._replace_typevars_by_any(_AnnotationToType(
-                    self._state, LazySeq(self._state.get_all_enclosing_scopes(node))[1]
-                ).visit(arg_def.node.annotation))
-            except StaticException:
-                pass
-            else:
-                if not annotation.unknown:
-                    if arg_def.kind == Parameter.VAR_POSITIONAL:
-                        annotation = Type("tuple", args=[annotation, Type("...")])
-                    if arg_def.kind == Parameter.VAR_KEYWORD:
-                        annotation = Type("dict", args=[Type("str"), annotation])
-                    return annotation
-        if (
-            arg_def.default is not None
-            and getattr(arg_def.default, "value", object()) is not None
-        ):
-            return self.get_type(arg_def.default, path)
-        if arg_def.kind == Parameter.VAR_POSITIONAL:
-            return Type("tuple")
-        if arg_def.kind == Parameter.VAR_KEYWORD:
-            return Type("dict", args=[Type("str"), Type.Any])
-        return None
     
     def visit_Attribute_Load(
         self, node: ast.Attribute, path: list[ast.AST]
@@ -842,24 +1085,66 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
         valuetype = self.get_type(node.value, path)
         if valuetype is None:
             return None
-        return self._get_type_attribute(valuetype, node.attr, node, path)
+        return self._get_type_attribute(valuetype, node.attr, node, path).add_meta(
+            location=self._state.get_location(node))
 
     #########################################
     ###      statements                   ###
     #########################################
 
+    def visit_arg(self, node: ast.arg, path: list[ast.AST], typevars:dict[str, Type]|None=None) -> Type | None:
+        arg_def: Arg = self._state.get_def(node)  # type:ignore
+        if arg_def.node.annotation is not None:
+            try:
+                annotation = self._replace_typevars(_AnnotationToType(
+                    self._state, LazySeq(self._state.get_all_enclosing_scopes(node))[1]
+                ).visit(arg_def.node.annotation), typevars=typevars or {})
+            except StaticException:
+                pass
+            else:
+                if not annotation.unknown:
+                    if arg_def.kind == Parameter.VAR_POSITIONAL:
+                        annotation = self.builtin("tuple").add_args(
+                            args=[annotation, Type("...")])
+                    if arg_def.kind == Parameter.VAR_KEYWORD:
+                        annotation = self.builtin("dict").add_args(
+                            args=[self.builtin("str"), annotation])
+                    return annotation.add_meta(
+                            location=self._state.get_location(node),
+                            definition=arg_def)
+        if (
+            arg_def.default is not None
+            and getattr(arg_def.default, "value", object()) is not None
+        ):
+            return self.get_type(arg_def.default, path).add_meta(
+                location=self._state.get_location(node),
+                definition=self._state.get_def(node))
+        if arg_def.kind == Parameter.VAR_POSITIONAL:
+            return self.builtin("tuple").add_meta(
+                location=self._state.get_location(node),
+                definition=self._state.get_def(node))
+        if arg_def.kind == Parameter.VAR_KEYWORD:
+            return self.builtin("dict").add_args(
+                args=[self.builtin("str"), Type.Any]).add_meta(
+                location=self._state.get_location(node),
+                definition=self._state.get_def(node))
+        return None
+
     def visit_FunctionDef(
-        self, node: ast.FunctionDef | ast.AsyncFunctionDef, path: list[ast.AST]
+        self, node: ast.FunctionDef | ast.AsyncFunctionDef, 
+        path: list[ast.AST],
+        overloads: deque[Type]|None=None,
+        typevars: dict[str, Type]|None=None,
     ) -> Type:
-        # TODO: get better at callables
-        argstype = Type.Any
+
+        typevars: dict[str, Type] = typevars or {}
         if node.returns is not None:
-            returntype = self._replace_typevars_by_any(_AnnotationToType(
+            returntype = self._replace_typevars(_AnnotationToType(
                 self._state, self._state.get_enclosing_scope(node)
-            ).visit(node.returns))
+            ).visit(node.returns), typevars)
         elif isinstance(node, ast.AsyncFunctionDef):
             # TODO: better support for async functions
-            returntype = Type("Awaitable", "typing", args=(Type.Any,))
+            returntype = AnnotationType(self._state, 'typing.Awaitable').add_args(args=(Type.Any,))
         else:
             returntype = Type.Any
         if any(
@@ -867,10 +1152,46 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
             for n in node.decorator_list
         ):
             return returntype
-        return Type.Callable.add_args(args=(argstype, returntype)).add_meta(
+        
+        argstypes: list[Type] = []
+        if sys.version_info >= (3, 8):
+            argstypes.extend(self.visit_arg(a, path, typevars) or Type.Any
+                             for a in node.args.posonlyargs)
+        argstypes.extend(self.visit_arg(a, path, typevars) or Type.Any for a in node.args.args)
+        if node.args.vararg:
+            t = self.visit_arg(node.args.vararg, path, typevars)
+            if t and len(t.args)>1:
+                argstypes.append(t.args[0].add_meta(**t.meta))
+            else:
+                argstypes.append(Type.Any.add_meta(**t.meta))
+            
+        argstypes.extend((self.visit_arg(a, path, typevars) or Type.Any).add_meta(
+            keyword=a.arg)  for a in node.args.kwonlyargs)
+        if node.args.kwarg:
+            t = self.visit_arg(node.args.kwarg, path, typevars)
+            if t and len(t.args)>1:
+                argstypes.append(t.args[1].add_meta(**t.meta))
+            else:
+                argstypes.append(Type.Any.add_meta(**t.meta))
+
+        functiontype = Type.Callable.add_args(args=(*argstypes, returntype)).add_meta(
             qualname=self._state.get_qualname(node),
             location=self._state.get_location(node), 
+            definition=self._state.get_def(node),
         )
+        # check for overloads
+        overloads = overloads or deque()
+        overloads.appendleft(functiontype)
+
+        left_sibling = self._state.get_sibling(node, direction=-1)
+        if isinstance(left_sibling, ast.FunctionDef) and left_sibling.name == node.name and any(
+            self._state.expand_expr(n) in ("typing.overload", "typing_extensions.overload") for n 
+            in left_sibling.decorator_list):
+                self.visit_FunctionDef(left_sibling, path, overloads, typevars)
+        
+        if len(overloads)>1:
+            return Type.overload.add_args(args=overloads)
+        return functiontype
 
     visit_AsyncFunctionDef = visit_FunctionDef
 
@@ -878,16 +1199,18 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
         modname = self._state.get_qualname(node)
         return Type.ModuleType.add_meta(
             qualname=modname, 
-            location=self._state.get_location(node))
+            location=self._state.get_location(node), 
+            definition=self._state.get_def(node),)
 
     def visit_ClassDef(self, node: ast.ClassDef, path: list[ast.AST]) -> Type:
-        return Type.TypeType.add_args(
-            args=(Type(
-                    node.name,
-                    self._state.get_qualname(self._state.get_enclosing_scope(node)),
-                    location=self._state.get_location(node),),)
-        )
-
+        return Type.TypeType.add_args(args=[
+            ClsType(self._state, self._state.get_def(node)) ]).add_meta(
+                # for consistency, we set all 3 meta fields even if information
+                # is duplicated inside args[0].
+                qualname=self._state.get_qualname(node), 
+                location=self._state.get_location(node), 
+                definition=self._state.get_def(node),)
+          
     #########################################
     ###      type inference helpers       ###
     #########################################
@@ -897,7 +1220,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
         attr: str, 
         ctx: ast.AST, 
         path: list[ast.AST]
-    ) -> Type | None:
+    ) -> Type:
         """
         Get the type of an attribute access ``attr`` on the given ``valuetype``.
         """
@@ -914,7 +1237,8 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
                 defs = self._state.get_attribute( # type: ignore
                     definition, attr, include_ivars=not type.is_type # type: ignore
                 )
-            except StaticException:
+            except StaticException as e:
+                print(e)
                 continue
 
             attrdefs.extend(defs)
@@ -943,9 +1267,18 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
 
         newtype = Type.Any
         for definition in attrdefs:
-            othertype = self.get_type(definition.node, path)
-            if othertype is not None:
-                newtype = newtype.merge(othertype)
+            node = definition.node
+            attrtype = self.get_type(node, path)
+            if attrtype is not None:
+                # remove 'self' argument on bound methods.
+                if (isinstance(node, (ast.FunctionDef, 
+                                    ast.AsyncFunctionDef)) and
+                        is_instance_method(node) and 
+                        not valuetype.is_type and 
+                        attrtype.is_callable):
+                    attrtype = attrtype._replace(args=attrtype.args[1:])
+
+                newtype = newtype.merge(attrtype)
         
         if newtype.unknown:
             if len(attrdefs) > 1:
@@ -962,9 +1295,9 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
                 )
         return newtype
     
-    def _replace_typevars_by_any(self, type: Type) -> Type:
+    def _replace_typevars(self, type: Type, typevars:dict[str, Type]) -> Type:
         """
-        Sine we don't support typevars at the moment, we simply replace them by Any :/
+        Replace raw typevars with `TypeVariable` types.
         """
         # lectures about unification of typevars: 
         # https://stackoverflow.com/questions/65362422/type-unification-algorithm-in-python-how-to-reject-unifya-b-int-int
@@ -974,105 +1307,87 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
         # https://github.com/pfalcon/picompile
         # https://github.com/eliphatfs/typhon/tree/master/typhon/core/type_system/intrinsics
         # https://github.com/serge-sans-paille/tog/blob/master/tog.py#L391
-
+        class NotATypeVar(Exception):
+            ...
+        
         try:
-            definition = self._get_typedef(type) # this can raise StaticException
-            if isinstance(definition, Var):
-                assign = self._state.get_parent(definition)
-                if isinstance(assign, ast.Assign):
-                    if isinstance(assign.value, ast.Call):
-                        name = node2dottedname(assign.value.func)
-                        if name:
-                            if self._state.expand_name(self._state.get_root(definition), 
-                                                    '.'.join(name)) == 'typing.TypeVar':
-                                return Type.Any
-        except StaticException as e:
+            definition = type.definition
+            if not isinstance(definition, Var):
+                raise NotATypeVar()
+            assign = self._state.get_parent(definition)
+            if not isinstance(assign, ast.Assign):
+                raise NotATypeVar()
+            if not isinstance(assign.value, ast.Call):
+                raise NotATypeVar()
+            name = node2dottedname(assign.value.func)
+            if not name:
+                raise NotATypeVar()
+            if self._state.expand_name(self._state.get_root(definition), 
+                                    '.'.join(name)) == 'typing.TypeVar':
+                try:
+                    tv = typevars[definition.name()]
+                    return type._replace(name=tv.name)
+                except KeyError:
+                    # preserve meta data
+                    tv = type._replace(name=TypeVariable().name)
+                    typevars[definition.name()] = tv
+                    return tv
+        except NotATypeVar:
             pass
         
-        subtypes = [self._replace_typevars_by_any(t) for t in type.args]
+        subtypes = [self._replace_typevars(t, typevars) for t in type.args]
         if all(s.unknown for s in subtypes):
             subtypes = []
+        
         return type._replace(args=subtypes)
     
-    def _get_typedef(self, typ:Type) -> Def:
-        """
-        Find the definition of a Type.
-        """
-        # supports classes, modules, functions and variables at the moment.
-        location:NodeLocation|None
-        qualname:str
-        if typ.is_module:
-            qualname = typ.get_meta('qualname', str) # type:ignore[assignment]
-            if qualname is None:
-                raise StaticValueError(typ, "no module definition")
-            hint:type[Def]|tuple[type[Def],...] = Mod
-            location = typ.get_meta('location', NodeLocation)
-        elif typ.is_callable:
-            qualname = typ.get_meta('qualname', str) # type:ignore[assignment]
-            if qualname is None:
-                raise StaticValueError(typ, "no function definition")
-            hint = Func
-            location = typ.get_meta('location', NodeLocation)
-        else:
-            location = typ.location
-            qualname = typ.qualname
-            if '.' not in qualname:
-                raise StaticValueError(typ, f"won't find anything for type {typ}")
-            hint = (Cls, Var)
-        if hint is Mod:
-            m = self._state.get_module(qualname)
-            if m is None:
-                raise StaticValueError(typ, 
-                    f"unknown module {typ.name!r}",)
-            return m
-        else:
-            return self._find_typedef(qualname, hint=hint, location=location)
-
-
-    def _find_typedef(self, qualname: str, *, 
-                      hint:type[Def]|tuple[type[Def],...], 
-                      location: NodeLocation|None=None) -> Def:
-        """
-        Get the definition of the object qualified by the given name, 
-        type hint and location or raise an exception.
-        """
-        try:
-            defs = self._state.get_defs_from_qualname(qualname)
-        except StaticException as e:
-            raise StaticValueError(
-                e.node, f"unknown symbol: {qualname!r}: {e.msg()}", filename=e.filename
-            ) from e
-        init_defs = defs
-        defs = list(filter(lambda d: isinstance(d, hint), defs))
-        if len(defs) == 0:
-            raise StaticValueError(
-             f"cannot find symbol {qualname!r} of type {hint} but found {len(init_defs)} other definitions",
-            )
-        if len(defs) > 1 and location is not None:
-            try:
-                # try to find the class with the same location as the Type
-                # TODO: It might be a type alias?
-                defs = [next(filter(lambda d: location == self._state.get_location(d), defs,)) ]
-            except StopIteration:
-                # should report warning here,
-                # fallback to another definiton that doesn't match the location.
-                # for builtins for instance.
-                pass
-        *_, node = defs
-        return node
+    # def _get_typedef(self, typ:Type) -> Def:
+    #     """
+    #     Find the definition of a Type.
+    #     """
+    #     # supports classes, modules, functions and variables at the moment.
+    #     location:NodeLocation|None
+    #     qualname:str
+    #     if typ.is_module:
+    #         qualname = typ.get_meta('qualname', str) # type:ignore[assignment]
+    #         if qualname is None:
+    #             raise StaticValueError(typ, "no module definition")
+    #         hint:type[Def]|tuple[type[Def],...] = Mod
+    #         location = typ.get_meta('location', NodeLocation)
+    #     elif typ.is_callable:
+    #         qualname = typ.get_meta('qualname', str) # type:ignore[assignment]
+    #         if qualname is None:
+    #             raise StaticValueError(typ, "no function definition")
+    #         hint = Func
+    #         location = typ.get_meta('location', NodeLocation)
+    #     else:
+    #         location = typ.location
+    #         qualname = typ.qualname
+    #         if '.' not in qualname:
+    #             raise StaticValueError(typ, f"won't find anything for type {typ}")
+    #         hint = (Cls, Var)
+    #     if hint is Mod:
+    #         m = self._state.get_module(qualname)
+    #         if m is None:
+    #             raise StaticValueError(typ, 
+    #                 f"unknown module {typ.name!r}",)
+    #         return m
+    #     else:
+    #         return self._find_typedef(qualname, hint=hint, location=location)
 
     def _flatten_typedefs(
         self, valuetype: Type, seen: set[Type]
-    ) -> Iterator[Tuple[Type, Def]]:
+    ) -> Iterator[Tuple[Type, Def | None]]:
         """
         Get the definition of each resolvable 
         top-level types in this type instance.
+        Unwrap unions and overloads.
         """
         if valuetype in seen:
             return
         seen.add(valuetype)
 
-        if valuetype.is_union:
+        if valuetype.is_union or valuetype.is_overload:
             for subtype in valuetype.args:
                 nested = self._flatten_typedefs(
                     subtype, seen.copy()
@@ -1083,23 +1398,380 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
                     except StopIteration:
                         break
                     except StaticException as e:
-                        self._state.msg(f'incomplete union: {e.msg()}', ctx=e.location())
+                        self._state.msg(f'incomplete {valuetype.name}: {e.location()}:{e.msg()}', 
+                                        ctx=valuetype.get_meta('location', NodeLocation))
 
         elif valuetype.is_literal:
+            # unwrap_Literal_classdef
             try:
                 val = ast.literal_eval(valuetype.args[0].name)
             except Exception:
                 return
             if val is None:
-                yield valuetype, self._find_typedef("types.NoneType", hint=Cls)
+                yield valuetype, None
             else:
-                yield valuetype, self._find_typedef(f"builtins.{type(val).__name__}", hint=Cls)
-        elif valuetype.is_type:
-            if len(valuetype.args) == 1:
-                # Class variable attribute
-                yield valuetype, self._get_typedef(valuetype.args[0])
-            else:
-                self._state.msg(f'incomplete type: {valuetype.annotation}', ctx=valuetype.location)
+                definition = self.builtin(type(val).__name__).definition
+                # if definition is None:
+                #     raise StaticNameError(type(val).__name__, filename='<missing builtin>')
+                yield valuetype, definition
+        elif valuetype.is_type or valuetype.is_module or valuetype.is_callable:
+            definition = valuetype.get_meta('definition', Def)
+            yield valuetype, definition
         else:
+            # catch-all case
             # assume it's an instance of a type in the project
-            yield valuetype, self._get_typedef(valuetype)
+            definition = valuetype.definition
+            # if definition is None:
+            #     raise StaticNameError(valuetype.qualname, filename='<missing>')
+            yield valuetype, definition
+
+class _TypeVariableMeta(type):
+    def __instancecheck__(cls, instance: Any) -> bool:
+        if (isinstance(instance, Type) and instance.is_typevar):
+            return True
+        return super().__instancecheck__(instance)
+    
+class TypeVariable(Type, metaclass=_TypeVariableMeta):
+    """
+    >>> tv = TypeVariable()
+    >>> assert isinstance(tv, TypeVariable)
+    >>> repr(tv)
+    "Type(name='@TypeVar...', scope='', args=(), meta=...)"
+    >>> assert tv != TypeVariable()
+    >>> assert Type('@TypeVar43')==Type('@TypeVar43')
+    """
+    _id = 0
+    def __new__(cls) -> Type: # type:ignore
+        TypeVariable._id += 1
+        return Type(f'@TypeVar{TypeVariable._id}')
+    @classmethod
+    def _reset(cls) -> None:
+        cls._id = 0
+
+#### Type variable support
+# Copyright (c) 2016, Serge Guelton
+# All rights reserved.
+
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+
+# 	Redistributions of source code must retain the above copyright notice, this
+# 	list of conditions and the following disclaimer.
+
+# 	Redistributions in binary form must reproduce the above copyright notice,
+# 	this list of conditions and the following disclaimer in the documentation
+# 	and/or other materials provided with the distribution.
+
+# 	Neither the name of HPCProject, Serge Guelton nor the names of its
+# 	contributors may be used to endorse or promote products derived from this
+# 	software without specific prior written permission.
+
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+# ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+def prune(t:Type) -> Type:
+    # no need to prune frozen instances.
+    return t
+
+def occurs_in_type(v:Type, type2:Type) -> bool:
+    """Checks whether a type variable occurs in a type expression.
+
+    Note: Must be called with v pre-pruned
+
+    Args:
+        v:  The TypeVariable to be tested for
+        type2: The type in which to search
+
+    Returns:
+        True if v occurs in type2, otherwise False
+    """
+    pruned_type2 = prune(type2)
+    if pruned_type2 == v:
+        return True
+    return occurs_in(v, pruned_type2.args)
+
+def occurs_in(t:Type, types:Sequence[Type]) -> bool:
+    """Checks whether a types variable occurs in any other types.
+
+    Args:
+        t:  The TypeVariable to be tested for
+        types: The sequence of types in which to search
+
+    Returns:
+        True if t occurs in any of types, otherwise False
+    """
+    return any(occurs_in_type(t, t2) for t2 in types)
+
+
+def _approximate_overload(b:Type, types:Sequence[Type]) -> Type:
+    def try_unify(t:Type, ts:Sequence[Type]) -> Type|None:
+        if isinstance(t, TypeVariable):
+            return None
+        if any(isinstance(tp, TypeVariable) for tp in ts):
+            return None
+        # overapproximate 't'
+        new_args = list(t.args)
+        for i, tt in enumerate(t.args):
+            its = [prune(tp.args[i]) for tp in ts]
+            if any(isinstance(it, TypeVariable) for it in its):
+                continue
+            it0 = its[0]
+            it0ntypes = len(it0.args)
+            if all(((it.name == it0.name) and (len(it.args) == it0ntypes)) for it in its):
+                ntypes = [TypeVariable() for _ in range(it0ntypes)]
+                new_tt = it0._replace(args=ntypes)
+                # new_tt.__class__ = it0.__class__
+                tt = unify(tt, new_tt, {})
+                new_args[i] = try_unify(prune(tt), [prune(it) for it in its]) or tt
+        return t._replace(args=new_args)
+    
+    r = try_unify(b, types)
+    if r is None:
+        raise RuntimeError("Not unified {} and {}, overload approximation failed".format(types, b.annotation))
+    return r
+
+def better_signature(callable_type:Type) -> inspect.Signature:
+    """
+    Get a signature from the function def information wrapped by this type instance.
+    Return None if there is no function wrapped, in the case of a written 'Callable' annotation for instance.
+    """
+    definition = callable_type.get_meta('definition', Def)
+    if not isinstance(definition, Func):
+        return None
+        raise RuntimeError(f'missing definition of callable {callable_type.annotation}')
+    parameters: list[inspect.Parameter] = []
+    for i, arg in enumerate(callable_type.args[:-1]):
+        argdef = arg.get_meta('definition', Arg)
+        if argdef is None:
+            # the type vars seem to replace the type here:/ with no informations anymore.
+            raise RuntimeError(f'missing definition of callable {definition.name()!r} argument {i}: {arg}')
+        parameters.append(argdef.to_parameter().replace(annotation=arg))
+    return inspect.Signature(parameters, return_annotation=callable_type.args[-1])
+
+def callable_struct(callable_type:Type) -> Tuple[Sequence[Type], Mapping[str, Type], Type]:
+    """
+    Returns tuple: (args, kwargs, rtype)
+    """
+    if not callable_type.args:
+        return [], {}, Type.Any
+
+    positionals: list[Type] = []
+    keywords: dict[str | None, Type] = {}
+
+    for a in callable_type.args[:-1]:
+        keyword = a.get_meta('keyword', str)
+        if keyword is not None:
+            keywords[keyword] = keywords.setdefault(keyword, Type.Any).merge(a)
+        else:
+            if keywords:
+                raise RuntimeError('invalid callable, keywords came before positionals :/')
+            positionals.append(a)
+    
+    return positionals, keywords, callable_type.args[-1]
+
+def poor_signature(callable_type:Type) -> inspect.Signature:
+    """
+    Get a approximated signature based on a Callable type 
+    (created from annotations or from ast.Call before unification). 
+    """
+    positionals, keywords, rtype = callable_struct(callable_type)
+    # simplify signatures
+    parameters = []
+    parameters.extend((inspect.Parameter(f'__{i}__', 
+                       kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                       annotation=t) for i,t in enumerate(positionals)))
+    parameters.extend((inspect.Parameter(name,
+                       kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                       annotation=t) for name,t in keywords.items()))
+    return inspect.Signature(parameters, return_annotation=rtype)
+
+def bind_callables(a:Type, b:Type) -> Tuple[Type, Type, inspect.BoundArguments]:
+    """
+    Dertemine signature based compatibility between two callables.
+    Returns (caller, callee, bound arguments).
+    """
+    def _add_err_note(e:Exception):
+        if sys.version_info >= (3, 11):
+            shortsig = inspect.Signature(
+                [p.replace(annotation=p.annotation.annotation,
+                            default=inspect.Parameter.empty,
+                            ) for p in sig.parameters.values()])
+            
+            e.add_note(f'signature={str(shortsig)}')
+            e.add_note(f'args={[a.annotation for a in args]}')
+            e.add_note(f'keywords={dict((n,a.annotation) for n,a in keywords.items())}')
+
+    caller, callee = a, b
+    sig = better_signature(callee) or poor_signature(callee)
+    args, keywords, _ = callable_struct(caller)
+    assert len(args)+len(keywords)+1==len(caller.args)
+    try:
+        bargs = sig.bind(*args, **keywords)
+    except Exception as e:
+        _add_err_note(e)
+        # raise RuntimeError("Callable type mismatch: {0} != {1}".format(a.annotation, b.annotation)) from e
+
+        caller, callee = b, a
+        sig = better_signature(callee) or poor_signature(callee)
+        args, keywords, _ = callable_struct(caller)
+        assert len(args)+len(keywords)+1==len(caller.args)
+
+        try:
+            bargs = sig.bind(*args, **keywords)
+        except Exception as e:
+            _add_err_note(e)
+            raise RuntimeError("Callable type mismatch: {0} != {1}".format(a.annotation, b.annotation)) from e
+    
+    return caller, callee, bargs
+
+def unify(t1:Type, t2:Type, typevars:dict[str, Type]|None=None) -> Type:
+    """Unify the two types t1 and t2.
+
+    Returns a new type that represent the unification of both type.
+
+    Args:
+        t1: The first type to be made equivalent
+        t2: The second type to be be equivalent
+
+    Returns:
+        The unified type. 
+
+    Raises:
+        InferenceError: Raised if the types cannot be unified.
+    
+    # >>> t = Type.overload.add_args(args=
+    # ... [Type.Callable.add_args([Type('float', 'builtins'), Type('int', 'builtins'),]), 
+    # ...  Type.Callable.add_args([Type.Union.add_args([Type('str', 'builtins'), 
+    # ...                                               Type('bytes', 'builtins'),
+    # ...                                               Type('object', 'builtins')]), 
+    # ...                          Type('str', 'builtins'),])])
+    # >>> expr1 = Type.Callable.add_args([Type('int', 'builtins'), TypeVariable()])
+    # >>> print(t.annotation)
+    # (float) -> int | (str | bytes | object) -> str
+    # >>> print(expr1.annotation)
+    # (int) -> @TypeVar...
+    # >>> print(unify(expr1, t).annotation)
+    # (float) -> int
+    # >>> expr2 = Type.Callable.add_args([Type('float', 'builtins'), TypeVariable()])
+    # >>> print(unify(expr2, t).annotation)
+    # (float) -> int
+    # >>> expr3 = Type.Callable.add_args([Type('bytes', 'builtins'), TypeVariable()])
+    # >>> print(unify(expr3, t).annotation)
+    # (object) -> str
+    >>> t2 = Type.Callable.add_args([Type('list', 'builtins').add_args(
+    ...     [Type('@TypeVar1')]), Type('list', 'builtins').add_args(
+    ...     [Type('@TypeVar1')]),])
+    >>> expr4 = Type.Callable.add_args([Type('list', 'builtins').add_args([Type('float', 'builtins')]), Type('@TypeVar2')])
+    >>> print(unify(expr4, t2).annotation)
+    """
+    typevars = typevars if typevars is not None else {}
+
+    a = prune(t1)
+    b = prune(t2)
+    if a.is_typevar:
+        if a != b:
+            if occurs_in_type(a, b):
+                raise RuntimeError("recursive unification")
+            return b
+        # if b.is_typevar and b.name in typevars:
+        #     return typevars[b.name]
+            # return typevars.setdefault(a.name, b)
+        return a
+    elif b.is_typevar:
+        assert b.name.startswith('@')
+        r = unify(b, a, typevars)
+        return r
+        # return typevars.setdefault(b.name, r)
+
+    elif b.is_overload:
+        return unify(b, a, typevars)
+    elif a.is_overload:
+        types = []
+        errs = []
+        for t in a.args:
+            try:
+                types.append(unify(t, b, typevars))
+            except RuntimeError as e:
+                errs.append(e)
+        if types:
+            if len(types) == 1:
+                return unify(types[0], b, typevars)
+            # too many overloads are found, so extract as many 
+            # information as we can, and unify the rest with the first overload match.
+            return unify(types[0], _approximate_overload(b, types), typevars)
+        else:
+            raise RuntimeError("Type mismatch, no overload found: {} and {}: {}".format(a.annotation, b.annotation, errs))
+    elif b.is_union:
+        return unify(b, a, typevars)
+    elif a.is_union:
+        types = []
+        errs = []
+        for t in a.args:
+            try:
+                types.append(unify(t, b, typevars))
+            except RuntimeError as e:
+                errs.append(e)
+        if types:
+            new_type = Type.Any
+            for t in types:
+                new_type = new_type.merge(unify(t, b, typevars))
+            return new_type
+        else:
+            raise RuntimeError("Type mismatch, none of the union element matches: {} and {}: {}".format(a.annotation, b.annotation, errs))
+    elif b.unknown:
+        return a
+    elif a.unknown:
+        return b
+    if b.is_callable and a.is_callable:
+        caller, callee, bargs = bind_callables(a, b)
+        # now let's adjust callee's arguments to match caller's
+        # transfer typevars of course!
+        new_args = [*(bargs.signature.parameters[a].annotation for a in bargs.arguments), callee.args[-1]]
+
+        if new_args != list(callee.args):
+            print(f'callable signature matches: old_args={[a.annotation for a in callee.args]}, new_args={[a.annotation for a in new_args]}')
+            callee = callee._replace(args=new_args)
+        assert len(callee.args) == len(caller.args), f'{callee.args} != {caller.args}'
+        
+        # Unify arguments, twice please.
+        unify_args = lambda: [unify(p, q, typevars) for p, q in zip(callee.args, caller.args)]
+        callee = callee._replace(args=unify_args())
+        callee = callee._replace(args=unify_args())
+
+        return callee
+    
+    elif len(a.args) != len(b.args):
+        raise RuntimeError("Type mismatch: {0} != {1}".format(a.annotation, b.annotation))
+   
+    # catch-all case.
+    if b.qualname == a.qualname or a.supertype_of(b):
+        keep = a
+    elif b.supertype_of(a):
+        keep = b
+    else:
+        raise RuntimeError("Type mismatch: {0} does not match {1}".format(a.qualname, b.qualname))
+    
+    
+    return keep._replace(args=[unify(p, q, typevars) for p, q in zip(a.args, b.args)])
+
+if __debug__:
+    unify_org = unify
+    def debug_unify(t1:Type, t2:Type, typevars:dict[str, Type]=None) -> Type:
+        typevars = typevars if typevars is not None else {}
+        try:
+            r = unify_org(t1, t2, typevars)
+        except RuntimeError:
+            print(f'Unification of:\n- {t1.annotation}\n- {t2.annotation}\n=> MISMATCH')
+            raise
+        else:
+            print(f'Unification of:\n- {t1.annotation}\n- {t2.annotation}\n=> {r.annotation}\t (typevars: {dict((t.name, t.annotation) for t in typevars.values())})')
+            return r
+    unify = debug_unify

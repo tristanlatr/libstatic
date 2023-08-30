@@ -28,8 +28,8 @@ from typing import Any
 from unittest import TestCase
 import pytest
 
-from libstatic import Project, StaticException
-from libstatic._analyzer.typeinfer import _AnnotationToType
+from libstatic import Project, StaticException, Cls
+from libstatic._analyzer.typeinfer import _AnnotationToType, find_typedef, Type, unwrap_type_classdef
 from libstatic._lib.shared import StmtVisitor, unparse
 
 @pytest.mark.parametrize(
@@ -69,7 +69,7 @@ from libstatic._lib.shared import StmtVisitor, unparse
          ["Literal['string']","typing.Literal['string']"]),
         
         ("import typing as t\nvar: dict[t.Type, t.Callable[[t.Any], t.Type]]", 
-         ["dict[Type, Callable[Any, Type]]",'builtins.dict[typing.Type, typing.Callable[typing.Any, typing.Type]]']),
+         ["dict[Type, (Any) -> Type]",'builtins.dict[typing.Type, typing.Callable[[typing.Any], typing.Type]]']),
 
         ("import typing as t\n_T = t.TypeVar('_T')\nvar: dict[t.Type, _T]", 
          ["dict[Type, _T]",'builtins.dict[typing.Type, test._T]']),
@@ -100,7 +100,7 @@ def test_annotation_to_type(source:str, expected:str) -> None:
     assert type_annotation.long_annotation == long_annotation
 
     # smoke test
-    ast.parse(type_annotation.annotation)
+    # ast.parse(type_annotation.long_annotation)
 
 @pytest.mark.parametrize(
         ("source"), 
@@ -239,12 +239,22 @@ class TestTypeInferStubs(TestCase):
         ('import builtins as b; b.len(x)',          'int'),
         ('import builtins as b; b.oct(20)',         'str'),
 
+        # # builtin generic functions
+        ('sorted([1,2,3])',          'list[int]'),
+        ('filter(None, [None, 1,2,3])',          'list[int | None]'), # he
+
         # methods of builtins
         ('"".join(x)',      'str'),
         ('[1,2].count(1)',  'int'),
         ('list(x).copy()',  'list'),
         ('[].copy()',       'list'),
         ('[].__iter__()',   'Iterator'),
+
+        # generics containers
+
+        # ('list((1,2,3)).copy()',  'list[int]'),
+        # ('[1,2,3].copy()',       'list[int]'),
+        # ('["4","5"].__iter__()',   'Iterator[str]'),
 
         ('import math\nmath.sin(x)',  'float'),
         ('from math import sin\nsin(x)',       'float'),
@@ -299,7 +309,7 @@ class TestTypeInferStubs(TestCase):
     'x or y',
     'x and y',
     'x = None; x = b(); x',
-    'def g() -> x: pass\ng()',
+    'def g() -> x: ...\ng()',
     'def g(x): return 0\ng(24)',
     'c:tuple[int, bytes, str, bool|None]\nc[33]',
 ])
@@ -385,8 +395,11 @@ def test_cannot_infer_type_from_signature(sig):
 
 @pytest.mark.parametrize('src', [])
 def test_reveal(src:str) -> None:
+    from libstatic._analyzer.typeinfer import TypeVariable
+    TypeVariable._reset()
+
     node = ast.parse(dedent(src))
-    p = Project()
+    p = Project(dependencies=1)
     p.add_module(node, 'test')
     p.analyze_project()
 
@@ -409,8 +422,8 @@ def test_reveal(src:str) -> None:
                 if expected_value is None:
                     assert typ is None
                 else:
-                    assert typ is not None, f'cannot infer {unparse(ast.Expr(expr))}'
-                    assert typ.annotation == expected_value
+                    assert typ is not None, f'cannot infer type of: {unparse(ast.Expr(expr))}'
+                    assert typ.annotation == expected_value, f'wrong inferred type for: {unparse(ast.Expr(expr))}'
     
     RevealVisitor().visit(node)
 
@@ -451,8 +464,8 @@ def test_reveal(src:str) -> None:
         ...
     def func_ann(x:int) -> None:
         ...
-    reveal_type(func_no_ann,'Callable[Any, Any]')
-    reveal_type(func_ann,'Callable[Any, None]')
+    reveal_type(func_no_ann,'(int) -> Any')
+    reveal_type(func_ann,'(int) -> None')
     ''',
 
     '''
@@ -468,10 +481,11 @@ def test_reveal(src:str) -> None:
     
     a:'A[B]' = ...
     
-    reveal_type(a.f(), None)
+    reveal_type(a.f(), '@TypeVar1')
 
     class A(Generic[T]):
-        def f(self) -> T: pass
+        def f(self) -> T: ...
+    class B: ...
     ''',
 
     """
@@ -480,6 +494,153 @@ def test_reveal(src:str) -> None:
             self.a:dict[str, str] = {}
     reveal_type(C().a, 'dict[str, str]')
     """,
+
+    r'''
+    from typing import TypeVar, Generic
+    T = TypeVar('T')
+    def f(a:T) -> T: ...
+    reveal_type(f, '(@TypeVar1) -> @TypeVar1')
+    ''',
+
+    '''
+    from typing import TypeVar, Sized
+
+    ST = TypeVar('ST')
+
+    def longer(x: ST, y: ST) -> ST:
+        if len(x) > len(y):
+            return x
+        else:
+            return y
+
+    reveal_type(longer([1], [1, 2]), 'list[int]')
+    reveal_type(longer({1}, {1, 2}), 'set[int]')
+    reveal_type(longer([1], {1, 2}), 'list[int] | set[int]')
+    ''',
+
+    '''
+    from typing import Callable, Iterable, Iterator, TypeVar, overload
+
+    T1 = TypeVar('T1')
+    T2 = TypeVar('T2')
+    S = TypeVar('S')
+
+    def sum(__it:Iterable[T1]) -> T1:
+        ...
+
+    @overload
+    def map(func: Callable[[T1], S], iter1: Iterable[T1]) -> Iterator[S]: ...
+    @overload
+    def map(func: Callable[[T1, T2], S],
+            iter1: Iterable[T1], 
+            iter2: Iterable[T2]) -> Iterator[S]: ...
+    
+    reveal_type(sum, '(Iterable[@TypeVar1]) -> @TypeVar1')
+    reveal_type(map, '((@TypeVar3) -> @TypeVar2, Iterable[@TypeVar3]) -> Iterator[@TypeVar2] | ((@TypeVar3, @TypeVar4) -> @TypeVar2, Iterable[@TypeVar3], Iterable[@TypeVar4]) -> Iterator[@TypeVar2]')
+    reveal_type(map(sum , [[1,2,3,4]]), 'Iterator[int]')
+    ''',
+
 ])
 def test_reveal_types(src:str) -> None:
     test_reveal(src)
+
+def test_supertype_of() -> None:
+    src = '''
+    # subclasses
+    class Root(object): ...
+    class A(Root): ...
+    class B(Root): ...
+    class C1(A, B): ...
+    class C(Root): ...
+    class D(Root): ...
+    class E(Root): ...
+    class K1(A, B, C): ...
+    class K2(D, B, E): ...
+    class K3(D, A): ...
+    class Z(K1, K2, K3):
+        """
+        See hierarchy of classes here:
+        https://en.wikipedia.org/wiki/C3_linearization
+        """
+        pass
+    # Some wicked cool things
+    class U(Root): ...
+    class T(U): ...
+    class U(T): # re-assign U
+        pass
+
+    # protocols
+    from typing import Protocol
+    class Subscriptable(Protocol):
+        def __getitem__(self, k):...
+    class Iterable(Protocol):
+        def __iter__(self):...
+
+    class Map:
+        def __getitem__(self, key):...
+        def __iter__(self):...
+    
+    class Seq:
+        def __getitem__(self, key):...
+        def __iter__(self):...
+    
+    class Iter:
+        def __iter__(self):...
+
+    # protocols + unions
+    from typing import Union
+
+    MaybeIterable: Union[Map, Seq]
+
+
+    '''
+    p = Project()
+    p.add_module(ast.parse(dedent(src)), name='c3')
+    p.analyze_project()
+    t = p.state.get_type
+    
+    clss = (             
+        t(find_typedef(p.state, 'c3.Root')), 
+        t(find_typedef(p.state, 'c3.A')), 
+        t(find_typedef(p.state, 'c3.B')), 
+        t(find_typedef(p.state, 'c3.C1')), 
+        t(find_typedef(p.state, 'c3.D')),)
+    
+    assert all([isinstance(o, Type) for o in clss])
+    assert all([o.is_type for o in clss]), [o.annotation for o in clss]
+
+    instances = [t(unwrap_type_classdef(o)).args[0] for o in clss]
+    assert all([isinstance(o.definition, Cls) for o in instances]), [o.annotation for o in instances]
+    
+    Root, A, B, C1, D = instances
+    assert Root.supertype_of(A)
+    assert Root.supertype_of(B)
+    assert Root.supertype_of(C1)
+    assert Root.supertype_of(D)
+
+    clss = (             
+        t(find_typedef(p.state, 'c3.Subscriptable')), 
+        t(find_typedef(p.state, 'c3.Iterable')), 
+        t(find_typedef(p.state, 'c3.Map')), 
+        t(find_typedef(p.state, 'c3.Seq')), 
+        t(find_typedef(p.state, 'c3.Iter')),)
+
+    assert all([isinstance(o, Type) for o in clss])
+    assert all([o.is_type for o in clss]), [o.annotation for o in clss]
+
+    instances = [t(unwrap_type_classdef(o)).args[0] for o in clss]
+    assert all([isinstance(o.definition, Cls) for o in instances]), [o.annotation for o in instances]
+
+    Subscriptable, Iterable, Map, Seq, Iter = instances
+    assert Iterable.supertype_of(Map)
+    assert Iterable.supertype_of(Seq)
+    assert Iterable.supertype_of(Iter)
+    assert Subscriptable.supertype_of(Map)
+    assert Subscriptable.supertype_of(Seq)
+    assert not Subscriptable.supertype_of(Iter)
+
+    MaybeIterable =  t(find_typedef(p.state, 'c3.MaybeIterable'))
+    assert MaybeIterable.is_union
+
+    assert Iterable.supertype_of(MaybeIterable)
+    

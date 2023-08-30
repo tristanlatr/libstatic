@@ -224,13 +224,7 @@ class Analyzer:
     def analyze(self) -> None:
         """
         Initiate the project state.
-        """
-
-        if ((self._options.dependencies or self._options.builtins)
-            and 'builtins' not in self._state._modules):
-            if not self._state.add_typeshed_module('builtins'):
-                raise RuntimeError('missing the builtins module :/')
-                
+        """                
         self._analyzer_pass1()
         self._analyzer_pass2()
         self._analyzer_pass3()
