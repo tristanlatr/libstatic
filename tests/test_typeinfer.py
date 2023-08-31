@@ -36,7 +36,7 @@ from libstatic._lib.shared import StmtVisitor, unparse
         ("source", "expected"), 
         [
         ("var: None", 
-         ["None","builtins.None"]),
+         ["None","None"]),
         
         ("import typing as t\nvar: t.Generic[t.T]",             
          ["Generic[T]", "typing.Generic[typing.T]"]), 
@@ -46,12 +46,22 @@ from libstatic._lib.shared import StmtVisitor, unparse
         
         ("import typing as t\nvar: t.Tuple[t.T,...]",         
          ["tuple[T, ...]", "builtins.tuple[typing.T, ...]"]), 
+
+         # None | x == Union[None, x] == Optional[x]
+         ("import typing as t\nvar: None | str",         
+         ["None | str", "None | builtins.str"]), 
+
+         ("import typing as t\nvar: t.Union[None, str]",         
+         ["None | str", "None | builtins.str"]), 
+
+         ("import typing as t\nvar:t. Optional[str]",         
+         ["str | None", "builtins.str | None"]), 
         
         ("import typing as t\nfrom mod import _model as m\nfrom typing import Optional\nvar: m.TreeRoot[Optional[t.T]]",      
-         ["TreeRoot[Optional[T]]", "mod._model.TreeRoot[typing.Optional[typing.T]]"]),
+         ["TreeRoot[T | None]", "mod._model.TreeRoot[typing.T | None]"]),
         
         ("import typing as t\nfrom mod import _model as m\nfrom typing import Optional\nvar: 'm.TreeRoot[Optional[t.T]]'",        
-         ["TreeRoot[Optional[T]]","mod._model.TreeRoot[typing.Optional[typing.T]]"]),
+         ["TreeRoot[T | None]","mod._model.TreeRoot[typing.T | None]"]),
         
         ("var: dict[str, str]", 
          ["dict[str, str]", 'builtins.dict[builtins.str, builtins.str]']),
@@ -63,7 +73,7 @@ from libstatic._lib.shared import StmtVisitor, unparse
          ["dict[str, str] | dict[str, int]",'builtins.dict[builtins.str, builtins.str] | builtins.dict[builtins.str, builtins.int]']),
         
         ("import typing as t\nvar: t.Literal[True, False]", 
-         ["Literal[True, False]",'typing.Literal[builtins.True, builtins.False]']),
+         ["Literal[True, False]",'typing.Literal[True, False]']),
         
         ("import typing as t\nvar: t.Literal['string']", 
          ["Literal['string']","typing.Literal['string']"]),
@@ -241,7 +251,8 @@ class TestTypeInferStubs(TestCase):
 
         # # builtin generic functions
         ('sorted([1,2,3])',          'list[int]'),
-        ('filter(None, [None, 1,2,3])',          'list[int | None]'), # he
+        ('filter(None, [None, 1,2,3])',          'Iterator[int]'), # yes
+        ('sorted(filter(None, [None, 1,2,3]))',          'list[int]'), # yes
 
         # methods of builtins
         ('"".join(x)',      'str'),
@@ -266,7 +277,8 @@ class TestTypeInferStubs(TestCase):
         ('x = 13\nx',            'int'),
         ('import typing as t; x:t.Literal[13] = ...\nx.real',            'int'),
         ('import typing as t; x:t.Literal[None] = ...\nx',            'Literal[None]'),
-        ('x = 1\nif x:\n  x=True\nx',            'int | bool'),
+        ('x = 1\nif x:\n  x=\'two\'\nx',            'int | str'),
+        ('x = 1\nif x:\n  x=False\nx',            'int'), # bool is unified to int.
         
         ]
 
@@ -499,11 +511,11 @@ def test_reveal(src:str) -> None:
     from typing import TypeVar, Generic
     T = TypeVar('T')
     def f(a:T) -> T: ...
-    reveal_type(f, '(@TypeVar1) -> @TypeVar1')
+    reveal_type(f, 'Callable')
     ''',
 
     '''
-    from typing import TypeVar, Sized
+    from typing import TypeVar
 
     ST = TypeVar('ST')
 
@@ -515,7 +527,7 @@ def test_reveal(src:str) -> None:
 
     reveal_type(longer([1], [1, 2]), 'list[int]')
     reveal_type(longer({1}, {1, 2}), 'set[int]')
-    reveal_type(longer([1], {1, 2}), 'set[int] | list[int]')
+    reveal_type(longer([1], {1, 2}), 'Collection[int]')
     ''',
 
     '''
@@ -535,8 +547,8 @@ def test_reveal(src:str) -> None:
             iter1: Iterable[T1], 
             iter2: Iterable[T2]) -> Iterator[S]: ...
     
-    reveal_type(sum, '(Iterable[@TypeVar1]) -> @TypeVar1')
-    reveal_type(map, '((@TypeVar3) -> @TypeVar2, Iterable[@TypeVar3]) -> Iterator[@TypeVar2] | ((@TypeVar3, @TypeVar4) -> @TypeVar2, Iterable[@TypeVar3], Iterable[@TypeVar4]) -> Iterator[@TypeVar2]')
+    reveal_type(sum, '(Iterable) -> Any')
+    reveal_type(map, '(Callable, Iterable) -> Iterator | (Callable, Iterable, Iterable) -> Iterator')
     reveal_type(map(sum , [[1,2,3,4]]), 'Iterator[int]')
     ''',
 

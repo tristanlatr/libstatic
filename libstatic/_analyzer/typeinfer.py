@@ -142,6 +142,7 @@ class Type:
     Callable: ClassVar[Type]
     ModuleType: ClassVar[Type]
     Literal: ClassVar[Type]
+    Optional: ClassVar[Type]
     overload: ClassVar[Type]
 
     @property
@@ -165,6 +166,14 @@ class Type:
     @property
     def is_type(self) -> bool:
         return self.qualname == 'typing.Type'
+    
+    @property
+    def is_optional(self) -> bool:
+        return self.qualname == 'typing.Optional'
+    
+    @property
+    def is_none(self) -> bool:
+        return self.qualname == 'builtins.None'
     
     @property
     def is_callable(self) -> bool:
@@ -278,6 +287,13 @@ class Type:
             raise TypeError(f'expected {typ}, got {type(val)}')
         return val
 
+    @property
+    def supertype(self) -> Type | None:
+        mro: Sequence[Type] | None = self.get_meta('mro', LazySeq)
+        if mro: 
+            return mro[0]
+        return None
+
     def supertype_of(self, other: 'Type') -> bool:
         # TODO: use a mapping of type-promotion instead of this.
         if self.name == 'float' and other.name == 'int':
@@ -322,10 +338,9 @@ class Type:
                     return True
 
         # seek for superclasses
-        mro: Sequence[Type] | None = other.get_meta('mro', LazySeq)
-        # super class match
-        if mro: 
-            return self.supertype_of(mro[0])
+        supertype = other.supertype
+        if supertype is not None:
+            return self.supertype_of(supertype)
     
         return False
     
@@ -363,7 +378,9 @@ class Type:
         """
         if self.is_union:
             return ' | '.join(arg.long_annotation for arg in self.args)
-        name = self.qualname
+        # special case names that raises a SyntaxError
+        name = self.qualname if self.qualname not in (
+            'builtins.None', 'builtins.True', 'builtins.False') else self.name
         if self.args:
             if self.is_callable:
                 *argstypes, rtype = self.args
@@ -674,6 +691,9 @@ class _AnnotationToType(ast.NodeVisitor):
             self.state.msg(e.msg(), ctx=e.node)
         if left.is_literal:
             self.in_literal = False
+        # transform Optional[x] into x | None 
+        if left.is_optional:
+            left = _union(*left.args, 'None').add_meta(**left.meta)
         return left.add_meta(location=self.state.get_location(node))
 
     def visit_BinOp(self, node: ast.BinOp) -> Type:
@@ -1643,9 +1663,20 @@ def bind_callables(a:Type, b:Type) -> Tuple[Type, Type, inspect.BoundArguments]:
 
 Subst = frozenset[tuple[str, Type]]
 
+def cleanup_unresolved_typevars(term:Type | None) -> Type | None:
+    if term is None:
+        return None
+    if term.is_typevar:
+        return Type.Any
+    args = [cleanup_unresolved_typevars(t) for t in term.args]
+    if all(s.unknown for s in args):
+        args = []
+    return term._replace(args=args)
+
 def subst1(term: Type, subst: Subst) -> Tuple[Type, Subst]:
     if term.is_typevar:
-        _replacements = []
+        _replacements: list[Type] = []
+        # Same note as `substmult`.
         # we should be better with a mapping data strucutre instead.
         for name, replacement in reversed(subst):
             if name == term.name:
@@ -1657,7 +1688,19 @@ def subst1(term: Type, subst: Subst) -> Tuple[Type, Subst]:
                 try:
                     t, s = unify(t, r, subst)
                 except RuntimeError:
-                    t = t.merge(r)
+                    # two possible values for a given type variable doesn't unify. 
+                    # we then use the first common supertype, that's not object.
+                    supertype = r.supertype
+                    while 1:
+                        if supertype is None:
+                            raise
+                        if supertype.qualname == 'builtins.object':
+                            raise
+                        if supertype.supertype_of(t):
+                            break
+                        supertype = supertype.supertype
+                    supertype = supertype._replace(args=r.args)
+                    t, s = unify(t, supertype, subst)
                 subst |= s
             return t, subst
         else:
@@ -1671,6 +1714,11 @@ def subst1(term: Type, subst: Subst) -> Tuple[Type, Subst]:
         return term._replace(args=new_args), subst
 
 def substmult(subst: Subst, replacement: Subst) -> Subst:
+    """
+    Apply substitutions to all elements of the subst with content in replacement.
+    """
+    # I feel like this function drastically increased the algorithmic complexity of
+    # our type inference. Something should be done about it, but first we needs more tests.
     new_subst = ordered_set()
     try:
         for (name, term) in subst:
@@ -1680,7 +1728,8 @@ def substmult(subst: Subst, replacement: Subst) -> Subst:
             new_subst.update(s)
         return new_subst
     except Exception as e:
-        e.add_note(f'subst={subst}')
+        if sys.version_info >= (3,11):
+            e.add_note(f'subst={subst}')
         raise
 
 def unify(t1:Type, t2:Type, subst:Subst=None) -> Tuple[Type, Subst]:
@@ -1742,7 +1791,7 @@ def unify(t1:Type, t2:Type, subst:Subst=None) -> Tuple[Type, Subst]:
         subst = substmult(subst, newsubst) | newsubst # type: ignore
         # t2, subst = 
         return subst1(t1, subst)
-    elif t2.is_overload:
+    elif t2.is_overload and not t1.is_overload:
         return subst1(*unify(t2, t1, subst))
     elif t1.is_overload:
         types: list[Tuple[Type, Subst]] = []
@@ -1750,6 +1799,8 @@ def unify(t1:Type, t2:Type, subst:Subst=None) -> Tuple[Type, Subst]:
         for t in t1.args:
             try:
                 types.append(unify(t, t2, subst))
+            except RecursionError: 
+                raise
             except RuntimeError as e:
                 errs.append(e)
         if types:
@@ -1762,7 +1813,7 @@ def unify(t1:Type, t2:Type, subst:Subst=None) -> Tuple[Type, Subst]:
                          types[0][1]))
         else:
             raise RuntimeError("Type mismatch, no overload found: {} and {}: {}".format(t1.annotation, t2.annotation, errs))
-    elif t2.is_union:
+    elif t2.is_union and not t1.is_union:
         return subst1(*unify(t2, t1, subst))
     elif t1.is_union:
         types = []
@@ -1770,6 +1821,8 @@ def unify(t1:Type, t2:Type, subst:Subst=None) -> Tuple[Type, Subst]:
         for t in t1.args:
             try:
                 types.append(subst1(*unify(t, t2, subst)))
+            except RecursionError: 
+                raise 
             except RuntimeError as e:
                 errs.append(e)
         if types:
@@ -1777,7 +1830,7 @@ def unify(t1:Type, t2:Type, subst:Subst=None) -> Tuple[Type, Subst]:
             for t,s in types:
                 # Maybe we're doing too much of computation here?
                 # subst |= s
-                t, s = subst1(*unify(t, t2, subst))
+                # t, s = subst1(*unify(t, t2, subst))
                 new_type = new_type.merge(t)
                 # new_type = new_type.merge(t)
                 subst |= s
@@ -1796,8 +1849,8 @@ def unify(t1:Type, t2:Type, subst:Subst=None) -> Tuple[Type, Subst]:
                       for a in bargs.arguments), callee.args[-1]]
 
         if new_args != list(callee.args):
-            print(f'callable signature matches: old_args={[a.annotation for a in callee.args]}, new_args={[a.annotation for a in new_args]}')
             callee = callee._replace(args=new_args)
+
         assert len(callee.args) == len(caller.args), f'{callee.args} != {caller.args}'
         
         # Unify arguments
@@ -1841,4 +1894,4 @@ if __debug__:
         else:
             print(f'\n\nUnification of:\n- {t1.annotation}\n- {t2.annotation}\n=> {r.annotation}\n Typevars before: {[(n,t.annotation) for n,t in subst]})\n Typevars after: {[(n,t.annotation) for n,t in s]}\n')
             return r,s
-    unify = debug_unify
+    # unify = debug_unify

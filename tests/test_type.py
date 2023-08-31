@@ -58,8 +58,14 @@ def u(*args):
     # actual unions
     ('str',     'int',      u('str', 'int')),
     ('int',     'str',      u('int', 'str')),
+
+    # optionals
     ('int',     'None',     u('int', 'None')),
     ('None',    'int',      u('int', 'None')),
+    ('None',    u('int', 'None'),      u('int', 'None')),
+    ('None',    u('None', 'int'),      u('None', 'int')),
+    (u('int', 'None'),    u('None', 'int'),      u('int', 'None')),
+    (u('None', 'int'),    u('None', 'int'),      u('None', 'int')),
 
     # unwrap nested unions
     (u('str', 'bool'), 'int', u('str', 'bool', 'int')),

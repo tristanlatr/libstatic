@@ -48,7 +48,7 @@ from .._lib.exceptions import (
 from .._lib.model import Def, NameDef, Mod, Cls, Func, Imp, Scope, ClosedScope, LazySeq, ChainMap, Type
 
 from .asteval import LiteralValue, _LiteralEval, _GotoDefinition
-from .typeinfer import _TypeInference
+from .typeinfer import _TypeInference, cleanup_unresolved_typevars
 
 
 if TYPE_CHECKING:
@@ -1307,7 +1307,8 @@ class State(_MinimalState):
         """
         if isinstance(node, Def):
             node = node.node
-        return _TypeInference(self).get_type(node, [])
+        return cleanup_unresolved_typevars(
+            _TypeInference(self).get_type(node, []))
 
 # class SingleModuleState(State):
 #     """
