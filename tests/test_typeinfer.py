@@ -481,7 +481,7 @@ def test_reveal(src:str) -> None:
     
     a:'A[B]' = ...
     
-    reveal_type(a.f(), '@TypeVar1')
+    reveal_type(a.f(), None)
 
     class A(Generic[T]):
         def f(self) -> T: ...
@@ -515,7 +515,7 @@ def test_reveal(src:str) -> None:
 
     reveal_type(longer([1], [1, 2]), 'list[int]')
     reveal_type(longer({1}, {1, 2}), 'set[int]')
-    reveal_type(longer([1], {1, 2}), 'list[int] | set[int]')
+    reveal_type(longer([1], {1, 2}), 'set[int] | list[int]')
     ''',
 
     '''

@@ -43,7 +43,7 @@ from .asteval import _EvalBaseVisitor
 import attr as attrs
 from attrs import validators
 
-from beniget.beniget import BuiltinsSrc  # type: ignore
+from beniget.beniget import BuiltinsSrc, ordered_set  # type: ignore
 
 if TYPE_CHECKING:
     from .state import State
@@ -111,7 +111,7 @@ class Type:
     if not TYPE_CHECKING:
         # mypy is not very smart with the converter option :/
         args: Sequence['Type'] = attrs.ib(factory=tuple, converter=tuple, kw_only=True)
-            
+
     location: NodeLocation = attrs.ib(factory=NodeLocation, kw_only=True, eq=False, repr=False)
     """
     The location of the node that defined this type.
@@ -119,7 +119,7 @@ class Type:
     types can be created dynamically. 
     """
 
-    meta: Mapping[str, object] = attrs.ib(factory=FrozenDict, kw_only=True)
+    meta: Mapping[str, object] = attrs.ib(factory=FrozenDict, kw_only=True, eq=False)
     """
     Stores meta information when the type 
     annotations are not expressive enougth.
@@ -450,7 +450,7 @@ def SuperTypes(state:State, definition:Cls) -> Sequence[Type]:
 def _merge_types(state:State, defs:Sequence[NameDef|None]) -> Type:
     nt = Type.Any
     for d in (d for d in defs if d):
-        nt = nt.merge(state.get_type(d) or Type.Any)
+        nt = nt.merge(state.get_type(d) or Type.Any) # type: ignore
     return nt
 
 def unwrap_type_classdef(typ:Type) -> Def:
@@ -956,13 +956,16 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
                 keywordargs = ((self.get_type(n.value, path) or Type.Any).add_meta(keyword=n.arg) for n in node.keywords)
                 exprtype = Type.Callable.add_args(args=(*posargs, *keywordargs, TypeVariable()))
                 try:
-                    unified = unify(functype, exprtype, {})
+                    unified,_ = unify(functype, exprtype)
                 except RuntimeError as e:
                     raise StaticValueError(node, f'Type unification failed: {e}', 
                                            filename=self._state.get_filename(node))
 
-                return unified.args[-1].add_meta(
-                    location=self._state.get_location(node))
+                rtype = unified.args[-1]
+                if not rtype.unknown:
+                    return rtype.add_meta(
+                        location=self._state.get_location(node))
+            
             raise StaticValueError(
                 node,
                 f"cannot infer call result of type: {functype!r}",
@@ -1116,9 +1119,11 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
             arg_def.default is not None
             and getattr(arg_def.default, "value", object()) is not None
         ):
-            return self.get_type(arg_def.default, path).add_meta(
-                location=self._state.get_location(node),
-                definition=self._state.get_def(node))
+            t = self.get_type(arg_def.default, path)
+            if t:
+                return t.add_meta(
+                    location=self._state.get_location(node),
+                    definition=self._state.get_def(node))
         if arg_def.kind == Parameter.VAR_POSITIONAL:
             return self.builtin("tuple").add_meta(
                 location=self._state.get_location(node),
@@ -1137,7 +1142,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
         typevars: dict[str, Type]|None=None,
     ) -> Type:
 
-        typevars: dict[str, Type] = typevars or {}
+        typevars = typevars or {}
         if node.returns is not None:
             returntype = self._replace_typevars(_AnnotationToType(
                 self._state, self._state.get_enclosing_scope(node)
@@ -1162,17 +1167,21 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
             t = self.visit_arg(node.args.vararg, path, typevars)
             if t and len(t.args)>1:
                 argstypes.append(t.args[0].add_meta(**t.meta))
-            else:
+            elif t:
                 argstypes.append(Type.Any.add_meta(**t.meta))
-            
+            else:
+                argstypes.append(Type.Any)
+
         argstypes.extend((self.visit_arg(a, path, typevars) or Type.Any).add_meta(
             keyword=a.arg)  for a in node.args.kwonlyargs)
         if node.args.kwarg:
             t = self.visit_arg(node.args.kwarg, path, typevars)
             if t and len(t.args)>1:
                 argstypes.append(t.args[1].add_meta(**t.meta))
-            else:
+            elif t:
                 argstypes.append(Type.Any.add_meta(**t.meta))
+            else:
+                argstypes.append(Type.Any)
 
         functiontype = Type.Callable.add_args(args=(*argstypes, returntype)).add_meta(
             qualname=self._state.get_qualname(node),
@@ -1184,9 +1193,9 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
         overloads.appendleft(functiontype)
 
         left_sibling = self._state.get_sibling(node, direction=-1)
-        if isinstance(left_sibling, ast.FunctionDef) and left_sibling.name == node.name and any(
+        if isinstance(left_sibling, ast.FunctionDef) and left_sibling.name == node.name and (any(
             self._state.expand_expr(n) in ("typing.overload", "typing_extensions.overload") for n 
-            in left_sibling.decorator_list):
+            in left_sibling.decorator_list) or self._state.get_root(node).name() in ('typing', 'builtins')):
                 self.visit_FunctionDef(left_sibling, path, overloads, typevars)
         
         if len(overloads)>1:
@@ -1511,7 +1520,7 @@ def occurs_in(t:Type, types:Sequence[Type]) -> bool:
     return any(occurs_in_type(t, t2) for t2 in types)
 
 
-def _approximate_overload(b:Type, types:Sequence[Type]) -> Type:
+def _approximate_overload(b:Type, types:Sequence[Type], subst:Subst) -> Type:
     def try_unify(t:Type, ts:Sequence[Type]) -> Type|None:
         if isinstance(t, TypeVariable):
             return None
@@ -1529,7 +1538,7 @@ def _approximate_overload(b:Type, types:Sequence[Type]) -> Type:
                 ntypes = [TypeVariable() for _ in range(it0ntypes)]
                 new_tt = it0._replace(args=ntypes)
                 # new_tt.__class__ = it0.__class__
-                tt = unify(tt, new_tt, {})
+                tt,_ = unify(tt, new_tt, subst)
                 new_args[i] = try_unify(prune(tt), [prune(it) for it in its]) or tt
         return t._replace(args=new_args)
     
@@ -1538,7 +1547,7 @@ def _approximate_overload(b:Type, types:Sequence[Type]) -> Type:
         raise RuntimeError("Not unified {} and {}, overload approximation failed".format(types, b.annotation))
     return r
 
-def better_signature(callable_type:Type) -> inspect.Signature:
+def better_signature(callable_type:Type) -> inspect.Signature | None:
     """
     Get a signature from the function def information wrapped by this type instance.
     Return None if there is no function wrapped, in the case of a written 'Callable' annotation for instance.
@@ -1564,7 +1573,7 @@ def callable_struct(callable_type:Type) -> Tuple[Sequence[Type], Mapping[str, Ty
         return [], {}, Type.Any
 
     positionals: list[Type] = []
-    keywords: dict[str | None, Type] = {}
+    keywords: dict[str, Type] = {}
 
     for a in callable_type.args[:-1]:
         keyword = a.get_meta('keyword', str)
@@ -1584,7 +1593,7 @@ def poor_signature(callable_type:Type) -> inspect.Signature:
     """
     positionals, keywords, rtype = callable_struct(callable_type)
     # simplify signatures
-    parameters = []
+    parameters: list[inspect.Parameter] = []
     parameters.extend((inspect.Parameter(f'__{i}__', 
                        kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
                        annotation=t) for i,t in enumerate(positionals)))
@@ -1632,7 +1641,49 @@ def bind_callables(a:Type, b:Type) -> Tuple[Type, Type, inspect.BoundArguments]:
     
     return caller, callee, bargs
 
-def unify(t1:Type, t2:Type, typevars:dict[str, Type]|None=None) -> Type:
+Subst = frozenset[tuple[str, Type]]
+
+def subst1(term: Type, subst: Subst) -> Tuple[Type, Subst]:
+    if term.is_typevar:
+        _replacements = []
+        # we should be better with a mapping data strucutre instead.
+        for name, replacement in reversed(subst):
+            if name == term.name:
+                _replacements.append(replacement)
+        if _replacements:
+            t = Type.Any
+            for r in _replacements:
+                # maybe merge-unify instead of this?
+                try:
+                    t, s = unify(t, r, subst)
+                except RuntimeError:
+                    t = t.merge(r)
+                subst |= s
+            return t, subst
+        else:
+            return term, subst
+    else:
+        new_args = []
+        for arg in term.args:
+            t, s = subst1(arg, subst)
+            new_args.append(t)
+            subst |= s
+        return term._replace(args=new_args), subst
+
+def substmult(subst: Subst, replacement: Subst) -> Subst:
+    new_subst = ordered_set()
+    try:
+        for (name, term) in subst:
+            t, s = subst1(term, replacement)
+            v = (name, t)
+            new_subst.add(v)
+            new_subst.update(s)
+        return new_subst
+    except Exception as e:
+        e.add_note(f'subst={subst}')
+        raise
+
+def unify(t1:Type, t2:Type, subst:Subst=None) -> Tuple[Type, Subst]:
     """Unify the two types t1 and t2.
 
     Returns a new type that represent the unification of both type.
@@ -1640,138 +1691,154 @@ def unify(t1:Type, t2:Type, typevars:dict[str, Type]|None=None) -> Type:
     Args:
         t1: The first type to be made equivalent
         t2: The second type to be be equivalent
+        subst: type variables substitutions.
 
     Returns:
-        The unified type. 
+        Tuple: (The unified type, Subst)
 
     Raises:
         InferenceError: Raised if the types cannot be unified.
     
-    # >>> t = Type.overload.add_args(args=
-    # ... [Type.Callable.add_args([Type('float', 'builtins'), Type('int', 'builtins'),]), 
-    # ...  Type.Callable.add_args([Type.Union.add_args([Type('str', 'builtins'), 
-    # ...                                               Type('bytes', 'builtins'),
-    # ...                                               Type('object', 'builtins')]), 
-    # ...                          Type('str', 'builtins'),])])
-    # >>> expr1 = Type.Callable.add_args([Type('int', 'builtins'), TypeVariable()])
-    # >>> print(t.annotation)
-    # (float) -> int | (str | bytes | object) -> str
-    # >>> print(expr1.annotation)
-    # (int) -> @TypeVar...
-    # >>> print(unify(expr1, t).annotation)
-    # (float) -> int
-    # >>> expr2 = Type.Callable.add_args([Type('float', 'builtins'), TypeVariable()])
-    # >>> print(unify(expr2, t).annotation)
-    # (float) -> int
-    # >>> expr3 = Type.Callable.add_args([Type('bytes', 'builtins'), TypeVariable()])
-    # >>> print(unify(expr3, t).annotation)
-    # (object) -> str
+    >>> t = Type.overload.add_args(args=
+    ... [Type.Callable.add_args([Type('float', 'builtins'), Type('int', 'builtins'),]), 
+    ...  Type.Callable.add_args([Type.Union.add_args([Type('str', 'builtins'), 
+    ...                                               Type('bytes', 'builtins'),
+    ...                                               Type('object', 'builtins')]), 
+    ...                          Type('str', 'builtins'),])])
+    >>> expr1 = Type.Callable.add_args([Type('int', 'builtins'), TypeVariable()])
+    >>> print(t.annotation)
+    (float) -> int | (str | bytes | object) -> str
+    >>> print(expr1.annotation)
+    (int) -> @TypeVar...
+    >>> print(unify(expr1, t)[0].annotation)
+    (float) -> int
+    >>> expr2 = Type.Callable.add_args([Type('float', 'builtins'), TypeVariable()])
+    >>> print(unify(expr2, t)[0].annotation)
+    (float) -> int
+    >>> expr3 = Type.Callable.add_args([Type('bytes', 'builtins'), TypeVariable()])
+    >>> print(unify(expr3, t)[0].annotation)
+    (object) -> str
     >>> t2 = Type.Callable.add_args([Type('list', 'builtins').add_args(
     ...     [Type('@TypeVar1')]), Type('list', 'builtins').add_args(
     ...     [Type('@TypeVar1')]),])
     >>> expr4 = Type.Callable.add_args([Type('list', 'builtins').add_args([Type('float', 'builtins')]), Type('@TypeVar2')])
-    >>> print(unify(expr4, t2).annotation)
+    >>> print(unify(expr4, t2)[0].annotation)
+    (list[float]) -> list[float]
     """
-    typevars = typevars if typevars is not None else {}
+    # basically a mix a these two approches, with support for subtyping as well.
+    # https://gist.github.com/dhilst/b5b198af93302ade61ccbfe3b094621a
+    # https://github.com/serge-sans-paille/tog/blob/master/tog.py
+    subst = ordered_set() if subst is None else subst
 
-    a = prune(t1)
-    b = prune(t2)
-    if a.is_typevar:
-        if a != b:
-            if occurs_in_type(a, b):
-                raise RuntimeError("recursive unification")
-            return b
-        # if b.is_typevar and b.name in typevars:
-        #     return typevars[b.name]
-            # return typevars.setdefault(a.name, b)
-        return a
-    elif b.is_typevar:
-        assert b.name.startswith('@')
-        r = unify(b, a, typevars)
-        return r
-        # return typevars.setdefault(b.name, r)
-
-    elif b.is_overload:
-        return unify(b, a, typevars)
-    elif a.is_overload:
-        types = []
-        errs = []
-        for t in a.args:
+    if t1 == t2:
+        return t1, subst
+    elif t2.is_typevar and not t1.is_typevar:
+        return unify(t2, t1, subst)
+    elif t1.is_typevar:
+        if occurs_in_type(t1, t2):
+            raise RuntimeError("recursive unification")
+        newsubst: Subst = ordered_set([(t1.name, t2)])
+        # substitutions stucture
+        subst = substmult(subst, newsubst) | newsubst # type: ignore
+        # t2, subst = 
+        return subst1(t1, subst)
+    elif t2.is_overload:
+        return subst1(*unify(t2, t1, subst))
+    elif t1.is_overload:
+        types: list[Tuple[Type, Subst]] = []
+        errs: list[Exception] = []
+        for t in t1.args:
             try:
-                types.append(unify(t, b, typevars))
+                types.append(unify(t, t2, subst))
             except RuntimeError as e:
                 errs.append(e)
         if types:
             if len(types) == 1:
-                return unify(types[0], b, typevars)
+                return subst1(*unify(types[0][0], t2, types[0][1]))
             # too many overloads are found, so extract as many 
             # information as we can, and unify the rest with the first overload match.
-            return unify(types[0], _approximate_overload(b, types), typevars)
+            return subst1(*unify(types[0][0], 
+                         _approximate_overload(t2, [_t[0] for _t in types], types[0][1]), 
+                         types[0][1]))
         else:
-            raise RuntimeError("Type mismatch, no overload found: {} and {}: {}".format(a.annotation, b.annotation, errs))
-    elif b.is_union:
-        return unify(b, a, typevars)
-    elif a.is_union:
+            raise RuntimeError("Type mismatch, no overload found: {} and {}: {}".format(t1.annotation, t2.annotation, errs))
+    elif t2.is_union:
+        return subst1(*unify(t2, t1, subst))
+    elif t1.is_union:
         types = []
         errs = []
-        for t in a.args:
+        for t in t1.args:
             try:
-                types.append(unify(t, b, typevars))
+                types.append(subst1(*unify(t, t2, subst)))
             except RuntimeError as e:
                 errs.append(e)
         if types:
             new_type = Type.Any
-            for t in types:
-                new_type = new_type.merge(unify(t, b, typevars))
-            return new_type
+            for t,s in types:
+                # Maybe we're doing too much of computation here?
+                # subst |= s
+                t, s = subst1(*unify(t, t2, subst))
+                new_type = new_type.merge(t)
+                # new_type = new_type.merge(t)
+                subst |= s
+            return new_type, subst
         else:
-            raise RuntimeError("Type mismatch, none of the union element matches: {} and {}: {}".format(a.annotation, b.annotation, errs))
-    elif b.unknown:
-        return a
-    elif a.unknown:
-        return b
-    if b.is_callable and a.is_callable:
-        caller, callee, bargs = bind_callables(a, b)
+            raise RuntimeError("Type mismatch, none of the union element matches: {} and {}: {}".format(t1.annotation, t2.annotation, errs))
+    elif t2.unknown:
+        return subst1(t1, subst)
+    elif t1.unknown:
+        return subst1(t2, subst)
+    elif t2.is_callable and t1.is_callable:
+        caller, callee, bargs = bind_callables(t1, t2)
         # now let's adjust callee's arguments to match caller's
         # transfer typevars of course!
-        new_args = [*(bargs.signature.parameters[a].annotation for a in bargs.arguments), callee.args[-1]]
+        new_args = [*(bargs.signature.parameters[a].annotation 
+                      for a in bargs.arguments), callee.args[-1]]
 
         if new_args != list(callee.args):
             print(f'callable signature matches: old_args={[a.annotation for a in callee.args]}, new_args={[a.annotation for a in new_args]}')
             callee = callee._replace(args=new_args)
         assert len(callee.args) == len(caller.args), f'{callee.args} != {caller.args}'
         
-        # Unify arguments, twice please.
-        unify_args = lambda: [unify(p, q, typevars) for p, q in zip(callee.args, caller.args)]
-        callee = callee._replace(args=unify_args())
-        callee = callee._replace(args=unify_args())
-
-        return callee
+        # Unify arguments
+        unified_args: list[Type] = []
+        for p, q in zip(callee.args, caller.args):
+            t, s = subst1(*unify(p, q, subst))
+            subst |= s
+            unified_args.append(t)
+        
+        return callee._replace(args=unified_args), subst
     
-    elif len(a.args) != len(b.args):
-        raise RuntimeError("Type mismatch: {0} != {1}".format(a.annotation, b.annotation))
+    elif len(t1.args) != len(t2.args):
+        raise RuntimeError("Type mismatch: {0} != {1}".format(t1.annotation, t2.annotation))
    
     # catch-all case.
-    if b.qualname == a.qualname or a.supertype_of(b):
-        keep = a
-    elif b.supertype_of(a):
-        keep = b
+    if t2.qualname == t1.qualname or t1.supertype_of(t2):
+        keep = t1
+    elif t2.supertype_of(t1):
+        keep = t2
     else:
-        raise RuntimeError("Type mismatch: {0} does not match {1}".format(a.qualname, b.qualname))
+        raise RuntimeError("Type mismatch: {0} does not match {1}".format(t1.qualname, t2.qualname))
     
+    # Unify arguments
+    unified_args = []
+    for p, q in zip(t1.args, t2.args):
+        t, s = subst1(*unify(p, q, subst))
+        unified_args.append(t)
+        subst |= s
     
-    return keep._replace(args=[unify(p, q, typevars) for p, q in zip(a.args, b.args)])
+    return keep._replace(args=unified_args), subst
 
 if __debug__:
     unify_org = unify
-    def debug_unify(t1:Type, t2:Type, typevars:dict[str, Type]=None) -> Type:
-        typevars = typevars if typevars is not None else {}
+    def debug_unify(t1:Type, t2:Type, subst:Subst=None) -> Tuple[Type, Subst]:
+        subst = ordered_set() if subst is None else subst
         try:
-            r = unify_org(t1, t2, typevars)
+            r,s = unify_org(t1, t2, subst)
         except RuntimeError:
-            print(f'Unification of:\n- {t1.annotation}\n- {t2.annotation}\n=> MISMATCH')
+            print(f'Unification of:\n- {t1.annotation}\n- {t2.annotation}\n=> MISMATCH\n Typevars before: {[(n,t.annotation) for n,t in subst]})')
             raise
         else:
-            print(f'Unification of:\n- {t1.annotation}\n- {t2.annotation}\n=> {r.annotation}\t (typevars: {dict((t.name, t.annotation) for t in typevars.values())})')
-            return r
+            print(f'\n\nUnification of:\n- {t1.annotation}\n- {t2.annotation}\n=> {r.annotation}\n Typevars before: {[(n,t.annotation) for n,t in subst]})\n Typevars after: {[(n,t.annotation) for n,t in s]}\n')
+            return r,s
     unify = debug_unify

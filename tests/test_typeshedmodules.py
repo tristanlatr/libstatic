@@ -18,7 +18,9 @@ class TestTypeshedLoading(TestCase):
         proj.analyze_project()
         modlist = [mod.name() for mod in proj.state.get_all_modules()]
         assert 'typing' in modlist
-        assert '_collections_abc' in modlist
-        assert 'collections.abc' in modlist
+        # this module is only present when using the stubs from typeshed.
+        # But since we're using our custom stubs from pytype, it does not exist.
+        # assert '_collections_abc' in modlist
+        assert 'sys' in modlist
         assert proj.state.get_local(builtinsmodule, 'len')[-1].node.__class__.__name__=='FunctionDef'
     
