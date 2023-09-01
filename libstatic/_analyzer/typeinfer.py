@@ -1892,6 +1892,11 @@ if __debug__:
             print(f'Unification of:\n- {t1.annotation}\n- {t2.annotation}\n=> MISMATCH\n Typevars before: {[(n,t.annotation) for n,t in subst]})')
             raise
         else:
-            print(f'\n\nUnification of:\n- {t1.annotation}\n- {t2.annotation}\n=> {r.annotation}\n Typevars before: {[(n,t.annotation) for n,t in subst]})\n Typevars after: {[(n,t.annotation) for n,t in s]}\n')
+            print(f'Unification of:\n- {t1.annotation}\n- {t2.annotation}\n=> {r.annotation}')
+                  # Typevars before: {[(n,t.annotation) for n,t in subst]})\n Typevars after: {[(n,t.annotation) for n,t in s]}\n')
+            if not s.issuperset(subst):
+                print(f'Removals: Diff: {[(n,t.annotation) for n,t in subst.difference(s)]}')
+            if s.difference(subst):
+                print(f'Additions: Diff: {[(n,t.annotation) for n,t in s.difference(subst)]}')
             return r,s
     # unify = debug_unify
