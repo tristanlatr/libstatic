@@ -1886,17 +1886,19 @@ if __debug__:
     unify_org = unify
     def debug_unify(t1:Type, t2:Type, subst:Subst=None) -> Tuple[Type, Subst]:
         subst = ordered_set() if subst is None else subst
+
+        subst_before = ordered_set(subst)
         try:
             r,s = unify_org(t1, t2, subst)
         except RuntimeError:
-            print(f'Unification of:\n- {t1.annotation}\n- {t2.annotation}\n=> MISMATCH\n Typevars before: {[(n,t.annotation) for n,t in subst]})')
+            print(f'Unification of:\n- {t1.annotation}\n- {t2.annotation}\n=> MISMATCH\n Typevars before: {[(n,t.annotation) for n,t in subst_before]})')
             raise
         else:
             print(f'Unification of:\n- {t1.annotation}\n- {t2.annotation}\n=> {r.annotation}')
                   # Typevars before: {[(n,t.annotation) for n,t in subst]})\n Typevars after: {[(n,t.annotation) for n,t in s]}\n')
-            if not s.issuperset(subst):
-                print(f'Removals: Diff: {[(n,t.annotation) for n,t in subst.difference(s)]}')
-            if s.difference(subst):
-                print(f'Additions: Diff: {[(n,t.annotation) for n,t in s.difference(subst)]}')
+            if not set(s).issuperset(subst_before):
+                print(f'Removals: Diff: {[(n,t.annotation) for n,t in set(subst_before).difference(s)]}')
+            if set(s).difference(subst_before):
+                print(f'Additions: Diff: {[(n,t.annotation) for n,t in set(s).difference(subst_before)]}')
             return r,s
-    # unify = debug_unify
+    unify = debug_unify
