@@ -30,6 +30,9 @@ UnionFind Implementation in Python
 elts=['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'],
 siz=[1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
 par=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+nb_rm=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+removed=[],
+free=[],
 n_elts=10,n_comps=10>
 >>> uf.union('e', 'd')
 >>> uf
@@ -37,6 +40,9 @@ n_elts=10,n_comps=10>
 elts=['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'],
 siz=[1, 1, 1, 1, 2, 1, 1, 1, 1, 1],
 par=[0, 1, 2, 4, 4, 5, 6, 7, 8, 9],
+nb_rm=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+removed=[],
+free=[],
 n_elts=10,n_comps=9>
 >>> uf.union('d', 'i')
 >>> uf
@@ -44,6 +50,9 @@ n_elts=10,n_comps=9>
 elts=['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'],
 siz=[1, 1, 1, 1, 3, 1, 1, 1, 1, 1],
 par=[0, 1, 2, 4, 4, 5, 6, 7, 4, 9],
+nb_rm=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+removed=[],
+free=[],
 n_elts=10,n_comps=8>
 >>> uf.union('g', 'f')
 >>> uf
@@ -51,6 +60,9 @@ n_elts=10,n_comps=8>
 elts=['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'],
 siz=[1, 1, 1, 1, 3, 1, 2, 1, 1, 1],
 par=[0, 1, 2, 4, 4, 6, 6, 7, 4, 9],
+nb_rm=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+removed=[],
+free=[],
 n_elts=10,n_comps=7>
 >>> uf.union('j', 'e')
 >>> uf
@@ -58,6 +70,9 @@ n_elts=10,n_comps=7>
 elts=['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'],
 siz=[1, 1, 1, 1, 4, 1, 2, 1, 1, 1],
 par=[0, 1, 2, 4, 4, 6, 6, 7, 4, 4],
+nb_rm=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+removed=[],
+free=[],
 n_elts=10,n_comps=6>
 >>> uf.union('c', 'b')
 >>> uf
@@ -65,6 +80,9 @@ n_elts=10,n_comps=6>
 elts=['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'],
 siz=[1, 1, 2, 1, 4, 1, 2, 1, 1, 1],
 par=[0, 2, 2, 4, 4, 6, 6, 7, 4, 4],
+nb_rm=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+removed=[],
+free=[],
 n_elts=10,n_comps=5>
 >>> uf.union('i', 'j')
 >>> uf
@@ -72,6 +90,9 @@ n_elts=10,n_comps=5>
 elts=['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'],
 siz=[1, 1, 2, 1, 4, 1, 2, 1, 1, 1],
 par=[0, 2, 2, 4, 4, 6, 6, 7, 4, 4],
+nb_rm=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+removed=[],
+free=[],
 n_elts=10,n_comps=5>
 >>> uf.union('f', 'a')
 >>> uf
@@ -79,6 +100,9 @@ n_elts=10,n_comps=5>
 elts=['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'],
 siz=[1, 1, 2, 1, 4, 1, 3, 1, 1, 1],
 par=[6, 2, 2, 4, 4, 6, 6, 7, 4, 4],
+nb_rm=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+removed=[],
+free=[],
 n_elts=10,n_comps=4>
 >>> uf.union('h', 'c')
 >>> uf
@@ -86,6 +110,9 @@ n_elts=10,n_comps=4>
 elts=['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'],
 siz=[1, 1, 3, 1, 4, 1, 3, 1, 1, 1],
 par=[6, 2, 2, 4, 4, 6, 6, 2, 4, 4],
+nb_rm=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+removed=[],
+free=[],
 n_elts=10,n_comps=3>
 >>> uf.union('g', 'b')
 >>> uf
@@ -93,6 +120,9 @@ n_elts=10,n_comps=3>
 elts=['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'],
 siz=[1, 1, 3, 1, 4, 1, 6, 1, 1, 1],
 par=[6, 2, 6, 4, 4, 6, 6, 2, 4, 4],
+nb_rm=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+removed=[],
+free=[],
 n_elts=10,n_comps=2>
 >>> uf.union('a', 'b')
 >>> uf
@@ -100,6 +130,9 @@ n_elts=10,n_comps=2>
 elts=['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'],
 siz=[1, 1, 3, 1, 4, 1, 6, 1, 1, 1],
 par=[6, 6, 6, 4, 4, 6, 6, 2, 4, 4],
+nb_rm=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+removed=[],
+free=[],
 n_elts=10,n_comps=2>
 >>> uf.union('g', 'h')
 >>> uf
@@ -107,6 +140,9 @@ n_elts=10,n_comps=2>
 elts=['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'],
 siz=[1, 1, 3, 1, 4, 1, 6, 1, 1, 1],
 par=[6, 6, 6, 4, 4, 6, 6, 6, 4, 4],
+nb_rm=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+removed=[],
+free=[],
 n_elts=10,n_comps=2>
 >>> uf.connected('a', 'g')
 True
@@ -114,9 +150,88 @@ True
 <ordered_set {g, a, b, c, f, h}>
 >>> uf.components()
 [<ordered_set {g, a, b, c, f, h}>, <ordered_set {e, d, i, j}>]
+>>> uf.remove('i')
+>>> uf
+<UnionFind:
+elts=['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'],
+siz=[1, 1, 3, 1, 4, 1, 6, 1, 1, 1],
+par=[6, 6, 6, 4, 4, 6, 6, 6, 4, 4],
+nb_rm=[0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+removed=[8],
+free=[],
+n_elts=9,n_comps=2>
+>>> uf.components()
+[<ordered_set {g, a, b, c, f, h}>, <ordered_set {e, d, j}>]
+>>> uf.remove('j')
+>>> uf
+<UnionFind:
+elts=['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'],
+siz=[1, 1, 3, 1, 4, 1, 6, 1, 1, 1],
+par=[6, 6, 6, 4, 4, 6, 6, 6, 4, 4],
+nb_rm=[0, 0, 0, 0, 2, 0, 0, 0, 0, 0],
+removed=[8, 9],
+free=[],
+n_elts=8,n_comps=2>
+>>> uf.components()
+[<ordered_set {g, a, b, c, f, h}>, <ordered_set {e, d}>]
+>>> uf.remove('d')
+>>> uf
+<UnionFind:
+elts=['a', 'b', 'c', None, 'e', 'f', 'g', 'h', None, None],
+siz=[1, 1, 3, 0, 2, 1, 6, 1, 0, 0],
+par=[6, 6, 6, 3, 4, 6, 6, 6, 8, 9],
+nb_rm=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+removed=[],
+free=[3, 8, 9],
+n_elts=7,n_comps=2>
+>>> uf.components()
+[<ordered_set {g, a, b, c, f, h}>, <ordered_set {e}>]
+>>> uf.component('e')
+<ordered_set {e}>
+>>> uf.union('e', 'z')
+>>> uf.remove('a')
+>>> uf.union('z', 'x')
+>>> uf
+<UnionFind:
+elts=['a', 'b', 'c', 'z', 'e', 'f', 'g', 'h', 'x', None],
+siz=[1, 1, 3, 1, 4, 1, 6, 1, 1, 0],
+par=[6, 6, 6, 4, 4, 6, 6, 6, 4, 9],
+nb_rm=[0, 0, 0, 0, 0, 0, 1, 0, 0, 0],
+removed=[0],
+free=[9],
+n_elts=8,n_comps=2>
+>>> uf.components()
+[<ordered_set {g, b, c, f, h}>, <ordered_set {e, z, x}>]
+>>> uf.remove('g')
+>>> uf.components()
+[<ordered_set {b, c, f, h}>, <ordered_set {e, z, x}>]
+>>> uf.union('x', 'y')
+>>> uf
+<UnionFind:
+elts=['a', 'b', 'c', 'z', 'e', 'f', 'g', 'h', 'x', 'y'],
+siz=[1, 1, 3, 1, 5, 1, 6, 1, 1, 1],
+par=[6, 6, 6, 4, 4, 6, 6, 6, 4, 4],
+nb_rm=[0, 0, 0, 0, 0, 0, 2, 0, 0, 0],
+removed=[0, 6],
+free=[],
+n_elts=8,n_comps=2>
+>>> for e in 'bcfhe':
+...     uf.remove(e)
+...
+>>> uf
+<UnionFind:
+elts=[None, None, None, 'z', 'e', 'f', None, 'h', 'x', 'y'],
+siz=[0, 0, 0, 1, 5, 3, 0, 1, 1, 1],
+par=[0, 1, 2, 4, 4, 5, 6, 5, 4, 4],
+nb_rm=[0, 0, 0, 0, 1, 2, 0, 0, 0, 0],
+removed=[5, 7, 4],
+free=[6, 0, 1, 2],
+n_elts=3,n_comps=2>
+>>> uf.components()
+[<ordered_set {z, x, y}>]
+
 """
 from __future__ import annotations
-from collections import deque
 
 from typing import (
     Iterable,
@@ -193,7 +308,13 @@ class UnionFind(Generic[T], Collection[T]):
         self._indx: dict[T, int] = {}  #  dict mapping elt -> index in _elts
         self._par: list[int] = []  # parent: for the internal tree structure
         self._siz: list[int] = []  # size of the component - correct only for roots
-        self._removed: list[int] # indexes free to use after removals.
+        
+        # support for remove()
+        # based on http://www.corelab.ntua.gr/acac10/ACAC2010_Talks/SimonYoffe.pdf
+        # section 4. Union-Find via path compression and linking by rank size
+        self._nb_rm: list[int] = [] # number of elements removed - correct only for roots
+        self._removed: set[int] = ordered_set() # indexes of removed items
+        self._free: set[int] = ordered_set() # indexes of freed spot in the element list after rebuild
 
         if elements is None:
             elements = []
@@ -203,11 +324,14 @@ class UnionFind(Generic[T], Collection[T]):
 
     def __repr__(self) -> str:
         return  (
-            '<UnionFind:\nelts={},\nsiz={},\npar={},\nn_elts={},n_comps={}>'
+            '<UnionFind:\nelts={},\nsiz={},\npar={},\nnb_rm={},\nremoved={},\nfree={},\nn_elts={},n_comps={}>'
             .format(
                 self._elts,
                 self._siz,
                 self._par,
+                list(self._nb_rm),
+                list(self._removed),
+                list(self._free),
                 self.n_elts,
                 self.n_comps,
             ))
@@ -216,7 +340,8 @@ class UnionFind(Generic[T], Collection[T]):
         return self.n_elts
 
     def __contains__(self, x) -> bool:
-        return x in self._indx
+        in_index = x in self._indx
+        return in_index and self._indx[x] not in self._removed
 
     def __getitem__(self, index:int) -> T:
         if index < 0 or index >= self._next:
@@ -241,15 +366,29 @@ class UnionFind(Generic[T], Collection[T]):
         """
         if x in self:
             return
-        self._elts.append(x)
-        self._indx[x] = self._next
-        self._par.append(self._next)
-        self._siz.append(1)
-        self._next += 1
-        self.n_elts += 1
-        self.n_comps += 1
+        
+        if self._free:
+            index = next(iter(self._free))
+            self._free.discard(index)
+            self._elts[index] = x
+            self._indx[x] = index
+            self._par[index] = index
+            self._siz[index] = 1
+            self._nb_rm[index] = 0
+            self.n_elts += 1
+            self.n_comps += 1
 
-    def find(self, x: T) -> int:
+        else:
+            self._elts.append(x)
+            self._indx[x] = self._next
+            self._par.append(self._next)
+            self._siz.append(1)
+            self._nb_rm.append(0)
+            self._next += 1
+            self.n_elts += 1
+            self.n_comps += 1
+
+    def _find(self, x: T) -> int:
         """
         Find the index of root of the disjoint 
         set containing the given element.
@@ -294,7 +433,7 @@ class UnionFind(Generic[T], Collection[T]):
             True if x and y are connected, false otherwise.
 
         """
-        return self.find(x) == self.find(y)
+        return self._find(x) == self._find(y)
 
     def union(self, x: T, y: T) -> None:
         """
@@ -316,19 +455,21 @@ class UnionFind(Generic[T], Collection[T]):
             if elt not in self:
                 self.add(elt)
 
-        xroot = self.find(x)
-        yroot = self.find(y)
+        xroot = self._find(x)
+        yroot = self._find(y)
         if xroot == yroot:
             return
         if self._siz[xroot] < self._siz[yroot]:
             self._par[xroot] = yroot
             self._siz[yroot] += self._siz[xroot]
+            self._nb_rm[yroot] += self._nb_rm[xroot]
         else:
             self._par[yroot] = xroot
             self._siz[xroot] += self._siz[yroot]
+            self._nb_rm[xroot] += self._nb_rm[yroot]
         self.n_comps -= 1
 
-    def component(self, x:T) -> ordered_set[T]:
+    def component(self, x:T, _include_rm:bool=False) -> ordered_set[T]:
         """Find the connected component containing the given element.
 
         Parameters
@@ -345,12 +486,18 @@ class UnionFind(Generic[T], Collection[T]):
             If the given element is not found.
 
         """
-        if x not in self:
+        if x not in (self._elts if _include_rm else self):
             raise ValueError('{} is not an element'.format(x))
-        root = self.find(x)
-        r = ordered_set([self[root]])
-        r.update(elt for elt in self._elts if self.find(elt) == root)
-        return r
+        
+        root = self._find(x)
+        if not _include_rm and root in self._removed:
+            s = ordered_set()
+        else:
+            s = ordered_set(self[root])
+        s.update(elt for i, elt in enumerate(self)
+                 if elt is not None and ((not _include_rm or i not in self._removed) or _include_rm)
+                     and self._find(elt) == root)
+        return s
 
     def components(self) -> list[ordered_set[T]]:
         """Return the list of connected components.
@@ -361,12 +508,19 @@ class UnionFind(Generic[T], Collection[T]):
             A list of insertion ordered set, first element is the root.
         """
         components_dict:dict[int, ordered_set[T]] = {}
-        for elt in self._elts:
-            root = self.find(elt)
+        for i, elt in enumerate(self._elts):
+            if elt is None:
+                continue
+            if i in self._removed:
+                continue
+            root = self._find(elt)
             try:
                 components: ordered_set[T] = components_dict[root]
             except KeyError:
-                components = components_dict[root] = ordered_set([self[root]])
+                if root not in self._removed:
+                    components = components_dict[root] = ordered_set([self[root]])
+                else:
+                    components = components_dict[root] = ordered_set()
             components.add(elt)
         return list(components_dict.values())
     
@@ -379,61 +533,46 @@ class UnionFind(Generic[T], Collection[T]):
         new._indx = self._indx.copy()
         new._par = self._par.copy()
         new._siz = self._siz.copy()
+        new._nb_rm = self._nb_rm.copy()
+        new._removed = self._removed.copy()
+        new._free = self._free.copy()
         return new
     
-    def _is_leaf(self, i:int) -> bool:
-        try:
-            self._par.index(i)
-        except ValueError:
-            return True
-        return False
-
-    # def _find_leaf(self, x:T) -> T:
-    #     # this implementation has a poor algorithmic complexity :/
-    #     # if the trees are hight, it can become catastrophic.
-    #     nodes: ordered_set[int] = ordered_set([self._indx[x]])
-    #     while nodes:
-    #         index = nodes[0]
-    #         del nodes.values[index]
-
-    #         if self._is_leaf(index):
-    #             return index
-    #         else:
-    #             nodes.update(i for i,v in enumerate(self._par) if v == index)
-    #     assert False
-    
-    # def _switch(self, a:T, b:T) -> None:
-    #     indexa = self._indx[a]
-    #     indexb = self._indx[b]
-
-    #     self._elts[indexa] = b
-    #     self._elts[indexb] = a
-    #     self._indx[a] = indexb
-    #     self._indx[b] = indexa
-
-    
-    # def remove(self, x: T) -> None:
-    #     # http://www.corelab.ntua.gr/acac10/ACAC2010_Talks/SimonYoffe.pdf
-    #     # https://citeseerx.ist.psu.edu/doc/10.1.1.13.4443
-
-    #     if x not in self:
-    #         raise ValueError('{} is not an element'.format(x))
-    #     leaf = self._find_leaf(x)
-    #     if leaf is not x:
-    #         self._switch(leaf, x)
+    def remove(self, x: T) -> None:
+        # http://www.corelab.ntua.gr/acac10/ACAC2010_Talks/SimonYoffe.pdf
+        # section 4. Union-Find via path compression and linking by rank size
         
-    #     index = self._indx[x]
-    #     self._elts[index] = None
-    #     #   switch leaf and x, x is now a leaf
-    #     # place None at the index where x is stored.
+        if x not in self:
+            raise ValueError('{} is not an element'.format(x))
+        
+        index = self._indx[x]
+        root = self._find(x)
+        self._removed.add(index)
+        self._nb_rm[root] += 1
+        self.n_elts -= 1
+        
+        siz_by_2 = round(self._siz[root] / 2)
+        if self._nb_rm[root] > siz_by_2:
+            # rebuild
+            rootindex = None
+            for i in self.component(self[root], _include_rm=True):
+                iindx = self._indx[i]
+                
+                if iindx in self._removed:
+                    self._elts[iindx] = None
+                    self._par[iindx] = iindx
+                    self._siz[iindx] = 0
+                    self._nb_rm[iindx] = 0
+                    del self._indx[i]
 
-    # def replace(self, a:T, b:T) -> None:
-    #     ...
-    #     # if a not in self:
-    #     #     raise ValueError('{} is not an element'.format(a))
-    #     # if b in self:
-    #     #     raise ValueError('{} is already an element'.format(b))
-    #     # index = self._indx[a]
-    #     # self._elts[index] = b
-    #     # self._indx[b] = index
-    #     # del self._indx[a]
+                    self._free.add(iindx)
+                    self._removed.discard(iindx)
+                    continue
+                
+                if rootindex is None:
+                    self._siz[iindx] = siz_by_2
+                    self._nb_rm[iindx] = 0
+                    self._par[iindx] = iindx
+                    rootindex = iindx
+                else:
+                    self._par[iindx] = rootindex
