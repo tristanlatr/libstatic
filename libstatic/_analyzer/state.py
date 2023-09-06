@@ -1298,8 +1298,6 @@ class State(_MinimalState):
         and other fundamentals.
 
         Notably missing features includes:
-            - Overload matching
-            - Type variable and generics support (there is simple support for builtins generics)
             - Type aliases detection
             - TypedDict and a lot more of the typing features
 
@@ -1307,8 +1305,11 @@ class State(_MinimalState):
         """
         if isinstance(node, Def):
             node = node.node
-        return cleanup_unresolved_typevars(
+        r = cleanup_unresolved_typevars(
             _TypeInference(self).get_type(node, []))
+        if r and r.unknown:
+            return None
+        return r
 
 # class SingleModuleState(State):
 #     """

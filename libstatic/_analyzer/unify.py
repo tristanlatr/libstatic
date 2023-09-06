@@ -1,3 +1,32 @@
+#### Type variable support
+# Copyright (c) 2016, Serge Guelton
+# All rights reserved.
+
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+
+# 	Redistributions of source code must retain the above copyright notice, this
+# 	list of conditions and the following disclaimer.
+
+# 	Redistributions in binary form must reproduce the above copyright notice,
+# 	this list of conditions and the following disclaimer in the documentation
+# 	and/or other materials provided with the distribution.
+
+# 	Neither the name of HPCProject, Serge Guelton nor the names of its
+# 	contributors may be used to endorse or promote products derived from this
+# 	software without specific prior written permission.
+
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+# ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 from __future__ import annotations
 import inspect
 import sys
@@ -14,6 +43,57 @@ class MarkedSubstitutions(NamedTuple):
 class Substitutions:
     """
     A domain of instantiated type variables.
+
+    >>> d = Substitutions()
+    >>> assert len(list(d.variables())) == 0
+    >>> t1 = TypeVariable()
+    >>> t2 = TypeVariable()
+    >>> v1 = Type('int')
+    >>> v2 = Type('float')
+    >>> d.bind(t1, v1)
+    >>> dd = d.copy()
+    >>> d.bind(t2, v2)
+    >>> d
+    <Substitutions: 
+    @TypeVar... -> int
+    @TypeVar... -> float
+    <UnionFind:
+    elts=['@TypeVar...', 'int', '@TypeVar...', 'float'],
+    siz=[1, 1, 1, 1],
+    par=[0, 1, 2, 3],
+    nb_rm=[0, 0, 0, 0],
+    removed=[],
+    free=[],
+    n_elts=4,n_comps=4>
+    >
+    >>> d.bind(t1, t2)
+    >>> d
+    <Substitutions: 
+    @TypeVar... -> float
+    @TypeVar... -> float
+    <UnionFind:
+    elts=['@TypeVar...', 'int', '@TypeVar...', 'float'],
+    siz=[2, 2, 1, 1],
+    par=[0, 1, 0, 1],
+    nb_rm=[0, 0, 0, 0],
+    removed=[],
+    free=[],
+    n_elts=4,n_comps=2>
+    >
+    >>> dd.bind(t1, t2)
+    >>> dd
+    <Substitutions: 
+    @TypeVar... -> int
+    @TypeVar... -> int
+    <UnionFind:
+    elts=['@TypeVar...', 'int', '@TypeVar...'],
+    siz=[2, 1, 1],
+    par=[0, 1, 0],
+    nb_rm=[0, 0, 0],
+    removed=[],
+    free=[],
+    n_elts=3,n_comps=2>
+    >
     """
     __slots__ = '_uf', '_graph'
 
@@ -27,26 +107,33 @@ class Substitutions:
         self._graph: dict[int, Type] = {}
     
     def __repr__(self) -> str:
-        r = ['<Substitutions: ']
-        r.extend((f'{v.annotation} -> {getattr(self.type(v), "annotation", "<None>")}' for v in self.variables()))
-        r.append('>')
-        return '\n'.join(r)
+        if len(self._uf):
+            r = ['<Substitutions: ']
+            r.extend((f'{v.annotation} -> {getattr(self.type(v), "annotation", "<no type>")}' for v in self.variables()))
+            r.extend(str(self._uf).splitlines())
+            r.append('>')
+            return '\n'.join(r)
+        else:
+            return '<Substitutions>'
     
-    def variables(self) -> Iterator[Type]:
-        return (v for v in self._uf if v.is_typevar)
+    def variables(self) -> Iterator[TypeVariable]:
+        """
+        Iterate over all type variables in the domain.
+        """
+        return (v for v in self._uf if isinstance(v, TypeVariable))
     
     def _union_types(self, tv:TypeVariable, t1:Type, t2:Type) -> Type:
         m = self.mark()
         try:
-            nt = weak_unify(t1, t2, subst=self)
+            nt = weak_unify(t1, t2, self)
         except RuntimeError:
             self.restore(m)
             raise
-        else:
-            self._uf.union(t2, nt)
-            self._uf.union(t1, nt)
-            self._graph[self.rep(tv)] = nt
-            return nt
+
+        self._uf.union(t2, nt)
+        self._uf.union(t1, nt)
+        self._graph[self.rep(tv)] = nt
+        return nt
 
     def bind(self, var:TypeVariable, value:Type) -> None:
         """
@@ -58,17 +145,29 @@ class Substitutions:
         if isinstance(value, TypeVariable):
             t2 = self.type(value)
             self._uf.union(var, value)
+
+            # make sure to update de graph with 
+            # the most recent representant since it can change after 
+            # each call to union() or remove().
             if t2 and t:
-                self._union_types(value, t2, t)
+                if t2 != t:
+                    self._union_types(value, t2, t)
+                else:
+                    self._graph[self.rep(var)] = t
+            elif t:
+                self._graph[self.rep(var)] = t
+            elif t2:
+                self._graph[self.rep(var)] = t2
             return
         
         if t:
-            self._union_types(var, t, value)
+            if t != value:
+                self._union_types(var, t, value)
         else:
             self._uf.add(value)
             self._graph[self.rep(var)] = value
     
-    def rep(self, t:TypeVariable) -> int:
+    def rep(self, t:Type) -> int:
         """
         Get the representant of this type.
         """
@@ -81,29 +180,25 @@ class Substitutions:
         """
         return self._graph.get(self.rep(var))
         
-        # tvs = (v for v in self._uf.component(var) if v is not var and not v.is_typevar)
 
-        # try:
-        #     v = next(tvs)
-        # except StopIteration:
-        #     return None
-        # else:
-        #     try:
-        #         next(tvs)
-        #     except StopIteration:
-        #         return v
-        #     else:
-        #         raise ValueError(f'variable {var.annotation} has several types')
-            
     def mark(self) -> MarkedSubstitutions:
+        """
+        Create a mark of this substitutions, to be applied with `restore`.
+        """
         return MarkedSubstitutions(self._uf.copy(), 
                                    self._graph.copy())
 
     def restore(self, mark: MarkedSubstitutions) -> None:
+        """
+        Restore a mark previously created with `mark`.
+        """
         self._uf = mark.uf
         self._graph = mark.graph
     
     def copy(self) -> Substitutions:
+        """
+        Copy the substitutions into a new instance.
+        """
         new = Substitutions()
         new.restore(self.mark())
         return new
@@ -151,27 +246,25 @@ def occurs_in(t:Type, types:Sequence[Type]) -> bool:
     """
     return any(occurs_in_type(t, t2) for t2 in types)
 
-def weak_unify(*types:Type, subst:Substitutions) -> Type:
-    t = Type.Any
-    for r in types:
-        m = subst.mark()
-        try:
-            t = unify(t, r, subst)
-        except RuntimeError:
-            subst.restore(m)
-            # two possible values for a given type variable doesn't unify. 
-            # we then use the first common supertype, that's not object.
-            supertype = r.supertype
-            while 1:
-                if supertype is None:
-                    raise
-                if supertype.qualname == 'builtins.object':
-                    raise
-                if supertype.supertype_of(t):
-                    break
-                supertype = supertype.supertype
-            supertype = supertype._replace(args=r.args)
-            t = unify(t, supertype, subst)
+def weak_unify(t1:Type, t2:Type, subst:Substitutions) -> Type:
+    m = subst.mark()
+    try:
+        t = unify(t1, t2, subst)
+    except RuntimeError:
+        subst.restore(m)
+        # two possible values for a given type variable doesn't unify. 
+        # we then use the first common supertype, that's not object.
+        supertype = t1.supertype
+        while 1:
+            if supertype is None:
+                raise
+            if supertype.qualname == 'builtins.object':
+                raise
+            if supertype.supertype_of(t2):
+                break
+            supertype = supertype.supertype
+        supertype = supertype._replace(args=t1.args)
+        t = unify(t2, supertype, subst)
     return t
 
 
@@ -338,11 +431,10 @@ def unify(t1:Type, t2:Type, subst:Substitutions|None=None) -> Type:
     >>> s = Substitutions()
     >>> print(unify(expr4, t2, s).annotation)
     (list[float]) -> list[float]
-    >>> s._graph
     """
     subst = Substitutions() if subst is None else subst
 
-    if subst.rep(t1) == subst.rep(t2):
+    if t1 == t2:
         return substitute(t1, subst)
     elif t2.is_typevar and not t1.is_typevar:
         return unify(t2, t1, subst)
@@ -470,4 +562,5 @@ if __debug__:
                                                  fromfile='before', 
                                                  tofile='after', )))
             return r
-    unify = debug_unify
+        
+    # unify = debug_unify

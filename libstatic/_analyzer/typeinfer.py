@@ -90,7 +90,7 @@ def find_typedef(state:State, qualname: str, *,
     return node
 
 # This class has beeen adapted from the 'astypes' project.
-@attrs.s(frozen=True, auto_attribs=True)
+@attrs.s(frozen=True, auto_attribs=True, auto_detect=True, slots=True, order=False)
 class Type:
     """
     Internal implementation of `libstatic.Type`.
@@ -112,21 +112,21 @@ class Type:
         # mypy is not very smart with the converter option :/
         args: Sequence['Type'] = attrs.ib(factory=tuple, converter=tuple, kw_only=True)
 
-    location: NodeLocation = attrs.ib(factory=NodeLocation, kw_only=True, eq=False, repr=False)
+    location: NodeLocation = attrs.ib(factory=NodeLocation, kw_only=True, eq=False, repr=False, hash=False)
     """
     The location of the node that defined this type.
     It's set to an unknown location by default so special 
     types can be created dynamically. 
     """
 
-    meta: Mapping[str, object] = attrs.ib(factory=FrozenDict, kw_only=True, eq=False)
+    meta: Mapping[str, object] = attrs.ib(factory=FrozenDict, kw_only=True, eq=False, hash=False)
     """
     Stores meta information when the type 
     annotations are not expressive enougth.
     Used for intermediate inference steps.
     """
     if not TYPE_CHECKING:
-        meta: Mapping[str, object] = attrs.ib(factory=FrozenDict, converter=FrozenDict, kw_only=True, hash=False)
+        meta: Mapping[str, object] = attrs.ib(factory=FrozenDict, converter=FrozenDict, kw_only=True, eq=False, hash=False)
     
     definition: Def|None = attrs.ib(default=None, eq=False, hash=False)
     """
@@ -134,6 +134,9 @@ class Type:
     Can be None for builtins (if the builtins module is not in the system) 
     and other special cases like Callable or Unions.
     """
+
+    # https://github.com/python-attrs/attrs/issues/164
+    __dict__: dict = attrs.field(factory=dict, init=False, repr=False, eq=False)
 
     # Special types:
     Any: ClassVar[Type]
@@ -144,6 +147,21 @@ class Type:
     Literal: ClassVar[Type]
     Optional: ClassVar[Type]
     overload: ClassVar[Type]
+
+    def __str__(self) -> str:
+        return self.annotation
+    
+    def __hash__(self) -> int:
+        try:
+            _hash = object.__getattribute__(self, '_hash')
+        except AttributeError:
+            _hash = hash(self.qualname)
+            for a in self.args:
+                _hash ^= hash(a)
+            object.__setattr__(self, '_hash', _hash)
+            return _hash
+        else:
+            return _hash
 
     @property
     def qualname(self) -> str:
@@ -390,6 +408,8 @@ class Type:
                 args = ', '.join(arg.long_annotation for arg in self.args)
             return f'{name}[{args}]'
         return name
+
+Type.__slots__ += ('_hash',)
 
 def AnnotationType(state:State, qualname:str) -> Type:
     """
@@ -976,7 +996,8 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
                 keywordargs = ((self.get_type(n.value, path) or Type.Any).add_meta(keyword=n.arg) for n in node.keywords)
                 exprtype = Type.Callable.add_args(args=(*posargs, *keywordargs, TypeVariable()))
                 try:
-                    unified,_ = unify(functype, exprtype)
+                    from .unify import unify
+                    unified = unify(functype, exprtype)
                 except RuntimeError as e:
                     raise StaticValueError(node, f'Type unification failed: {e}', 
                                            filename=self._state.get_filename(node))
@@ -1468,6 +1489,7 @@ class TypeVariable(Type, metaclass=_TypeVariableMeta):
     "Type(name='@TypeVar...', scope='', args=(), meta=...)"
     >>> assert tv != TypeVariable()
     >>> assert Type('@TypeVar43')==Type('@TypeVar43')
+    >>> assert hash(Type('@TypeVar43'))==hash(Type('@TypeVar43'))
     """
     _id = 0
     def __new__(cls) -> Type: # type:ignore
@@ -1476,192 +1498,6 @@ class TypeVariable(Type, metaclass=_TypeVariableMeta):
     @classmethod
     def _reset(cls) -> None:
         cls._id = 0
-
-#### Type variable support
-# Copyright (c) 2016, Serge Guelton
-# All rights reserved.
-
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions are met:
-
-# 	Redistributions of source code must retain the above copyright notice, this
-# 	list of conditions and the following disclaimer.
-
-# 	Redistributions in binary form must reproduce the above copyright notice,
-# 	this list of conditions and the following disclaimer in the documentation
-# 	and/or other materials provided with the distribution.
-
-# 	Neither the name of HPCProject, Serge Guelton nor the names of its
-# 	contributors may be used to endorse or promote products derived from this
-# 	software without specific prior written permission.
-
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-# ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-def prune(t:Type) -> Type:
-    # no need to prune frozen instances.
-    return t
-
-def occurs_in_type(v:Type, type2:Type) -> bool:
-    """Checks whether a type variable occurs in a type expression.
-
-    Note: Must be called with v pre-pruned
-
-    Args:
-        v:  The TypeVariable to be tested for
-        type2: The type in which to search
-
-    Returns:
-        True if v occurs in type2, otherwise False
-    """
-    pruned_type2 = prune(type2)
-    if pruned_type2 == v:
-        return True
-    return occurs_in(v, pruned_type2.args)
-
-def occurs_in(t:Type, types:Sequence[Type]) -> bool:
-    """Checks whether a types variable occurs in any other types.
-
-    Args:
-        t:  The TypeVariable to be tested for
-        types: The sequence of types in which to search
-
-    Returns:
-        True if t occurs in any of types, otherwise False
-    """
-    return any(occurs_in_type(t, t2) for t2 in types)
-
-
-def _approximate_overload(b:Type, types:Sequence[Type], subst:Subst) -> Type:
-    def try_unify(t:Type, ts:Sequence[Type]) -> Type|None:
-        if isinstance(t, TypeVariable):
-            return None
-        if any(isinstance(tp, TypeVariable) for tp in ts):
-            return None
-        # overapproximate 't'
-        new_args = list(t.args)
-        for i, tt in enumerate(t.args):
-            its = [prune(tp.args[i]) for tp in ts]
-            if any(isinstance(it, TypeVariable) for it in its):
-                continue
-            it0 = its[0]
-            it0ntypes = len(it0.args)
-            if all(((it.name == it0.name) and (len(it.args) == it0ntypes)) for it in its):
-                ntypes = [TypeVariable() for _ in range(it0ntypes)]
-                new_tt = it0._replace(args=ntypes)
-                # new_tt.__class__ = it0.__class__
-                tt,_ = unify(tt, new_tt, subst)
-                new_args[i] = try_unify(prune(tt), [prune(it) for it in its]) or tt
-        return t._replace(args=new_args)
-    
-    r = try_unify(b, types)
-    if r is None:
-        raise RuntimeError("Not unified {} and {}, overload approximation failed".format(types, b.annotation))
-    return r
-
-def better_signature(callable_type:Type) -> inspect.Signature | None:
-    """
-    Get a signature from the function def information wrapped by this type instance.
-    Return None if there is no function wrapped, in the case of a written 'Callable' annotation for instance.
-    """
-    definition = callable_type.get_meta('definition', Def)
-    if not isinstance(definition, Func):
-        return None
-        raise RuntimeError(f'missing definition of callable {callable_type.annotation}')
-    parameters: list[inspect.Parameter] = []
-    for i, arg in enumerate(callable_type.args[:-1]):
-        argdef = arg.get_meta('definition', Arg)
-        if argdef is None:
-            # the type vars seem to replace the type here:/ with no informations anymore.
-            raise RuntimeError(f'missing definition of callable {definition.name()!r} argument {i}: {arg}')
-        parameters.append(argdef.to_parameter().replace(annotation=arg))
-    return inspect.Signature(parameters, return_annotation=callable_type.args[-1])
-
-def callable_struct(callable_type:Type) -> Tuple[Sequence[Type], Mapping[str, Type], Type]:
-    """
-    Returns tuple: (args, kwargs, rtype)
-    """
-    if not callable_type.args:
-        return [], {}, Type.Any
-
-    positionals: list[Type] = []
-    keywords: dict[str, Type] = {}
-
-    for a in callable_type.args[:-1]:
-        keyword = a.get_meta('keyword', str)
-        if keyword is not None:
-            keywords[keyword] = keywords.setdefault(keyword, Type.Any).merge(a)
-        else:
-            if keywords:
-                raise RuntimeError('invalid callable, keywords came before positionals :/')
-            positionals.append(a)
-    
-    return positionals, keywords, callable_type.args[-1]
-
-def poor_signature(callable_type:Type) -> inspect.Signature:
-    """
-    Get a approximated signature based on a Callable type 
-    (created from annotations or from ast.Call before unification). 
-    """
-    positionals, keywords, rtype = callable_struct(callable_type)
-    # simplify signatures
-    parameters: list[inspect.Parameter] = []
-    parameters.extend((inspect.Parameter(f'__{i}__', 
-                       kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                       annotation=t) for i,t in enumerate(positionals)))
-    parameters.extend((inspect.Parameter(name,
-                       kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                       annotation=t) for name,t in keywords.items()))
-    return inspect.Signature(parameters, return_annotation=rtype)
-
-def bind_callables(a:Type, b:Type) -> Tuple[Type, Type, inspect.BoundArguments]:
-    """
-    Dertemine signature based compatibility between two callables.
-    Returns (caller, callee, bound arguments).
-    """
-    def _add_err_note(e:Exception):
-        if sys.version_info >= (3, 11):
-            shortsig = inspect.Signature(
-                [p.replace(annotation=p.annotation.annotation,
-                            default=inspect.Parameter.empty,
-                            ) for p in sig.parameters.values()])
-            
-            e.add_note(f'signature={str(shortsig)}')
-            e.add_note(f'args={[a.annotation for a in args]}')
-            e.add_note(f'keywords={dict((n,a.annotation) for n,a in keywords.items())}')
-
-    caller, callee = a, b
-    sig = better_signature(callee) or poor_signature(callee)
-    args, keywords, _ = callable_struct(caller)
-    assert len(args)+len(keywords)+1==len(caller.args)
-    try:
-        bargs = sig.bind(*args, **keywords)
-    except Exception as e:
-        _add_err_note(e)
-        # raise RuntimeError("Callable type mismatch: {0} != {1}".format(a.annotation, b.annotation)) from e
-
-        caller, callee = b, a
-        sig = better_signature(callee) or poor_signature(callee)
-        args, keywords, _ = callable_struct(caller)
-        assert len(args)+len(keywords)+1==len(caller.args)
-
-        try:
-            bargs = sig.bind(*args, **keywords)
-        except Exception as e:
-            _add_err_note(e)
-            raise RuntimeError("Callable type mismatch: {0} != {1}".format(a.annotation, b.annotation)) from e
-    
-    return caller, callee, bargs
-
-Subst = frozenset[tuple[str, Type]]
 
 def cleanup_unresolved_typevars(term:Type | None) -> Type | None:
     if term is None:
@@ -1672,233 +1508,3 @@ def cleanup_unresolved_typevars(term:Type | None) -> Type | None:
     if all(s.unknown for s in args):
         args = []
     return term._replace(args=args)
-
-def subst1(term: Type, subst: Subst) -> Tuple[Type, Subst]:
-    if term.is_typevar:
-        _replacements: list[Type] = []
-        # Same note as `substmult`.
-        # we should be better with a mapping data strucutre instead.
-        for name, replacement in reversed(subst):
-            if name == term.name:
-                _replacements.append(replacement)
-        if _replacements:
-            t = Type.Any
-            for r in _replacements:
-                # maybe merge-unify instead of this?
-                try:
-                    t, s = unify(t, r, subst)
-                except RuntimeError:
-                    # two possible values for a given type variable doesn't unify. 
-                    # we then use the first common supertype, that's not object.
-                    supertype = r.supertype
-                    while 1:
-                        if supertype is None:
-                            raise
-                        if supertype.qualname == 'builtins.object':
-                            raise
-                        if supertype.supertype_of(t):
-                            break
-                        supertype = supertype.supertype
-                    supertype = supertype._replace(args=r.args)
-                    t, s = unify(t, supertype, subst)
-                subst |= s
-            return t, subst
-        else:
-            return term, subst
-    else:
-        new_args = []
-        for arg in term.args:
-            t, s = subst1(arg, subst)
-            new_args.append(t)
-            subst |= s
-        return term._replace(args=new_args), subst
-
-def substmult(subst: Subst, replacement: Subst) -> Subst:
-    """
-    Apply substitutions to all elements of the subst with content in replacement.
-    """
-    # I feel like this function drastically increased the algorithmic complexity of
-    # our type inference. Something should be done about it, but first we needs more tests.
-    new_subst = ordered_set()
-    try:
-        for (name, term) in subst:
-            t, s = subst1(term, replacement)
-            v = (name, t)
-            new_subst.add(v)
-            new_subst.update(s)
-        return new_subst
-    except Exception as e:
-        if sys.version_info >= (3,11):
-            e.add_note(f'subst={subst}')
-        raise
-
-def unify(t1:Type, t2:Type, subst:Subst=None) -> Tuple[Type, Subst]:
-    """Unify the two types t1 and t2.
-
-    Returns a new type that represent the unification of both type.
-
-    Args:
-        t1: The first type to be made equivalent
-        t2: The second type to be be equivalent
-        subst: type variables substitutions.
-
-    Returns:
-        Tuple: (The unified type, Subst)
-
-    Raises:
-        InferenceError: Raised if the types cannot be unified.
-    
-    >>> t = Type.overload.add_args(args=
-    ... [Type.Callable.add_args([Type('float', 'builtins'), Type('int', 'builtins'),]), 
-    ...  Type.Callable.add_args([Type.Union.add_args([Type('str', 'builtins'), 
-    ...                                               Type('bytes', 'builtins'),
-    ...                                               Type('object', 'builtins')]), 
-    ...                          Type('str', 'builtins'),])])
-    >>> expr1 = Type.Callable.add_args([Type('int', 'builtins'), TypeVariable()])
-    >>> print(t.annotation)
-    (float) -> int | (str | bytes | object) -> str
-    >>> print(expr1.annotation)
-    (int) -> @TypeVar...
-    >>> print(unify(expr1, t)[0].annotation)
-    (float) -> int
-    >>> expr2 = Type.Callable.add_args([Type('float', 'builtins'), TypeVariable()])
-    >>> print(unify(expr2, t)[0].annotation)
-    (float) -> int
-    >>> expr3 = Type.Callable.add_args([Type('bytes', 'builtins'), TypeVariable()])
-    >>> print(unify(expr3, t)[0].annotation)
-    (object) -> str
-    >>> t2 = Type.Callable.add_args([Type('list', 'builtins').add_args(
-    ...     [Type('@TypeVar1')]), Type('list', 'builtins').add_args(
-    ...     [Type('@TypeVar1')]),])
-    >>> expr4 = Type.Callable.add_args([Type('list', 'builtins').add_args([Type('float', 'builtins')]), Type('@TypeVar2')])
-    >>> print(unify(expr4, t2)[0].annotation)
-    (list[float]) -> list[float]
-    """
-    # basically a mix a these two approches, with support for subtyping as well.
-    # https://gist.github.com/dhilst/b5b198af93302ade61ccbfe3b094621a
-    # https://github.com/serge-sans-paille/tog/blob/master/tog.py
-    subst = ordered_set() if subst is None else subst
-
-    if t1 == t2:
-        return t1, subst
-    elif t2.is_typevar and not t1.is_typevar:
-        return unify(t2, t1, subst)
-    elif t1.is_typevar:
-        if occurs_in_type(t1, t2):
-            raise RuntimeError("recursive unification")
-        newsubst: Subst = ordered_set([(t1.name, t2)])
-        # substitutions stucture
-        subst = substmult(subst, newsubst) | newsubst # type: ignore
-        # t2, subst = 
-        return subst1(t1, subst)
-    elif t2.is_overload and not t1.is_overload:
-        return subst1(*unify(t2, t1, subst))
-    elif t1.is_overload:
-        types: list[Tuple[Type, Subst]] = []
-        errs: list[Exception] = []
-        for t in t1.args:
-            try:
-                types.append(unify(t, t2, subst))
-            except RecursionError: 
-                raise
-            except RuntimeError as e:
-                errs.append(e)
-        if types:
-            if len(types) == 1:
-                return subst1(*unify(types[0][0], t2, types[0][1]))
-            # too many overloads are found, so extract as many 
-            # information as we can, and unify the rest with the first overload match.
-            return subst1(*unify(types[0][0], 
-                         _approximate_overload(t2, [_t[0] for _t in types], types[0][1]), 
-                         types[0][1]))
-        else:
-            raise RuntimeError("Type mismatch, no overload found: {} and {}: {}".format(t1.annotation, t2.annotation, errs))
-    elif t2.is_union and not t1.is_union:
-        return subst1(*unify(t2, t1, subst))
-    elif t1.is_union:
-        types = []
-        errs = []
-        for t in t1.args:
-            try:
-                types.append(subst1(*unify(t, t2, subst)))
-            except RecursionError: 
-                raise 
-            except RuntimeError as e:
-                errs.append(e)
-        if types:
-            new_type = Type.Any
-            for t,s in types:
-                # Maybe we're doing too much of computation here?
-                # subst |= s
-                # t, s = subst1(*unify(t, t2, subst))
-                new_type = new_type.merge(t)
-                # new_type = new_type.merge(t)
-                subst |= s
-            return new_type, subst
-        else:
-            raise RuntimeError("Type mismatch, none of the union element matches: {} and {}: {}".format(t1.annotation, t2.annotation, errs))
-    elif t2.unknown:
-        return subst1(t1, subst)
-    elif t1.unknown:
-        return subst1(t2, subst)
-    elif t2.is_callable and t1.is_callable:
-        caller, callee, bargs = bind_callables(t1, t2)
-        # now let's adjust callee's arguments to match caller's
-        # transfer typevars of course!
-        new_args = [*(bargs.signature.parameters[a].annotation 
-                      for a in bargs.arguments), callee.args[-1]]
-
-        if new_args != list(callee.args):
-            callee = callee._replace(args=new_args)
-
-        assert len(callee.args) == len(caller.args), f'{callee.args} != {caller.args}'
-        
-        # Unify arguments
-        unified_args: list[Type] = []
-        for p, q in zip(callee.args, caller.args):
-            t, s = subst1(*unify(p, q, subst))
-            subst |= s
-            unified_args.append(t)
-        
-        return callee._replace(args=unified_args), subst
-    
-    elif len(t1.args) != len(t2.args):
-        raise RuntimeError("Type mismatch: {0} != {1}".format(t1.annotation, t2.annotation))
-   
-    # catch-all case.
-    if t2.qualname == t1.qualname or t1.supertype_of(t2):
-        keep = t1
-    elif t2.supertype_of(t1):
-        keep = t2
-    else:
-        raise RuntimeError("Type mismatch: {0} does not match {1}".format(t1.qualname, t2.qualname))
-    
-    # Unify arguments
-    unified_args = []
-    for p, q in zip(t1.args, t2.args):
-        t, s = subst1(*unify(p, q, subst))
-        unified_args.append(t)
-        subst |= s
-    
-    return keep._replace(args=unified_args), subst
-
-if __debug__:
-    unify_org = unify
-    def debug_unify(t1:Type, t2:Type, subst:Subst=None) -> Tuple[Type, Subst]:
-        subst = ordered_set() if subst is None else subst
-
-        subst_before = ordered_set(subst)
-        try:
-            r,s = unify_org(t1, t2, subst)
-        except RuntimeError:
-            print(f'Unification of:\n- {t1.annotation}\n- {t2.annotation}\n=> MISMATCH\n Typevars before: {[(n,t.annotation) for n,t in subst_before]})')
-            raise
-        else:
-            print(f'Unification of:\n- {t1.annotation}\n- {t2.annotation}\n=> {r.annotation}')
-                  # Typevars before: {[(n,t.annotation) for n,t in subst]})\n Typevars after: {[(n,t.annotation) for n,t in s]}\n')
-            if not set(s).issuperset(subst_before):
-                print(f'Removals: Diff: {[(n,t.annotation) for n,t in set(subst_before).difference(s)]}')
-            if set(s).difference(subst_before):
-                print(f'Additions: Diff: {[(n,t.annotation) for n,t in set(s).difference(subst_before)]}')
-            return r,s
-    unify = debug_unify
