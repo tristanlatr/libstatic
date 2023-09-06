@@ -20,6 +20,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+from __future__ import annotations
 
 import ast
 import sys
@@ -28,7 +29,7 @@ from typing import Any
 from unittest import TestCase
 import pytest
 
-from libstatic import Project, StaticException, Cls
+from libstatic import Project, StaticException, Cls, Mod
 from libstatic._analyzer.typeinfer import _AnnotationToType, find_typedef, Type, unwrap_type_classdef
 from libstatic._lib.shared import StmtVisitor, unparse
 
@@ -120,7 +121,7 @@ def test_annotation_to_type(source:str, expected:str) -> None:
             ("var: 'Syntax error'"),
             ("var: 1 + 2"),
             ("var: thing[1]"), 
-            # ("var: [1,2,3]"), 
+            ("var: [1,2,3]"), 
         ])
 def test_annotation_to_error(source:str) -> None:
     mod = ast.parse(source)
@@ -403,43 +404,9 @@ def test_cannot_infer_type_from_signature(sig):
 
     assert t is None
 
-###
+### reveal_type() based tests
 
-@pytest.mark.parametrize('src', [])
-def test_reveal(src:str) -> None:
-    from libstatic._analyzer.typeinfer import TypeVariable
-    TypeVariable._reset()
-
-    node = ast.parse(dedent(src))
-    p = Project(dependencies=1)
-    p.add_module(node, 'test')
-    p.analyze_project()
-
-    class RevealVisitor(StmtVisitor):
-        def visit_Expr(self, node: ast.Expr) -> Any:
-            v = node.value
-            if not isinstance(v, ast.Call): 
-                return
-            f = v.func
-            if not isinstance(f, ast.Name): 
-                return
-            if f.id == 'reveal_type':
-                expr, expected = v.args
-                assert isinstance(expected, (ast.Constant, ast.Str, ast.NameConstant))
-                typ = p.state.get_type(expr)
-                expected_value = getattr(expected, 'value', 
-                                         getattr(expected, 's', object))
-                if expected_value is object:
-                    raise RuntimeError()
-                if expected_value is None:
-                    assert typ is None
-                else:
-                    assert typ is not None, f'cannot infer type of: {unparse(ast.Expr(expr))}'
-                    assert typ.annotation == expected_value, f'wrong inferred type for: {unparse(ast.Expr(expr))}'
-    
-    RevealVisitor().visit(node)
-
-@pytest.mark.parametrize('src', [
+reveal_srcs = [
     r'''
     v = 2
     reveal_type(v,'int')
@@ -552,9 +519,50 @@ def test_reveal(src:str) -> None:
     reveal_type(map(sum , [[1,2,3,4]]), 'Iterator[int]')
     ''',
 
-])
-def test_reveal_types(src:str) -> None:
-    test_reveal(src)
+]
+
+class TestReveal(TestCase):
+
+    def run_test_reveal(self, srcs:list[str]) -> None:
+        from libstatic._analyzer.typeinfer import TypeVariable
+        TypeVariable._reset()
+        p = Project(dependencies=1)
+
+        modules: list[Mod] = []
+        for i, src in enumerate(srcs):
+            modules.append(
+                p.add_module(ast.parse(dedent(src)), f'test{i}'))
+
+        p.analyze_project()
+
+        class RevealVisitor(StmtVisitor):
+            def visit_Expr(self, node: ast.Expr) -> Any:
+                v = node.value
+                if not isinstance(v, ast.Call): 
+                    return
+                f = v.func
+                if not isinstance(f, ast.Name): 
+                    return
+                if f.id == 'reveal_type':
+                    expr, expected = v.args
+                    assert isinstance(expected, (ast.Constant, ast.Str, ast.NameConstant))
+                    typ = p.state.get_type(expr)
+                    expected_value = getattr(expected, 'value', 
+                                            getattr(expected, 's', object))
+                    if expected_value is object:
+                        raise RuntimeError()
+                    if expected_value is None:
+                        assert typ is None
+                    else:
+                        assert typ is not None, f'cannot infer type of: {unparse(ast.Expr(expr))}'
+                        assert typ.annotation == expected_value, f'wrong inferred type for: {unparse(ast.Expr(expr))}'
+
+        for m in modules:
+            with self.subTest(m.name()):
+                RevealVisitor().visit(m.node)
+
+    def test_reveal_types(self) -> None:
+        self.run_test_reveal(reveal_srcs)
 
 def test_supertype_of() -> None:
     src = '''
