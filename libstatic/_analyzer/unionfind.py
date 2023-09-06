@@ -178,7 +178,7 @@ n_elts=8,n_comps=2>
 >>> uf
 <UnionFind:
 elts=['a', 'b', 'c', <free>, 'e', 'f', 'g', 'h', <free>, <free>],
-siz=[1, 1, 3, 0, 2, 1, 6, 1, 0, 0],
+siz=[1, 1, 3, 0, 1, 1, 6, 1, 0, 0],
 par=[6, 6, 6, 3, 4, 6, 6, 6, 8, 9],
 nb_rm=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 removed=[],
@@ -194,7 +194,7 @@ n_elts=7,n_comps=2>
 >>> uf
 <UnionFind:
 elts=['a', 'b', 'c', 'z', 'e', 'f', 'g', 'h', 'x', <free>],
-siz=[1, 1, 3, 1, 4, 1, 6, 1, 1, 0],
+siz=[1, 1, 3, 1, 3, 1, 6, 1, 1, 0],
 par=[6, 6, 6, 4, 4, 6, 6, 6, 4, 9],
 nb_rm=[0, 0, 0, 0, 0, 0, 1, 0, 0, 0],
 removed=[0],
@@ -209,7 +209,7 @@ n_elts=8,n_comps=2>
 >>> uf
 <UnionFind:
 elts=['a', 'b', 'c', 'z', 'e', 'f', 'g', 'h', 'x', 'y'],
-siz=[1, 1, 3, 1, 5, 1, 6, 1, 1, 1],
+siz=[1, 1, 3, 1, 4, 1, 6, 1, 1, 1],
 par=[6, 6, 6, 4, 4, 6, 6, 6, 4, 4],
 nb_rm=[0, 0, 0, 0, 0, 0, 2, 0, 0, 0],
 removed=[0, 6],
@@ -220,13 +220,13 @@ n_elts=8,n_comps=2>
 ...
 >>> uf
 <UnionFind:
-elts=[<free>, <free>, <free>, 'z', 'e', 'f', <free>, 'h', 'x', 'y'],
-siz=[0, 0, 0, 1, 5, 3, 0, 1, 1, 1],
-par=[0, 1, 2, 4, 4, 5, 6, 5, 4, 4],
-nb_rm=[0, 0, 0, 0, 1, 2, 0, 0, 0, 0],
-removed=[5, 7, 4],
-free=[0, 1, 2, 6],
-n_elts=3,n_comps=2>
+elts=[<free>, <free>, <free>, 'z', 'e', <free>, <free>, <free>, 'x', 'y'],
+siz=[0, 0, 0, 1, 4, 0, 0, 0, 1, 1],
+par=[0, 1, 2, 4, 4, 5, 6, 7, 4, 4],
+nb_rm=[0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+removed=[4],
+free=[0, 1, 2, 6, 5, 7],
+n_elts=3,n_comps=1>
 >>> uf.components()
 [<ordered_set {z, x, y}>]
 
@@ -346,6 +346,20 @@ class UnionFind(Generic[T], Collection[T]):
                 self.n_elts,
                 self.n_comps,
             ))
+    
+    def __str__(self) -> str:
+        return  (
+            '<UnionFind:\nelts={},\nsiz={},\npar={},\nnb_rm={},\nremoved={},\nfree={},\nn_elts={},n_comps={}>'
+            .format(
+                [str(e) for e in self._elts],
+                self._siz,
+                self._par,
+                list(self._nb_rm),
+                list(self._removed),
+                list(self._free),
+                self.n_elts,
+                self.n_comps,
+            ))
 
     def __len__(self) -> int:
         return self.n_elts
@@ -421,10 +435,11 @@ class UnionFind(Generic[T], Collection[T]):
 
         Note
         ----
-        Despite beeing one of the code method of a 'Union-Find' structure
+        Despite beeing one of the core method of a 'Union-Find' structure,
         `_find()` is marked as private. This is because the implementation 
         of the removal feature implies that `_find` might return the index
-        of a removed element.
+        of a removed element. So the returned number shoud not be used to access
+        a element of the union, simply to act like a representant object for it's set.
         """
         if x not in self._indx:
             raise ValueError('{} is not an element'.format(x))
@@ -463,15 +478,10 @@ class UnionFind(Generic[T], Collection[T]):
         x : immutable object
         y : immutable object
 
-        Returns
-        -------
-        None
-
         """
         # Initialize if they are not already in the collection
         for elt in [x, y]:
-            if elt not in self:
-                self.add(elt)
+            self.add(elt)
 
         xroot = self._find(x)
         yroot = self._find(y)
@@ -546,7 +556,7 @@ class UnionFind(Generic[T], Collection[T]):
     
     def copy(self) -> UnionFind[T]:
         """
-        Copy the universe of this union-find into a fresh one.
+        Copy this union-find into a fresh one.
         """
         new = UnionFind()
         new.n_elts = self.n_elts
@@ -582,12 +592,12 @@ class UnionFind(Generic[T], Collection[T]):
         self._nb_rm[root] += 1
         self.n_elts -= 1
         
-        siz_by_2 = round(self._siz[root] / 2)
-        if self._nb_rm[root] > siz_by_2:
+        if self._nb_rm[root] > self._siz[root] / 2:
+            new_siz = self._siz[root] - self._nb_rm[root]
             rootindex = None
             # If the root has not been removed, keep the same root
             if root not in self._removed:
-                self._siz[root] = siz_by_2
+                self._siz[root] = new_siz
                 self._nb_rm[root] = 0
                 rootindex = root
 
@@ -610,9 +620,13 @@ class UnionFind(Generic[T], Collection[T]):
                     continue
                 
                 if rootindex is None:
-                    self._siz[iindx] = siz_by_2
+                    self._siz[iindx] = new_siz
                     self._nb_rm[iindx] = 0
                     self._par[iindx] = iindx
                     rootindex = iindx
                 else:
                     self._par[iindx] = rootindex
+            
+            if new_siz == 0:
+                assert rootindex is None
+                self.n_comps -= 1
