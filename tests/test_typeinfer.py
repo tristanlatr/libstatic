@@ -781,4 +781,4 @@ expr20 = g(A(), B()).f().f(C()).f(A()).f(B()).f().f(C()).f(A()).f(B()).f().f(C()
     print(f'standard deviation: {stdev}')
 
     assert mean < 0.02
-    assert stdev < 0.015
+    assert stdev < 0.01
