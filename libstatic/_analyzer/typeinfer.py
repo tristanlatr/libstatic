@@ -20,6 +20,7 @@ from typing import (
     List,
     TYPE_CHECKING,
     cast,
+    overload,
 )
 from inspect import Parameter
 
@@ -409,7 +410,7 @@ class Type:
             return f'{name}[{args}]'
         return name
 
-Type.__slots__ += ('_hash',)
+Type.__slots__ += ('_hash',) # type: ignore
 
 def AnnotationType(state:State, qualname:str) -> Type:
     """
@@ -1499,13 +1500,16 @@ class TypeVariable(Type, metaclass=_TypeVariableMeta):
     @classmethod
     def _reset(cls) -> None:
         cls._id = 0
-
+@overload
+def cleanup_unresolved_typevars(term:None) -> None:...
+@overload
+def cleanup_unresolved_typevars(term:Type) -> Type:...
 def cleanup_unresolved_typevars(term:Type | None) -> Type | None:
     if term is None:
         return None
     if term.is_typevar:
         return Type.Any
     args = [cleanup_unresolved_typevars(t) for t in term.args]
-    if all(s.unknown for s in args):
+    if all(s and s.unknown for s in args):
         args = []
     return term._replace(args=args)

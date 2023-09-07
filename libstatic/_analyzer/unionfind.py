@@ -240,9 +240,10 @@ from typing import (
     TypeVar,
     Generic, 
     Collection,
-    TYPE_CHECKING
+    TYPE_CHECKING,
+    cast
 )
-from beniget.beniget import ordered_set
+from beniget.beniget import ordered_set # type: ignore
 
 T = TypeVar('T', bound=Hashable)
 
@@ -364,17 +365,21 @@ class UnionFind(Generic[T], Collection[T]):
     def __len__(self) -> int:
         return self.n_elts
 
-    def __contains__(self, x) -> bool:
+    def __contains__(self, x:object) -> bool:
         in_index = x in self._indx
-        return in_index and self._indx[x] not in self._removed
+        return in_index and self._indx[cast(T, x)] not in self._removed
 
     def __getitem__(self, index:int) -> T:
         if index < 0 or index >= self._next:
             raise IndexError('index {} is out of bound'.format(index))
-        return self._elts[index]
+        if index in self._free:
+            raise IndexError(f'no data at index {index}')
+        r = self._elts[index]
+        assert not isinstance(r, _Free)
+        return r
     
     def __iter__(self) -> Iterator[T]:
-        return (e for i, e in enumerate(self._elts) 
+        return (cast(T, e) for i, e in enumerate(self._elts) 
                 if i not in self._removed and i not in self._free)
 
     def add(self, x: T) -> None:
@@ -526,6 +531,7 @@ class UnionFind(Generic[T], Collection[T]):
         for i, elt in enumerate(self._elts):
             if i in self._removed or i in self._free:
                 continue
+            assert not isinstance(elt, _Free)
             if self._find(elt) == root:
                 s.add(elt)
         
@@ -543,6 +549,7 @@ class UnionFind(Generic[T], Collection[T]):
         for i, elt in enumerate(self._elts):
             if i in self._removed or i in self._free:
                 continue
+            assert not isinstance(elt, _Free)
             root = self._find(elt)
             try:
                 components: ordered_set[T] = components_dict[root]
@@ -558,7 +565,7 @@ class UnionFind(Generic[T], Collection[T]):
         """
         Copy this union-find into a fresh one.
         """
-        new = UnionFind()
+        new:UnionFind[T] = UnionFind()
         new.n_elts = self.n_elts
         new.n_comps = self.n_comps
         new._next = self._next
@@ -605,6 +612,8 @@ class UnionFind(Generic[T], Collection[T]):
             for iindx, i in enumerate(self._elts):
                 if iindx in self._free:
                     continue
+                assert not isinstance(i, _Free)
+
                 if self._find(i) != root:
                     continue
                 

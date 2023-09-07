@@ -204,7 +204,7 @@ class Substitutions:
         return new
 
 def substitute(term:Type, subst:Substitutions) -> Type:
-    if term.is_typevar:
+    if isinstance(term, TypeVariable):
         replacement = subst.type(term)
         if replacement:
             return replacement
@@ -218,7 +218,7 @@ def substitute(term:Type, subst:Substitutions) -> Type:
     else:
         return term
 
-def occurs_in_type(v:Type, type2:Type) -> bool:
+def occurs_in_type(v:TypeVariable, type2:Type) -> bool:
     """Checks whether a type variable occurs in a type expression.
 
     Note: Must be called with v pre-pruned
@@ -234,7 +234,7 @@ def occurs_in_type(v:Type, type2:Type) -> bool:
         return True
     return occurs_in(v, type2.args)
 
-def occurs_in(t:Type, types:Sequence[Type]) -> bool:
+def occurs_in(t:TypeVariable, types:Sequence[Type]) -> bool:
     """Checks whether a types variable occurs in any other types.
 
     Args:
@@ -436,9 +436,9 @@ def unify(t1:Type, t2:Type, subst:Substitutions|None=None) -> Type:
 
     if t1 == t2:
         return substitute(t1, subst)
-    elif t2.is_typevar and not t1.is_typevar:
+    elif isinstance(t2, TypeVariable) and not isinstance(t1, TypeVariable):
         return unify(t2, t1, subst)
-    elif t1.is_typevar:
+    elif isinstance(t1, TypeVariable):
         if occurs_in_type(t1, t2):
             raise RuntimeError("recursive unification")
         subst.bind(t1, t2)
@@ -478,21 +478,21 @@ def unify(t1:Type, t2:Type, subst:Substitutions|None=None) -> Type:
     elif t2.is_union and not t1.is_union:
         return substitute(unify(t2, t1, subst), subst)
     elif t1.is_union:
-        types = []
+        utypes: list[Type] = []
         errs = []
         for t in t1.args:
             m = subst.mark()
             try:
-                types.append(substitute(unify(t, t2, subst), subst))
+                utypes.append(substitute(unify(t, t2, subst), subst))
             except RecursionError: 
                 raise 
             except RuntimeError as e:
                 errs.append(e)
                 subst.restore(m)
             # for unions, we do pass substitutions in between elements
-        if types:
+        if utypes:
             new_type = Type.Any
-            for t in types:
+            for t in utypes:
                 new_type = new_type.merge(t)
 
             return new_type
@@ -543,7 +543,7 @@ def unify(t1:Type, t2:Type, subst:Substitutions|None=None) -> Type:
 
 if __debug__:
     unify_org = unify
-    def debug_unify(t1:Type, t2:Type, subst:Substitutions=None) -> Type:
+    def debug_unify(t1:Type, t2:Type, subst:Substitutions|None=None) -> Type:
         subst = Substitutions() if subst is None else subst
 
         subst_before = subst.copy()
