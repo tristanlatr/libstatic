@@ -1009,7 +1009,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
             
             raise StaticValueError(
                 node,
-                f"cannot infer call result of type: {functype!r}",
+                f"cannot infer call result of type: {functype.long_annotation}",
                 filename=self._state.get_filename(node),
             )
         return None
