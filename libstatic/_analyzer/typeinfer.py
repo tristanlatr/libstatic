@@ -1321,12 +1321,13 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
             attrtype = self.get_type(node, path)
             if attrtype is not None:
                 # remove 'self' argument on bound methods.
-                if (isinstance(node, (ast.FunctionDef, 
-                                    ast.AsyncFunctionDef)) and
-                        is_instance_method(node) and 
-                        not valuetype.is_type and 
-                        attrtype.is_callable):
-                    attrtype = attrtype._replace(args=attrtype.args[1:])
+                if (isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and
+                        is_instance_method(node) and not valuetype.is_type):
+                    if attrtype.is_callable:
+                        attrtype = attrtype._replace(args=attrtype.args[1:])
+                    if attrtype.is_overload:
+                        attrtype = attrtype._replace(args=
+                            [call._replace(args=call.args[1:]) for call in attrtype.args])
 
                 newtype = newtype.merge(attrtype)
         

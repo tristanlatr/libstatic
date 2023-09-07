@@ -437,6 +437,25 @@ class State(_MinimalState):
                 include_unknown:bool=False) -> Iterator[Union[str, Cls]]:
         """
         Get an iterator on the elements of the MRO of class ``node``.
+
+        >>> src = '''
+        ... from x import thing
+        ... class A(thing, object):...
+        ... class B(A): ...
+        ... class C(B): ...
+        ... '''
+        >>> p = Project()
+        >>> m = p.add_module(ast.parse(src), 't')
+        >>> p.analyze_project()
+        >>> C = m.node.body[-1]
+        >>> list(p.state.get_mro(C))
+        [<Cls(name=C)>, <Cls(name=B)>, <Cls(name=A)>]
+        >>> list(p.state.get_mro(C, include_self=False))
+        [<Cls(name=B)>, <Cls(name=A)>]
+        >>> list(p.state.get_mro(C, include_self=False, include_unknown=True))
+        [<Cls(name=B)>, <Cls(name=A)>, 'x.thing', 'object']
+        >>> list(p.state.get_mro(C, include_unknown=True))
+        [<Cls(name=C)>, <Cls(name=B)>, <Cls(name=A)>, 'x.thing', 'object']
         """
         if isinstance(node, ast.AST):
             node = self.get_def(node)
@@ -465,6 +484,28 @@ class State(_MinimalState):
 
         :raises StaticValueError: If the given ``node`` cannot have locals
             (it's not a scope definition).
+        
+        >>> src = '''
+        ... class A:
+        ...    def f(self, x):
+        ...        self.x = x
+        ... class B(A): ...
+        ... class C(B): ...
+        ... '''
+        >>> p = Project()
+        >>> m = p.add_module(ast.parse(src), 't')
+        >>> p.analyze_project()
+        >>> A = m.node.body[-3]
+        >>> B = m.node.body[-2]
+        >>> C = m.node.body[-1]
+        >>> dict(p.state.get_locals(A))
+        {'f': [<Func(name=f)>]}
+        >>> dict(p.state.get_locals(B))
+        {}
+        >>> dict(p.state.get_locals(B, include_inherited=True))
+        {'f': [<Func(name=f)>]}
+        >>> dict(p.state.get_locals(C, include_inherited=True))
+        {'f': [<Func(name=f)>]}
         """
         if isinstance(node, Def):
             node = node.node
@@ -478,12 +519,18 @@ class State(_MinimalState):
                 # A scope with no locals, since beniget uses a defaultdict,
                 # we don't have the information when a class has no locals at all, 
                 # it's simply not present in the mapping
-                return {}
-            raise StaticValueError(node, f"{type(node).__name__.lower()} cannot have locals", 
+                if not include_inherited or not isinstance(node, ast.ClassDef):
+                    return {}
+                locals = {}
+            else:
+                raise StaticValueError(node, f"{type(node).__name__.lower()} cannot have locals", 
                                    filename=self.get_filename(node)) from e
-        else:
-            return ChainMap(LazySeq(chain((locals,), chain.from_iterable((self.get_locals(cls),) for 
-                    cls in self.get_mro(node, include_self=False)))))
+        
+        if include_inherited and isinstance(node, ast.ClassDef):
+            return ChainMap(LazySeq(chain((locals,), 
+                        chain.from_iterable((self.get_locals(cls),) for 
+                            cls in self.get_mro(node, include_self=False)))))
+        return {}
 
     def get_local( #type:ignore[override]
         self, node: Union["Mod", "Def", ast.AST], name: str, *,
@@ -523,13 +570,13 @@ class State(_MinimalState):
                                   filename=self.get_filename(node))
         try:
             ivars = self._ivars[node]
-            if not include_inherited:
-                return ivars
         except KeyError as e:
             raise StaticStateIncomplete(node, 'missing instance variable infos', 
                                         filename=self.get_filename(node)) from e
-        else:
-            return ChainMap(LazySeq(chain((ivars,), chain.from_iterable((self.get_ivars(cls),) for 
+        
+        if not include_inherited:
+            return ivars
+        return ChainMap(LazySeq(chain((ivars,), chain.from_iterable((self.get_ivars(cls),) for 
                     cls in self.get_mro(node, include_self=False)))))
 
     def get_ivar(self, node: Cls | ast.ClassDef, name: str, *, 
@@ -616,11 +663,23 @@ class State(_MinimalState):
         :raises StaticException: Other kind of exceptions can also be raised by callees.
 
         .. note:: It always filter out killed definitions.
+
+        >>> src = '''
+        ... class A:
+        ...    def f(self, x):
+        ...        self.x = x
+        ... class B(A): ...
+        ... class C(B): ...
+        ... '''
+        >>> p = Project()
+        >>> m = p.add_module(ast.parse(src), 't')
+        >>> p.analyze_project()
+        >>> C = m.node.body[-1]
+        >>> p.state.get_attribute(C, 'f')
+        [<Func(name=f)>]
         """
         # TODO: Handle {"__name__", "__doc__", "__file__", "__path__", "__package__"}?
         # TODO: Handle {__class__, __module__, __qualname__}?
-        # TODO: Handle instance variables?
-        # TODO: Handle looking up in super classes?
 
         if isinstance(node, ast.AST):
             node = self.get_def(node, noraise=noraise) # type: ignore

@@ -408,23 +408,27 @@ def test_cannot_infer_type_from_signature(sig):
 
 reveal_srcs = [
     r'''
+    # 0
     v = 2
     reveal_type(v,'int')
     ''',
 
     r'''
+    # 1
     class C:
         v = 2
     reveal_type(C.v,'int')
     ''',
 
     r'''
+    # 2
     from typing import AnyStr
     v:AnyStr = b'bb'
     reveal_type(v,'AnyStr')
     ''',
 
     r'''
+    # 3
     from typing import Union
     def f(x:int, v, y:Union[list[int], tuple[int]]) -> None:
         reveal_type(v, None)
@@ -433,12 +437,14 @@ reveal_srcs = [
     ''',
 
     '''
+    # 4
     class C:
         ...
     reveal_type(C,'Type[C]')
     ''',
 
     '''
+    # 5
     def func_no_ann(x:int):
         ...
     def func_ann(x:int) -> None:
@@ -448,6 +454,7 @@ reveal_srcs = [
     ''',
 
     '''
+    # 6
     v = None
     x: None
     reveal_type(v,'None')
@@ -455,6 +462,7 @@ reveal_srcs = [
     ''',
 
     '''
+    # 7
     from typing import TypeVar, Generic
     T = TypeVar('T')
     
@@ -468,6 +476,7 @@ reveal_srcs = [
     ''',
 
     """
+    # 8
     class C:
         def _setup(self):
             self.a:dict[str, str] = {}
@@ -475,6 +484,7 @@ reveal_srcs = [
     """,
 
     r'''
+    # 9
     from typing import TypeVar, Generic
     T = TypeVar('T')
     def f(a:T) -> T: ...
@@ -482,6 +492,7 @@ reveal_srcs = [
     ''',
 
     '''
+    # 10
     from typing import TypeVar
 
     ST = TypeVar('ST')
@@ -498,6 +509,7 @@ reveal_srcs = [
     ''',
 
     '''
+    # 11
     from typing import Callable, Iterable, Iterator, TypeVar, overload
 
     T1 = TypeVar('T1')
@@ -517,6 +529,38 @@ reveal_srcs = [
     reveal_type(sum, '(Iterable) -> Any')
     reveal_type(map, '(Callable, Iterable) -> Iterator | (Callable, Iterable, Iterable) -> Iterator')
     reveal_type(map(sum , [[1,2,3,4]]), 'Iterator[int]')
+    ''',
+
+    '''
+    # 12
+    from __future__ import annotations
+    import typing as t
+
+    T1 = t.TypeVar('T1')
+
+    class A:
+        def f(self) -> A:
+            ...
+    class B(A):
+        ...
+    class C(B):
+        ...
+
+    reveal_type(A(), 'A')
+    reveal_type(B(), 'B')
+    reveal_type(C(), 'C')
+
+    reveal_type(A().f, '() -> A')
+    reveal_type(A.f, '(Any) -> A')
+
+    reveal_type(A().f(), 'A')
+    reveal_type(A.f(A()), 'A')
+
+    reveal_type(C().f, '() -> A')
+    reveal_type(C.f, '(Any) -> A')
+
+    reveal_type(C().f(), 'A')
+    reveal_type(C.f(A()), 'A')
     ''',
 
 ]
@@ -664,3 +708,77 @@ def test_supertype_of() -> None:
 
     assert Iterable.supertype_of(MaybeIterable)
     
+def test_unification_time_is_linear() -> None:
+    src = '''
+from __future__ import annotations
+import typing as t
+
+T1 = t.TypeVar('T1')
+
+class A:
+    @t.overload
+    def f(self, x:B) -> B:
+        ...
+    @t.overload
+    def f(self, x:A) -> C:
+        ...
+    @t.overload
+    def f(self) -> A:
+        ...
+    def f(self, *args):
+        ...
+
+class B(A):
+    ...
+
+class C(B):
+    ...
+
+def g(x:T1, y:T1) -> T1:
+    ...
+
+expr1 = g(A(), B()).f().f(C()).f(A()).f(B())
+
+expr5 = g(A(), B()).f().f(C()).f(A()).f(B()).f().f(C()).f(A()).f(B()).f().f(C()).f(A()).f(B()).f().f(C()).f(A()).f(B()).f().f(C()).f(A()).f(B())
+
+expr20 = g(A(), B()).f().f(C()).f(A()).f(B()).f().f(C()).f(A()).f(B()).f().f(C()).f(A()).f(B()).f().f(C()).f(A()).f(B()).f().f(C()).f(A()).f(B()).f().f(C()).f(A()).f(B()).f().f(C()).f(A()).f(B()).f().f(C()).f(A()).f(B()).f().f(C()).f(A()).f(B()).f().f(C()).f(A()).f(B()).f().f(C()).f(A()).f(B()).f().f(C()).f(A()).f(B()).f().f(C()).f(A()).f(B()).f().f(C()).f(A()).f(B()).f().f(C()).f(A()).f(B()).f().f(C()).f(A()).f(B()).f().f(C()).f(A()).f(B()).f().f(C()).f(A()).f(B()).f().f(C()).f(A()).f(B()).f().f(C()).f(A()).f(B())
+'''
+
+    p = Project(builtins=True)
+    m = p.add_module(ast.parse(dedent(src)), 'test')
+    p.analyze_project()
+
+    expr1, expr5, expr20 = m.node.body[-3:]
+    import time, statistics
+    
+    now1 = time.time()
+    type1 = p.state.get_type(expr1.value)
+    then1 = time.time()
+    assert type1 is not None
+
+    now20 = time.time()
+    type20 = p.state.get_type(expr20.value)
+    then20 = time.time()
+    assert type20 is not None
+
+    now5 = time.time()
+    type5 = p.state.get_type(expr5.value)
+    then5 = time.time()
+    assert type5 is not None
+
+    def slopee(x1,y1,x2,y2):
+        x = (y2 - y1) / (x2 - x1)
+        return x
+    
+    slope1_100 = slopee(1, then1-now1, 5, then5-now5)
+    slope1_20 = slopee(1, then1-now1, 20, then20-now20)
+    slope20_100 = slopee(20, then20-now20, 5, then5-now5)
+    
+    stdev = statistics.stdev([slope1_100, slope1_20, slope20_100])
+    mean = statistics.mean([slope1_100, slope1_20, slope20_100])
+    
+    print(f'slope mean: {mean}')
+    print(f'standard deviation: {stdev}')
+
+    assert mean < 0.02
+    assert stdev < 0.015
