@@ -770,15 +770,26 @@ expr20 = g(A(), B()).f().f(C()).f(A()).f(B()).f().f(C()).f(A()).f(B()).f().f(C()
         x = (y2 - y1) / (x2 - x1)
         return x
     
-    slope1_100 = slopee(1, then1-now1, 5, then5-now5)
+    slope1_5 = slopee(1, then1-now1, 5, then5-now5)
     slope1_20 = slopee(1, then1-now1, 20, then20-now20)
-    slope20_100 = slopee(20, then20-now20, 5, then5-now5)
+    slope20_5 = slopee(20, then20-now20, 5, then5-now5)
     
-    stdev = statistics.stdev([slope1_100, slope1_20, slope20_100])
-    mean = statistics.mean([slope1_100, slope1_20, slope20_100])
+    stdev = statistics.stdev([slope1_5, slope1_20, slope20_5])
+    mean = statistics.mean([slope1_5, slope1_20, slope20_5])
     
+    print('results ')
+    print('----------------- 1 | 5 | 20 ')
+    print(f'            time: {round(then1-now1, ndigits=3)}s | {round(then5-now5, ndigits=3)}s | {round(then20-now20, ndigits=3)}s')
+    print(f'slope 5 | 20 | 1: {round(slope1_5, ndigits=5)} | {round(slope20_5, ndigits=5)} | {round(slope1_20, ndigits=5)}')
+    print()
     print(f'slope mean: {mean}')
     print(f'standard deviation: {stdev}')
 
-    assert mean < 0.025
-    assert stdev < 0.01
+    
+
+    if sys.version_info < (3,9):
+        assert mean < 0.025
+        assert stdev < 0.015
+    else:
+        assert mean < 0.020
+        assert stdev < 0.009
