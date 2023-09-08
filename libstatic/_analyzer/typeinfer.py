@@ -50,7 +50,7 @@ if TYPE_CHECKING:
     from .._lib.model import Type as _BaseType
 else:
     _BaseType = object
-    
+
 def _raise(e:Exception) -> NoReturn: 
     raise e
 
@@ -365,7 +365,7 @@ class Type(_BaseType):
         return False
     
     @property
-    @lru_cache
+    @lru_cache(maxsize=None)
     def annotation(self) -> str: # type:ignore[override]
         """Represent the type as a string suitable for type annotations.
 
@@ -393,7 +393,7 @@ class Type(_BaseType):
         return name
     
     @property
-    @lru_cache
+    @lru_cache(maxsize=None)
     def long_annotation(self) -> str:
         """
         Like `annotation` but returns the type with qualified names.
