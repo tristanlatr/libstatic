@@ -2,10 +2,8 @@ from __future__ import annotations
 
 import ast
 from collections import deque
-from functools import cache, cached_property
-import inspect
+from functools import lru_cache
 from itertools import chain
-import itertools
 import sys
 from typing import (
     Any,
@@ -49,7 +47,10 @@ from beniget.beniget import BuiltinsSrc, ordered_set  # type: ignore
 if TYPE_CHECKING:
     from .state import State
     from typing import NoReturn
-
+    from .._lib.model import Type as _BaseType
+else:
+    _BaseType = object
+    
 def _raise(e:Exception) -> NoReturn: 
     raise e
 
@@ -57,7 +58,7 @@ _T = TypeVar('_T')
 
 __docformat__ = 'google'
 
-@cache
+@lru_cache(maxsize=None)
 def find_typedef(state:State, qualname: str, *, 
                  hint:type[Def]|tuple[type[Def],...]=Def, 
                  location: NodeLocation|None=None) -> NameDef:
@@ -92,7 +93,7 @@ def find_typedef(state:State, qualname: str, *,
 
 # This class has beeen adapted from the 'astypes' project.
 @attrs.s(frozen=True, auto_attribs=True, auto_detect=True, slots=True, order=False)
-class Type:
+class Type(_BaseType):
     """
     Internal implementation of `libstatic.Type`.
     """
@@ -363,8 +364,9 @@ class Type:
     
         return False
     
-    @cached_property
-    def annotation(self) -> str:
+    @property
+    @lru_cache
+    def annotation(self) -> str: # type:ignore[override]
         """Represent the type as a string suitable for type annotations.
 
         The string is a valid Python 3.10 expression.
@@ -390,7 +392,8 @@ class Type:
                 return f'{name}[{args}]'
         return name
     
-    @cached_property
+    @property
+    @lru_cache
     def long_annotation(self) -> str:
         """
         Like `annotation` but returns the type with qualified names.
@@ -1483,7 +1486,7 @@ class _TypeVariableMeta(type):
             return True
         return super().__instancecheck__(instance)
     
-class TypeVariable(Type, metaclass=_TypeVariableMeta):
+class TypeVariable(Type, metaclass=_TypeVariableMeta): # type:ignore[misc]
     """
     >>> tv = TypeVariable()
     >>> assert isinstance(tv, TypeVariable)
