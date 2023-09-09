@@ -35,6 +35,8 @@ from typing import Iterator, NamedTuple, Sequence, Mapping
 from .unionfind import UnionFind
 from .typeinfer import Type, TypeVariable
 from .._lib.model import Arg, Func, Def
+from .._lib.exceptions import (NodeLocation, StaticTypeMismatch, 
+                               StaticCodeUnsupported, StaticValueError, StaticException)
 
 class MarkedSubstitutions(NamedTuple):
     uf: UnionFind[Type]
@@ -126,7 +128,7 @@ class Substitutions:
         m = self.mark()
         try:
             nt = weak_unify(t1, t2, self)
-        except RuntimeError:
+        except StaticException:
             self.restore(m)
             raise
 
@@ -250,7 +252,7 @@ def weak_unify(t1:Type, t2:Type, subst:Substitutions) -> Type:
     m = subst.mark()
     try:
         t = unify(t1, t2, subst)
-    except RuntimeError:
+    except StaticException:
         subst.restore(m)
         # two possible values for a given type variable doesn't unify. 
         # we then use the first common supertype, that's not object.
@@ -268,7 +270,7 @@ def weak_unify(t1:Type, t2:Type, subst:Substitutions) -> Type:
     return t
 
 
-def _approximate_overload(b:Type, types:Sequence[Type], subst:Substitutions) -> Type:
+def approximate_overload(b:Type, types:Sequence[Type], subst:Substitutions) -> Type:
     def try_unify(t:Type, ts:Sequence[Type]) -> Type|None:
         if t.is_typevar:
             return None
@@ -292,7 +294,10 @@ def _approximate_overload(b:Type, types:Sequence[Type], subst:Substitutions) -> 
     
     r = try_unify(b, types)
     if r is None:
-        raise RuntimeError("Not unified {} and {}, overload approximation failed".format(types, b.annotation))
+        # for the sake of error reporting, we transform 
+        # the potential callables into a overload type. 
+        raise StaticTypeMismatch(node=b, other=Type.overload.add_args(types), 
+                                 desrc='overload approximation failed')
     return r
 
 def better_signature(callable_type:Type) -> inspect.Signature | None:
@@ -303,13 +308,13 @@ def better_signature(callable_type:Type) -> inspect.Signature | None:
     definition = callable_type.get_meta('definition', Def)
     if not isinstance(definition, Func):
         return None
-        raise RuntimeError(f'missing definition of callable {callable_type.annotation}')
     parameters: list[inspect.Parameter] = []
     for i, arg in enumerate(callable_type.args[:-1]):
         argdef = arg.get_meta('definition', Arg)
         if argdef is None:
             # the type vars seem to replace the type here:/ with no informations anymore.
-            raise RuntimeError(f'missing definition of callable {definition.name()!r} argument {i}: {arg}')
+            msg = f'missing definition of callable {definition.name()!r} argument {i}: {arg}'
+            raise StaticCodeUnsupported(callable_type, msg)
         parameters.append(argdef.to_parameter().replace(annotation=arg))
     return inspect.Signature(parameters, return_annotation=callable_type.args[-1])
 
@@ -329,7 +334,8 @@ def callable_struct(callable_type:Type) -> tuple[Sequence[Type], Mapping[str, Ty
             keywords[keyword] = keywords.setdefault(keyword, Type.Any).merge(a)
         else:
             if keywords:
-                raise RuntimeError('invalid callable, keywords came before positionals :/')
+                raise StaticValueError(callable_type, 
+                    'invalid callable, keywords came before positionals :/')
             positionals.append(a)
     
     return positionals, keywords, callable_type.args[-1]
@@ -374,7 +380,6 @@ def bind_callables(a:Type, b:Type) -> tuple[Type, Type, inspect.BoundArguments]:
         bargs = sig.bind(*args, **keywords)
     except Exception as e:
         _add_err_note(e)
-        # raise RuntimeError("Callable type mismatch: {0} != {1}".format(a.annotation, b.annotation)) from e
 
         caller, callee = b, a
         sig = better_signature(callee) or poor_signature(callee)
@@ -385,7 +390,7 @@ def bind_callables(a:Type, b:Type) -> tuple[Type, Type, inspect.BoundArguments]:
             bargs = sig.bind(*args, **keywords)
         except Exception as e:
             _add_err_note(e)
-            raise RuntimeError("Callable type mismatch: {0} != {1}".format(a.annotation, b.annotation)) from e
+            raise StaticTypeMismatch(a, other=b) from e
     
     return caller, callee, bargs
 
@@ -440,7 +445,7 @@ def unify(t1:Type, t2:Type, subst:Substitutions|None=None) -> Type:
         return unify(t2, t1, subst)
     elif isinstance(t1, TypeVariable):
         if occurs_in_type(t1, t2):
-            raise RuntimeError("recursive unification")
+            raise StaticCodeUnsupported(t1, "recursive unification")
         subst.bind(t1, t2)
         return substitute(t2, subst)
     elif t2.is_overload and not t1.is_overload:
@@ -453,9 +458,7 @@ def unify(t1:Type, t2:Type, subst:Substitutions|None=None) -> Type:
         for t in t1.args:
             try:
                 types.append((unify(t, t2, subst), subst.mark()))
-            except RecursionError: 
-                raise
-            except RuntimeError as e:
+            except StaticException as e:
                 errs.append(e)
             # do not pass substitutions in between overloads
             subst.restore(m)
@@ -469,12 +472,13 @@ def unify(t1:Type, t2:Type, subst:Substitutions|None=None) -> Type:
             # information as we can, and unify the rest with the first overload match.
             return substitute(
                         unify(types[0][0], 
-                              _approximate_overload(t2, [_t[0] for _t in types],
+                              approximate_overload(t2, [_t[0] for _t in types],
                                                     subst), 
                               subst), 
                         subst)
         else:
-            raise RuntimeError("Type mismatch, no overload found: {} and {}: {}".format(t1.annotation, t2.annotation, errs))
+            raise StaticTypeMismatch(t1, other=t2, 
+                    desrc='none of the overloads matches')
     elif t2.is_union and not t1.is_union:
         return substitute(unify(t2, t1, subst), subst)
     elif t1.is_union:
@@ -484,9 +488,7 @@ def unify(t1:Type, t2:Type, subst:Substitutions|None=None) -> Type:
             m = subst.mark()
             try:
                 utypes.append(substitute(unify(t, t2, subst), subst))
-            except RecursionError: 
-                raise 
-            except RuntimeError as e:
+            except StaticException as e:
                 errs.append(e)
                 subst.restore(m)
             # for unions, we do pass substitutions in between elements
@@ -497,7 +499,7 @@ def unify(t1:Type, t2:Type, subst:Substitutions|None=None) -> Type:
 
             return new_type
         else:
-            raise RuntimeError("Type mismatch, none of the union element matches: {} and {}: {}".format(t1.annotation, t2.annotation, errs))
+            raise StaticTypeMismatch(t1, other=t2, desrc="none of the union element matches")
     elif t2.unknown:
         return substitute(t1, subst)
     elif t1.unknown:
@@ -523,7 +525,7 @@ def unify(t1:Type, t2:Type, subst:Substitutions|None=None) -> Type:
         return callee._replace(args=unified_args)
     
     elif len(t1.args) != len(t2.args):
-        raise RuntimeError("Type mismatch: {0} != {1}".format(t1.annotation, t2.annotation))
+        raise StaticTypeMismatch(t1, other=t2, desrc='arity differs')
    
     # catch-all case.
     if t2.qualname == t1.qualname or t1.supertype_of(t2):
@@ -531,7 +533,7 @@ def unify(t1:Type, t2:Type, subst:Substitutions|None=None) -> Type:
     elif t2.supertype_of(t1):
         keep = t2
     else:
-        raise RuntimeError("Type mismatch: {0} does not match {1}".format(t1.qualname, t2.qualname))
+        raise StaticTypeMismatch(t1, other=t2, desrc='incompatible types')
     
     # Unify arguments
     unified_args = []
@@ -549,7 +551,7 @@ if __debug__:
         subst_before = subst.copy()
         try:
             r = unify_org(t1, t2, subst)
-        except RuntimeError:
+        except StaticException:
             print(f'Unification of:\n- {t1.annotation}\n- {t2.annotation}\n=> MISMATCH\n Typevars before: {repr(subst_before)})')
             raise
         else:

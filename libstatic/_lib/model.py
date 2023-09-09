@@ -34,7 +34,7 @@ except ImportError:
 from beniget.beniget import ordered_set, BuiltinsSrc  # type: ignore
 import attr as attrs
 from .shared import ast_node_name
-from .exceptions import NodeLocation
+from .exceptions import NodeLocation, HasLocation
 
 if TYPE_CHECKING:
     from typing import Protocol
@@ -46,7 +46,7 @@ T = TypeVar("T", bound=ast.AST)
 
 class _Msg(Protocol):
     def __call__(
-        self, msg: str, ctx: Optional[ast.AST|Def|NodeLocation] = None, thresh: int = 0
+        self, msg: str, ctx: Optional[HasLocation] = None, thresh: int = 0
     ) -> None:
         ...
 

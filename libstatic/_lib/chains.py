@@ -141,7 +141,6 @@ class BenigetConverter:
     def _def_factory(self, node: ast.AST, islive:bool) -> "Def|None":
         # attributes **are** NameDef
         if isinstance(node, ast.ClassDef):
-            # ivars will be set later
             return Cls(node, islive=islive)
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             return Func(node, islive=islive)

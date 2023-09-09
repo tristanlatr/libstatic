@@ -140,16 +140,6 @@ class Type(_BaseType):
     # https://github.com/python-attrs/attrs/issues/164
     __dict__: dict = attrs.field(factory=dict, init=False, repr=False, eq=False)
 
-    # Special types:
-    Any: ClassVar[Type]
-    Union: ClassVar[Type]
-    TypeType: ClassVar[Type]
-    Callable: ClassVar[Type]
-    ModuleType: ClassVar[Type]
-    Literal: ClassVar[Type]
-    Optional: ClassVar[Type]
-    overload: ClassVar[Type]
-
     def __str__(self) -> str:
         return self.annotation
     
@@ -286,20 +276,11 @@ class Type(_BaseType):
         """
         return self._replace(meta={**self.meta, **meta})
     
-    def get_meta(self, key:str, typ:type[_T]) -> _T|None:
-        # """
-        # Valid keys currently are 
-        # - 'qualname' or 'location'. 
-        #     Both are the respective qualname and location of the wrapped 
-        #     function or module for `Callable` and `ModuleType`. 
-        #     Set in the case of a known function or module only. 
-        #     Won't be set for explicit 'Callable' annotations for instance, only for the once
-        #     created from ast.FunctionDef instances, idem for modules.
-        # - 'unknown'. 
-        #     Set on generated Any types to differenciate an unknown type from an
-        #     explicit typing.Any annotation, which is known to be Any, so should
-        #     not be considered unknown.
-        # """
+    @overload
+    def get_meta(self, key:str, typ:type[_T]) -> _T|None:...
+    @overload
+    def get_meta(self, key:str) -> object|None:...
+    def get_meta(self, key:str, typ:type[Any]=object) -> Any:
         val = self.meta.get(key)
         if val is None:
             return None
@@ -412,6 +393,16 @@ class Type(_BaseType):
                 args = ', '.join(arg.long_annotation for arg in self.args)
             return f'{name}[{args}]'
         return name
+    
+    # Special types:
+    Any: ClassVar[Type]
+    Union: ClassVar[Type]
+    TypeType: ClassVar[Type]
+    Callable: ClassVar[Type]
+    ModuleType: ClassVar[Type]
+    Literal: ClassVar[Type]
+    Optional: ClassVar[Type]
+    overload: ClassVar[Type]
 
 Type.__slots__ += ('_hash',) # type: ignore
 
@@ -493,22 +484,6 @@ def _merge_types(state:State, defs:Sequence[NameDef|None]) -> Type:
     for d in (d for d in defs if d):
         nt = nt.merge(state.get_type(d) or Type.Any) # type: ignore
     return nt
-
-def unwrap_type_classdef(typ:Type) -> Def:
-    # should onyl be called for typing.Type types.
-    assert typ.is_type
-    if len(typ.args) == 1:
-        # Class variable attribute
-        definition = typ.args[0].definition
-        if definition is None:
-            raise StaticNameError(typ.args[0].qualname, filename='<missing>')
-        return definition
-    elif typ.args:
-       raise StaticValueError(typ.get_meta('location', NodeLocation), 
-                              f'Type has to many argument: {typ.annotation}')
-    else:
-       raise StaticValueError(typ.get_meta('location', NodeLocation), 
-                              f'Type has no argument: {typ.annotation}')
 
 def MembersTypes(state:State, definition:Cls) -> Mapping[str, Type]:
     """
@@ -712,7 +687,7 @@ class _AnnotationToType(ast.NodeVisitor):
                     left = left._replace(args=[arg])
             # nested literal are considered invalid annotations
         except StaticException as e:
-            self.state.msg(e.msg(), ctx=e.node)
+            self.state.msg(e.msg(), ctx=e)
         if left.is_literal:
             self.in_literal = False
         # transform Optional[x] into x | None 
@@ -999,12 +974,9 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
                 posargs = (self.get_type(n, path) or Type.Any for n in node.args)
                 keywordargs = ((self.get_type(n.value, path) or Type.Any).add_meta(keyword=n.arg) for n in node.keywords)
                 exprtype = Type.Callable.add_args(args=(*posargs, *keywordargs, TypeVariable()))
-                try:
-                    from .unify import unify
-                    unified = unify(functype, exprtype)
-                except RuntimeError as e:
-                    raise StaticValueError(node, f'Type unification failed: {e}', 
-                                           filename=self._state.get_filename(node))
+
+                from .unify import unify
+                unified = unify(functype, exprtype)
 
                 rtype = unified.args[-1]
                 if not rtype.unknown:

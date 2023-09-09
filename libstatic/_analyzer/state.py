@@ -43,9 +43,10 @@ from .._lib.exceptions import (
     StaticValueError,
     StaticTypeError,
     StaticAmbiguity, 
-    NodeLocation
+    NodeLocation,
+    HasLocation, 
 )
-from .._lib.model import Def, NameDef, Mod, Cls, Func, Imp, Scope, ClosedScope, LazySeq, ChainMap, Type
+from .._lib.model import _Msg, Def, NameDef, Mod, Cls, Func, Imp, Scope, ClosedScope, LazySeq, ChainMap, Type
 
 from .asteval import LiteralValue, _LiteralEval, _GotoDefinition
 from .typeinfer import _TypeInference, cleanup_unresolved_typevars
@@ -57,12 +58,6 @@ else:
     Protocol = object
 
 T = TypeVar("T", bound=ast.AST)
-
-class _Msg(Protocol):
-    def __call__(
-        self, msg: str, ctx: object = None, thresh: int = 0
-    ) -> None:
-        ...
 
 ### Project-wide state and accessors
 
@@ -465,7 +460,7 @@ class State(_MinimalState):
         try:
             _mro: Iterator[Union[str, Cls]] = iter(self._mros[node])
         except KeyError as e:
-            raise StaticStateIncomplete(node, 'missing mro info', 
+            raise StaticStateIncomplete(node, 'missing mro', 
                                         filename=self.get_filename(node)) from e
         if include_self is False:
             next(_mro)
@@ -571,7 +566,7 @@ class State(_MinimalState):
         try:
             ivars = self._ivars[node]
         except KeyError as e:
-            raise StaticStateIncomplete(node, 'missing instance variable infos', 
+            raise StaticStateIncomplete(node, 'missing instance variables', 
                                         filename=self.get_filename(node)) from e
         
         if not include_inherited:
@@ -730,7 +725,7 @@ class State(_MinimalState):
         try:
             return self._dunder_all[mod]
         except KeyError as e:
-            raise StaticStateIncomplete(mod, "no information in the system") from e
+            raise StaticStateIncomplete(mod, "missing dunder all") from e
 
     def _get_public_names(self, mod: Union["Mod", ast.Module]) -> Collection[str]:
         """
@@ -1615,7 +1610,7 @@ class Project:
         return cast(MutableState, self.state).add_typeshed_module(modname)
 
     # TODO: introduce a generic reporter object used by System.msg, Documentable.report and here.
-    def msg(self, msg: str, ctx: Optional[ast.AST|Def|NodeLocation|object] = None, thresh: int = 0) -> None:
+    def msg(self, msg: str, ctx: Optional[HasLocation] = None, thresh: int = 0) -> None:
         """
         Log a message about this ast node.
         """
@@ -1626,6 +1621,8 @@ class Project:
             if not isinstance(ctx, NodeLocation):
                 if isinstance(ctx, (ast.AST, Def)):
                     location = self.state.get_location(ctx)
+                elif isinstance(ctx, StaticException):
+                    location = ctx.location()
                 else:
                     location = NodeLocation.make(ctx)
             else:
