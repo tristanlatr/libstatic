@@ -30,7 +30,7 @@ from unittest import TestCase
 import pytest
 
 from libstatic import Project, StaticException, Cls, Mod
-from libstatic._analyzer.typeinfer import _AnnotationToType, find_typedef, Type, unwrap_type_classdef
+from libstatic._analyzer.typeinfer import _AnnotationToType, find_typedef, Type
 from libstatic._lib.shared import StmtVisitor, unparse
 
 @pytest.mark.parametrize(
@@ -673,7 +673,7 @@ def test_supertype_of() -> None:
     assert all([isinstance(o, Type) for o in clss])
     assert all([o.is_type for o in clss]), [o.annotation for o in clss]
 
-    instances = [t(unwrap_type_classdef(o)).args[0] for o in clss]
+    instances = [t(o.get_meta('definition', Cls)).args[0] for o in clss]
     assert all([isinstance(o.definition, Cls) for o in instances]), [o.annotation for o in instances]
     
     Root, A, B, C1, D = instances
@@ -692,7 +692,7 @@ def test_supertype_of() -> None:
     assert all([isinstance(o, Type) for o in clss])
     assert all([o.is_type for o in clss]), [o.annotation for o in clss]
 
-    instances = [t(unwrap_type_classdef(o)).args[0] for o in clss]
+    instances = [t(o.get_meta('definition', Cls)).args[0] for o in clss]
     assert all([isinstance(o.definition, Cls) for o in instances]), [o.annotation for o in instances]
 
     Subscriptable, Iterable, Map, Seq, Iter = instances
