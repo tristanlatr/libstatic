@@ -146,28 +146,35 @@ class Substitutions:
         if isinstance(value, TypeVariable):
             t2 = self.type(value)
             self._uf.union(var, value)
-            rv = self.rep(var)
 
-            # make sure to update de graph with 
-            # the most recent representant since it can change after 
-            # each call to union() or remove().
             if t2 and t:
                 if t2 != t:
-                    self._graph[rv] = self._reconcile_types(t2, t)
+                    nt = self._reconcile_types(t2, t)
                 else:
-                    self._graph[rv] = t
+                    # both types are already the same, so we have nothing to do.
+                    return
             elif t:
-                self._graph[rv] = t
+                nt = t
             elif t2:
-                self._graph[rv] = t2
-            return
+                nt = t2
+            else:
+                # both type variables are unknown, we can't do anything else.
+                return
         
-        if t:
+        elif t:
             if t != value:
-                self._graph[rv] = self._reconcile_types(t, value)
+                nt = self._reconcile_types(t, value)
+            else:
+                # both types are already the same, so we have nothing to do.
+                return
         else:
             self._uf.add(value)
-            self._graph[rv] = value
+            nt = value
+
+        # make sure to update de graph with 
+        # the most recent representant since it can change after 
+        # each call to union() or remove().
+        self._graph[self.rep(var)] = nt
     
     def rep(self, t:Type) -> int:
         """
