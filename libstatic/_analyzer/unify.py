@@ -124,17 +124,16 @@ class Substitutions:
         """
         return (v for v in self._uf if isinstance(v, TypeVariable))
     
-    def _union_types(self, tv:TypeVariable, t1:Type, t2:Type) -> Type:
+    def _reconcile_types(self, t1:Type, t2:Type) -> Type:
         m = self.mark()
         try:
-            nt = weak_unify(t1, t2, self)
+            nt = reconcile_unify(t1, t2, self)
         except StaticException:
             self.restore(m)
             raise
 
         self._uf.union(t2, nt)
         self._uf.union(t1, nt)
-        self._graph[self.rep(tv)] = nt
         return nt
 
     def bind(self, var:TypeVariable, value:Type) -> None:
@@ -147,27 +146,28 @@ class Substitutions:
         if isinstance(value, TypeVariable):
             t2 = self.type(value)
             self._uf.union(var, value)
+            rv = self.rep(var)
 
             # make sure to update de graph with 
             # the most recent representant since it can change after 
             # each call to union() or remove().
             if t2 and t:
                 if t2 != t:
-                    self._union_types(value, t2, t)
+                    self._graph[rv] = self._reconcile_types(t2, t)
                 else:
-                    self._graph[self.rep(var)] = t
+                    self._graph[rv] = t
             elif t:
-                self._graph[self.rep(var)] = t
+                self._graph[rv] = t
             elif t2:
-                self._graph[self.rep(var)] = t2
+                self._graph[rv] = t2
             return
         
         if t:
             if t != value:
-                self._union_types(var, t, value)
+                self._graph[rv] = self._reconcile_types(t, value)
         else:
             self._uf.add(value)
-            self._graph[self.rep(var)] = value
+            self._graph[rv] = value
     
     def rep(self, t:Type) -> int:
         """
@@ -248,14 +248,19 @@ def occurs_in(t:TypeVariable, types:Sequence[Type]) -> bool:
     """
     return any(occurs_in_type(t, t2) for t2 in types)
 
-def weak_unify(t1:Type, t2:Type, subst:Substitutions) -> Type:
+def reconcile_unify(t1:Type, t2:Type, subst:Substitutions) -> Type:
+    """
+    When two possible values for a given type variable doesn't unify, 
+    we use the first common - nominal - supertype, that's not `object`, or fail. 
+
+    So ``list[str]`` and ``set[str]`` will be reconcile to ``Collection[str]``.
+    But ``None`` and ``int`` can't reconcile.
+    """
     m = subst.mark()
     try:
         t = unify(t1, t2, subst)
     except StaticException:
         subst.restore(m)
-        # two possible values for a given type variable doesn't unify. 
-        # we then use the first common supertype, that's not object.
         supertype = t1.supertype
         while 1:
             if supertype is None:

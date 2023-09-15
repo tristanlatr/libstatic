@@ -419,10 +419,6 @@ def AnnotationType(state:State, qualname:str) -> Type:
         typedef = find_typedef(state, qualname)
     except StaticException:
         return SimpleType(qualname)
-        # if qualname.startswith('builtins.') or \
-        #     qualname.startswith('typing.') or qualname == 'types.ModuleType':
-            
-        # raise
     if isinstance(typedef, Cls):
         return ClsType(state, typedef)
     elif typedef is not None:
@@ -459,7 +455,7 @@ def ClsType(state:State, definition:Cls) -> Type:
     """
     return SymbolType(state, definition).add_meta(
             is_protocol=any(state.expand_expr(n) in ('typing.Protocol', 
-                                                            'typing_extensions.Protocol')
+                                                     'typing_extensions.Protocol')
                             for n in definition.node.bases), 
             mro=SuperTypes(state, definition),
             members=MembersTypes(state, definition),
@@ -490,8 +486,8 @@ def MembersTypes(state:State, definition:Cls) -> Mapping[str, Type]:
     Get a lazy mapping of all types of the members of this class, including inherited.
     """
     return LazyMap(((k, _merge_types(state, v)) for k,v in 
-                        ChainMap([state.get_locals(definition), 
-                                  state.get_ivars(definition)]).items()))
+                        ChainMap([state.get_locals(definition, include_inherited=True), 
+                                  state.get_ivars(definition, include_inherited=True)]).items()))
 
 def BuiltinType(state:State, name:str) -> Type:
     return AnnotationType(state, f'builtins.{name}')
@@ -1326,14 +1322,6 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
         """
         Replace raw typevars with `TypeVariable` types.
         """
-        # lectures about unification of typevars: 
-        # https://stackoverflow.com/questions/65362422/type-unification-algorithm-in-python-how-to-reject-unifya-b-int-int
-        # https://gist.github.com/dhilst/b5b198af93302ade61ccbfe3b094621a
-        # https://eli.thegreenplace.net/2018/unification/
-        # https://github.com/caterinaurban/Typpete/blob/master/typpete/src/annotation_resolver.py
-        # https://github.com/pfalcon/picompile
-        # https://github.com/eliphatfs/typhon/tree/master/typhon/core/type_system/intrinsics
-        # https://github.com/serge-sans-paille/tog/blob/master/tog.py#L391
         class NotATypeVar(Exception):
             ...
         
@@ -1368,40 +1356,6 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
         
         return type._replace(args=subtypes)
     
-    # def _get_typedef(self, typ:Type) -> Def:
-    #     """
-    #     Find the definition of a Type.
-    #     """
-    #     # supports classes, modules, functions and variables at the moment.
-    #     location:NodeLocation|None
-    #     qualname:str
-    #     if typ.is_module:
-    #         qualname = typ.get_meta('qualname', str) # type:ignore[assignment]
-    #         if qualname is None:
-    #             raise StaticValueError(typ, "no module definition")
-    #         hint:type[Def]|tuple[type[Def],...] = Mod
-    #         location = typ.get_meta('location', NodeLocation)
-    #     elif typ.is_callable:
-    #         qualname = typ.get_meta('qualname', str) # type:ignore[assignment]
-    #         if qualname is None:
-    #             raise StaticValueError(typ, "no function definition")
-    #         hint = Func
-    #         location = typ.get_meta('location', NodeLocation)
-    #     else:
-    #         location = typ.location
-    #         qualname = typ.qualname
-    #         if '.' not in qualname:
-    #             raise StaticValueError(typ, f"won't find anything for type {typ}")
-    #         hint = (Cls, Var)
-    #     if hint is Mod:
-    #         m = self._state.get_module(qualname)
-    #         if m is None:
-    #             raise StaticValueError(typ, 
-    #                 f"unknown module {typ.name!r}",)
-    #         return m
-    #     else:
-    #         return self._find_typedef(qualname, hint=hint, location=location)
-
     def _flatten_typedefs(
         self, valuetype: Type, seen: set[Type]
     ) -> Iterator[Tuple[Type, Def | None]]:
@@ -1475,6 +1429,7 @@ class TypeVariable(Type, metaclass=_TypeVariableMeta): # type:ignore[misc]
     @classmethod
     def _reset(cls) -> None:
         cls._id = 0
+
 @overload
 def cleanup_unresolved_typevars(term:None) -> None:...
 @overload

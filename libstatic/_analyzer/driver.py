@@ -3,7 +3,7 @@ from __future__ import annotations
 import ast
 from itertools import chain
 
-from typing import Any, Dict, Set, Union, cast
+from typing import Any, Collection, Dict, Set, Union, cast
 
 from .._lib.model import NameDef, Mod, Def
 from .._lib.chains import defuse_chains_and_locals, usedef_chains, BuiltinsChains
@@ -14,7 +14,7 @@ from .._lib.ivars import ComputeInstanceVariables
 
 from .reachability import get_unreachable
 from .wildcards import compute_wildcards
-from .state import MutableState, Options
+from .state import MutableState, Options, State
 from .mro import compute_mros
 
 from beniget.beniget import BuiltinsSrc # type: ignore
@@ -25,7 +25,7 @@ class ChainDefUseOfImports(StmtVisitor):
     """
 
     # TODO: visit_Module should return Mapping[Def, List[Def]]
-    # and 'State' should be used here.
+    # and 'State' should be used here instead.
     def __init__(self, state: "MutableState") -> None:
         self._state = state
 
@@ -62,6 +62,16 @@ class ChainDefUseOfImports(StmtVisitor):
     def visit_Import(self, node):
         self.generic_visit(node)
     visit_ImportFrom = visit_Import
+
+def collect_dependencies(state:State, node:ast.Module) -> Collection[str]:
+    # TODO: this could use some fine tuning
+    # import 'pydoctor.driver' will only add 'pydoctor' to the list of dependencies.
+    return [state.get_def(al).orgmodule
+        for al in (
+            n
+            for n in ast.walk(node)
+            if isinstance(n, ast.alias)
+        )]
 
 class Analyzer:
     _recurse_up_to = 8
@@ -161,7 +171,7 @@ class Analyzer:
         iteration = 0
 
         # builtins module should be processed first, otherwise insertion order
-        to_process.sort(key=lambda e:e!='builtins')
+        to_process.sort(key=lambda e: e != 'builtins')
 
         while to_process:
             iteration += 1
@@ -185,13 +195,7 @@ class Analyzer:
                             self._analyze_module_pass1(mod))
 
                     # collect dependencies
-                    # TODO: this could use some fine tuning
-                    deps = [self._state.get_def(al).orgmodule
-                        for al in (
-                            n
-                            for n in ast.walk(mod.node)
-                            if isinstance(n, ast.alias)
-                        )]
+                    deps = collect_dependencies(self._state, mod.node)
                     deps = [d for d in deps if d not in chain(processed_modules, to_process)]
 
                     # add dependency modules names to the process list.
