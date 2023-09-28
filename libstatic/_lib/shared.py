@@ -5,9 +5,13 @@ from typing import Optional, List, overload, Any, Union, TYPE_CHECKING
 import sys
 
 if sys.version_info >= (3,9):
-    from ast import unparse as to_source
+    from ast import unparse as _to_source
 else:
-    from astor import to_source
+    from astor import to_source as _to_source
+
+def to_source(node:ast.AST) -> str:
+    r = _to_source(node)
+    return r.strip('\n')
 
 def node2dottedname(node: Optional[ast.AST]) -> Optional[List[str]]:
     """

@@ -1,25 +1,37 @@
+from __future__ import annotations
+
 import ast
 import abc
 import attr as attrs
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Any
 
 if TYPE_CHECKING:
-    from .model import Scope
+    from .model import Scope, Def, Type
+    from typing import TypeAlias
 
 from .shared import ast_node_name
 
-@attrs.s(auto_attribs=True, kw_only=True, str=False)
+ErrNode: TypeAlias = 'ast.AST | Def | Type | str'
+HasLocation: TypeAlias = 'ast.AST | Def | Type | NodeLocation | StaticException'
+
+@attrs.s(auto_attribs=True, kw_only=True, str=False, frozen=True)
 class NodeLocation:
     filename:'str|None' = None
     nodecls:'str|None' = None
     lineno:'int|None' = None
-    col_offset:'int|None' = None
+    # older python version don't alwasy set the col_offset field so we can't 
+    # use it to compare locations.
+    col_offset:'int|None' = attrs.ib(default=None, eq=False)
 
     @classmethod
-    def make(cls, thing:object, filename:'str|None'=None) -> 'NodeLocation':
+    def make(cls, thing:ErrNode, filename:'str|None'=None) -> 'NodeLocation':
         """
         :param thing: A definition or an ast node.
         """
+        if thing.__class__.__name__ == 'Type' and hasattr(thing, 'get_meta'):
+            loc = getattr(thing, 'get_meta')('location')
+            if loc:
+                return loc
         node = getattr(thing, 'node', thing)
         if not isinstance(node, ast.AST):
             return NodeLocation(filename=filename)
@@ -53,11 +65,12 @@ class StaticException(Exception, abc.ABC):
     Base exception for the library.
     """
     
-    node: object
+    node: ErrNode
     desrc: Optional[str] = None
     filename: Optional[str] = attrs.ib(kw_only=True, default=None)
 
     def location(self) -> NodeLocation:
+        # no need to pass filename=... when node is a Type instance.
         return NodeLocation.make(self.node, self.filename)
 
     @abc.abstractmethod
@@ -72,9 +85,13 @@ class StaticNameError(StaticException):
     """
     Unbound name.
     """
+    node:ast.Name|str
     desrc: None = attrs.ib(init=False, default=None)
     def msg(self) -> str:
-        name = ast_node_name(self.node)
+        if isinstance(self.node, str):
+            name = self.node
+        else:
+            name = ast_node_name(self.node)
         return f"Unbound name {name!r}"
 
 @attrs.s
@@ -93,14 +110,29 @@ class StaticAttributeError(StaticException):
 @attrs.s(auto_attribs=True)
 class StaticTypeError(StaticException):
     """
-    A node in the syntax tree has an unexpected type.
+    A node has an unexpected type.
     """
+    node: Any
     expected: str = attrs.ib(kw_only=True)
     desrc: None = attrs.ib(init=False, default=None)
 
     def msg(self) -> str:
         return f"Expected {self.expected}, got: {type(self.node).__name__}"
 
+@attrs.s(auto_attribs=True)
+class StaticTypeMismatch(StaticException):
+    """
+    The unification of two types has failed.
+    """
+    node: Type
+    other: Type
+    desrc: str | None = attrs.ib(default=None)
+
+    def msg(self) -> str:
+        msg = f"Unification failed: {self.node.annotation} and {self.other.annotation} does't match"
+        if self.desrc:
+            return f'{msg}: {self.desrc}'
+        return msg
 
 class StaticImportError(StaticException):
     """
@@ -116,7 +148,7 @@ class StaticValueError(StaticException):
     """
     Can't make sens of analyzed syntax tree.
     """
-    node: ast.AST
+    node: ast.AST | Type
 
     def msg(self) -> str:
         return f"Error, {self.desrc}"

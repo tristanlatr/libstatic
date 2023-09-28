@@ -10,7 +10,7 @@ from .exceptions import StaticCodeUnsupported
 # The def of a lhs value of an assignment (store) is the rhs,
 # but this implementation might do the job just as well.
 def get_stored_value(
-    node: ast.Name, assign: "ast.Assign|ast.AnnAssign"
+    node: ast.Name|ast.Attribute, assign: "ast.Assign|ast.AnnAssign"
 ) -> Optional[ast.expr]:
     """
     Given an ast.Name instance with Store context and it's assignment statement,
