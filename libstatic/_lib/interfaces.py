@@ -63,21 +63,27 @@ class IImport(Protocol):
     @property
     def orgname(self) -> str | None:...
 
-class IMinimalProjectDefs(Protocol):
+class IMinimalDefs(Protocol):
     @property
     def chains(self) -> IDefUseChains:...
     @property
     def use_chains(self) -> IUseDefChains:...
     @property
-    def modules(self) -> IModuleCollection:...
-    @property
     def imports(self) -> IResolvedImports:...
     @property
     def ancestors(self) -> IAncestors:...
+    @property
+    def locals(self) -> ILocals:...
+    @property
+    def ivars(self) -> IInstanceVars:...
 
-class IProjectDefs(IMinimalProjectDefs, Protocol):
+class IMinimalProjectDefs(IMinimalDefs, Protocol):
+    @property
+    def modules(self) -> IModuleCollection:...
     @property
     def unreachable(self) -> IUnreachable:...
+
+class IProjectDefs(IMinimalProjectDefs, Protocol):
     @property
     def mros(self) -> IMROs:...
     @property
@@ -110,7 +116,7 @@ class AnalysisProvider(Generic[Tnode, Tresult], Protocol):
 IAncestorsProvider: TypeAlias = AnalysisProvider[ast.Module, IAncestors]
 IBenigetAnalysisProvider: TypeAlias = AnalysisProvider[IModuleSpec, IBenigetAnalysis]
 IUseDefChainsProvider: TypeAlias = AnalysisProvider[IDefUseChains, IUseDefChains]
-IUnreachableProvider: TypeAlias = AnalysisProvider[Tuple[ast.Module, IMinimalProjectDefs], IUnreachable]
+IUnreachableProvider: TypeAlias = AnalysisProvider[Tuple[ast.Module, IMinimalDefs], IUnreachable]
 IInstanceVarsProvider: TypeAlias = AnalysisProvider[Tuple[ast.Module, IDefUseChains], IInstanceVars]
 IResolvedImportsProvider: TypeAlias = AnalysisProvider[IModuleSpec, IResolvedImports]
 IArgumentsProvider: TypeAlias = AnalysisProvider[ast.Module, IArguments]
