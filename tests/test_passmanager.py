@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 import sys
 from textwrap import dedent
-from typing import Any
+from typing import Any, Mapping
 
 from unittest import TestCase
 
@@ -15,7 +15,7 @@ from libstatic._lib.assignment import get_stored_value # Given an ast.Name insta
 
 # main framework module we're testing
 from libstatic._lib.passmanager import (PassManager, Module, NodeAnalysis, FunctionAnalysis, 
-                                        ClassAnalysis, ModuleAnalysis, Transformation, ancestors)
+                                        ClassAnalysis, ModuleAnalysis, Transformation)
 
 # test analysis
 
@@ -61,6 +61,76 @@ class class_count(ModuleAnalysis[int], ast.NodeVisitor):
     
     def do_pass(self, node: ast.Module) -> int:
         self.result = 0
+        self.visit(node)
+        return self.result
+
+class ancestors(ModuleAnalysis[Mapping[ast.AST, list[ast.AST]]], ast.NodeVisitor):
+    '''
+    Associate each node with the list of its ancestors
+
+    Based on the tree view of the AST: each node has the Module as parent.
+    The result of this analysis is a dictionary with nodes as key,
+    and list of nodes as values.
+
+    >>> from pprint import pprint
+    >>> mod = ast.parse('v = lambda x: x+1; w = 2')
+    >>> pm = PassManager('t')
+    >>> pprint({location(n):[location(p) for p in ps] for n,ps in pm.gather(ancestors, mod).items()})
+    {'ast.Add at ?:?': ['ast.Module at ?:?',
+                        'ast.Assign at ?:1',
+                        'ast.Lambda at ?:1:4',
+                        'ast.BinOp at ?:1:14'],
+     'ast.Assign at ?:1': ['ast.Module at ?:?'],
+     'ast.Assign at ?:1:19': ['ast.Module at ?:?'],
+     'ast.BinOp at ?:1:14': ['ast.Module at ?:?',
+                             'ast.Assign at ?:1',
+                             'ast.Lambda at ?:1:4'],
+     'ast.Constant at ?:1:16': ['ast.Module at ?:?',
+                                'ast.Assign at ?:1',
+                                'ast.Lambda at ?:1:4',
+                                'ast.BinOp at ?:1:14'],
+     'ast.Constant at ?:1:23': ['ast.Module at ?:?', 'ast.Assign at ?:1:19'],
+     'ast.Lambda at ?:1:4': ['ast.Module at ?:?', 'ast.Assign at ?:1'],
+     'ast.Load at ?:?': ['ast.Module at ?:?',
+                         'ast.Assign at ?:1',
+                         'ast.Lambda at ?:1:4',
+                         'ast.BinOp at ?:1:14',
+                         'ast.Name at ?:1:14'],
+     'ast.Module at ?:?': [],
+     'ast.Name at ?:1': ['ast.Module at ?:?', 'ast.Assign at ?:1'],
+     'ast.Name at ?:1:11': ['ast.Module at ?:?',
+                            'ast.Assign at ?:1',
+                            'ast.Lambda at ?:1:4',
+                            'ast.arguments at ?:?'],
+     'ast.Name at ?:1:14': ['ast.Module at ?:?',
+                            'ast.Assign at ?:1',
+                            'ast.Lambda at ?:1:4',
+                            'ast.BinOp at ?:1:14'],
+     'ast.Name at ?:1:19': ['ast.Module at ?:?', 'ast.Assign at ?:1:19'],
+     'ast.Param at ?:?': ['ast.Module at ?:?',
+                          'ast.Assign at ?:1',
+                          'ast.Lambda at ?:1:4',
+                          'ast.arguments at ?:?',
+                          'ast.Name at ?:1:11'],
+     'ast.Store at ?:?': ['ast.Module at ?:?',
+                          'ast.Assign at ?:1:19',
+                          'ast.Name at ?:1:19'],
+     'ast.arguments at ?:?': ['ast.Module at ?:?',
+                              'ast.Assign at ?:1',
+                              'ast.Lambda at ?:1:4']}
+    '''
+
+    def generic_visit(self, node):
+        self.result[node] = current = self.current
+        self.current += node,
+        super().generic_visit(node)
+        self.current = current
+
+    visit = generic_visit
+
+    def do_pass(self, node: ast.Module) -> dict[ast.AST, Module]:
+        self.result = dict()
+        self.current = tuple()
         self.visit(node)
         return self.result
 
@@ -323,12 +393,12 @@ class TestPassManagerFramework(TestCase):
         ))
         pm.gather(class_count, pm.modules['test'].node)
         pm.gather(node_list, pm.modules['test'].node)
-        assert pm._cache.get(class_count, pm.modules['test'].node)
-        assert pm._cache.get(node_list, pm.modules['test'].node)
+        assert pm._passmanagers[pm.modules['test']].cache.get(class_count, pm.modules['test'].node)
+        assert pm._passmanagers[pm.modules['test']].cache.get(node_list, pm.modules['test'].node)
         
         pm.apply(transform_trues_into_ones, pm.modules['test'].node)
-        assert pm._cache.get(class_count, pm.modules['test'].node)
-        assert not pm._cache.get(node_list, pm.modules['test'].node)
+        assert pm._passmanagers[pm.modules['test']].cache.get(class_count, pm.modules['test'].node)
+        assert not pm._passmanagers[pm.modules['test']].cache.get(node_list, pm.modules['test'].node)
     
     def test_analysis_with_analysis_and_transforms_dependencies(self):
         ...

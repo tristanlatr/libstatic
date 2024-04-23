@@ -26,7 +26,7 @@ class WhoAsk:
         self.event_dispatcher = event_dispatcher
 
         # Listen for the RESPOND event type
-        self.event_dispatcher.add_event_listener(Respond, self.on_answer_event)
+        self.event_dispatcher.addEventListener(Respond, self.on_answer_event)
 
         self.fout = fout
 
@@ -35,7 +35,7 @@ class WhoAsk:
         Dispatch the ask event
         """
         print(f"I'm instance {self}. Who are listening to me ?", file=self.fout)
-        self.event_dispatcher.dispatch_event(Ask(self))
+        self.event_dispatcher.dispatchEvent(Ask(self))
 
     def on_answer_event(self, event: Respond):
         """
@@ -52,7 +52,7 @@ class WhoRespond:
         self.event_dispatcher = event_dispatcher
 
         # Listen for ASK event type
-        self.event_dispatcher.add_event_listener(
+        self.event_dispatcher.addEventListener(
             Ask, self.on_ask_event
         )
 
@@ -62,7 +62,7 @@ class WhoRespond:
         """
         Event handler for ASK event type
         """
-        self.event_dispatcher.dispatch_event(Respond(self))
+        self.event_dispatcher.dispatchEvent(Respond(self))
 
 class TestEventDispatcher(TestCase):
     
