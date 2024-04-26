@@ -51,8 +51,9 @@ class TestPassManagerFramework(TestCase):
         builder.build(node)
 
         globals = builder.globals
-        c = next(iter(s for s in builder.scopes if isinstance(s, ClassScope)))
-        foo = next(iter(s for s in builder.scopes if isinstance(s, FunctionScope)))
+        clsnode = node.body[0]
+        c = builder.scopes[clsnode]
+        foo = builder.scopes[clsnode.body[0]]
         assert c and foo
        
         assert foo.lookup("C") is globals

@@ -184,26 +184,21 @@ class Builder:
     """Build scope structure from AST."""
 
     globals: GlobalScope
-    current: Scope
-    scopes: list[Scope]
-
-    def __init__(self):
-        self.globals = GlobalScope()
-        self.current = self.globals
-        self.scopes = [self.current]
+    scopes: dict[ast.AST, Scope]
+    _current: Scope
 
     def store(self, name: str) -> None:
-        self.current.store(name)
+        self._current.store(name)
 
     @contextlib.contextmanager
-    def push(self, scope: Scope) -> Iterator[Scope]:
-        parent = self.current
+    def push(self, node: ast.AST, scope: Scope) -> Iterator[Scope]:
+        parent = self._current
         try:
-            self.current = scope
-            self.scopes.append(scope)
+            self._current = scope
+            self.scopes[node] = scope
             yield scope
         finally:
-            self.current = parent
+            self._current = parent
 
     def build(self, node: object | None) -> None:
         match node:
@@ -224,13 +219,13 @@ class Builder:
             case ast.Name(id=name, ctx=ast.Store()):
                 self.store(name)
             case ast.Name(id=name, ctx=ast.Load()):
-                self.current.load(name)
+                self._current.load(name)
             case ast.Nonlocal(names=names):
                 for name in names:
-                    self.current.add_nonlocal(name)
+                    self._current.add_nonlocal(name)
             case ast.Global(names=names):
                 for name in names:
-                    self.current.add_global(name)
+                    self._current.add_global(name)
             case ast.ImportFrom(names=names):
                 for a in names:
                     if a.asname:
@@ -252,16 +247,16 @@ class Builder:
             case ast.MatchAs(name=name) | ast.MatchStar(name=name):
                 if name:
                     self.store(name)
-            case ast.Lambda(args=args, body=body):
+            case ast.Lambda(args=args, body=body) as node:
                 self.build(args)  # defaults
-                with self.push(LambdaScope("<lambda>", self.current)):
+                with self.push(node, LambdaScope("<lambda>", self._current)):
                     self.build(body)
             case ast.NamedExpr(target=target, value=value):
                 # TODO: Various other forbidden cases from PEP 572,
                 # e.g. [i := 0 for i in a] and [i for i in (x := a)].
                 assert isinstance(target, ast.Name)
                 self.build(value)
-                s = self.current
+                s = self._current
                 while isinstance(s, ComprehensionScope):
                     s = s.parent
                 if isinstance(s, ClassScope):
@@ -271,18 +266,18 @@ class Builder:
                 self.build(target)
                 # node.iter is built by the next two cases
                 self.build(ifs)
-            case ast.ListComp(elt=elt, generators=gens) | ast.SetComp(
+            case (ast.ListComp(elt=elt, generators=gens) | ast.SetComp(
                 elt=elt, generators=gens
-            ) | ast.GeneratorExp(elt=elt, generators=gens):
+            ) | ast.GeneratorExp(elt=elt, generators=gens)) as node:
                 self.build(gens[0].iter)
                 name = f"<{node.__class__.__name__}>"
-                with self.push(ComprehensionScope(name, self.current)):
+                with self.push(node, ComprehensionScope(name, self._current)):
                     self.build(elt)
                     self.build(gens)
                     self.build([g.iter for g in gens[1:]])
-            case ast.DictComp(key=key, value=value, generators=gens):
+            case ast.DictComp(key=key, value=value, generators=gens) as node:
                 self.build(gens[0].iter)
-                with self.push(ComprehensionScope(f"<DictComp>", self.current)):
+                with self.push(node, ComprehensionScope(f"<DictComp>", self._current)):
                     self.build(key)
                     self.build(value)
                     self.build(gens)
@@ -294,11 +289,11 @@ class Builder:
                 body=body,
                 decorator_list=decorator_list,
                 returns=returns,
-            ):
+            ) as node:
                 self.build(decorator_list)
                 self.build(args)  # Annotations and defaults
                 self.build(returns)
-                with self.push(FunctionScope(name, self.current)):
+                with self.push(node, FunctionScope(name, self._current)):
                     for a in args.posonlyargs + args.args + args.kwonlyargs:
                         self.store(a.arg)
                     self.build(body)
@@ -309,13 +304,21 @@ class Builder:
                 keywords=keywords,
                 body=body,
                 decorator_list=decorator_list,
-            ):
+            ) as node:
                 self.build(decorator_list)
                 self.build(bases)
                 self.build(keywords)
-                with self.push(ClassScope(name, self.current)):
+                with self.push(node, ClassScope(name, self._current)):
                     self.build(body)
                 self.store(name)
+            case ast.Module(
+                body=body
+            ) as node:
+                # init class attributes
+                self.globals = GlobalScope()
+                self._current = self.globals
+                self.scopes = {node: self._current}
+                self.build(body)
             case ast.AST():
                 for key, value in node.__dict__.items():
                     if not key.startswith("_"):
