@@ -12,16 +12,11 @@ import ast, inspect
 # implementation details
 from libstatic._lib.arguments import ArgSpec, iter_arguments # Yields all arguments of the given ast.arguments node as ArgSpec instances.
 from libstatic._lib.assignment import get_stored_value # Given an ast.Name instance with Store context and it's parent assignment statement, figure out the right hand side expression that is stored in the symbol.
-from libstatic._lib.imports import ParseImportedNames, ImportInfo
-from libstatic._lib.ivars import _compute_ivars
-from libstatic._lib import exceptions
+
 # main framework module we're testing
 from libstatic._lib.passmanager import (PassManager, Module, NodeAnalysis, FunctionAnalysis, 
-                                        ClassAnalysis, ModuleAnalysis, Transformation, walk)
-from libstatic._lib import passmanager
-
-from beniget.standard import DefUseChains, UseDefChains
-import beniget
+                                        ClassAnalysis, ModuleAnalysis, Transformation)
+from libstatic._lib import passmanager, analyses
 
 # test analysis
 
@@ -32,7 +27,7 @@ class node_list(NodeAnalysis[list[ast.AST]], ast.NodeVisitor):
         super().visit(node)
         return self.result
 
-    def do_pass(self, node: ast.AST) -> list[ast.AST]:
+    def doPass(self, node: ast.AST) -> list[ast.AST]:
         self.result = []
         self.visit(node)
         return self.result
@@ -42,12 +37,12 @@ class node_list(NodeAnalysis[list[ast.AST]], ast.NodeVisitor):
 
 class class_bases(ClassAnalysis[list[str]]):
     "The bases of a class as strings"
-    def do_pass(self, node: ast.ClassDef) -> list[str]:
+    def doPass(self, node: ast.ClassDef) -> list[str]:
         return [ast.unparse(n) for n in node.bases]
 
 class function_arguments(FunctionAnalysis[list[ArgSpec]]):
     "List of function arguments"
-    def do_pass(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[ArgSpec]:
+    def doPass(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[ArgSpec]:
         return list(iter_arguments(node.args))
 
 class function_accepts_any_keywords(FunctionAnalysis[bool]):
@@ -55,7 +50,7 @@ class function_accepts_any_keywords(FunctionAnalysis[bool]):
     
     dependencies = (function_arguments, )
     
-    def do_pass(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    def doPass(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
         return any(a.kind == inspect.Parameter.VAR_KEYWORD for a in self.function_arguments)
 
 class class_count(ModuleAnalysis[int], ast.NodeVisitor):
@@ -68,307 +63,16 @@ class class_count(ModuleAnalysis[int], ast.NodeVisitor):
         for n in node.body:
             self.visit(n)
     
-    def do_pass(self, node: ast.Module) -> int:
+    def doPass(self, node: ast.Module) -> int:
         self.result = 0
         self.visit(node)
         return self.result
-
-class ancestors(ModuleAnalysis[Mapping[ast.AST, list[ast.AST]]], ast.NodeVisitor):
-    '''
-    Associate each node with the list of its ancestors
-
-    Based on the tree view of the AST: each node has the Module as parent.
-    The result of this analysis is a dictionary with nodes as key,
-    and list of nodes as values.
-
-    >>> from pprint import pprint
-    >>> mod = ast.parse('v = lambda x: x+1; w = 2')
-    >>> pm = PassManager('t')
-    >>> pprint({location(n):[location(p) for p in ps] for n,ps in pm.gather(ancestors, mod).items()})
-    {'ast.Add at ?:?': ['ast.Module at ?:?',
-                        'ast.Assign at ?:1',
-                        'ast.Lambda at ?:1:4',
-                        'ast.BinOp at ?:1:14'],
-     'ast.Assign at ?:1': ['ast.Module at ?:?'],
-     'ast.Assign at ?:1:19': ['ast.Module at ?:?'],
-     'ast.BinOp at ?:1:14': ['ast.Module at ?:?',
-                             'ast.Assign at ?:1',
-                             'ast.Lambda at ?:1:4'],
-     'ast.Constant at ?:1:16': ['ast.Module at ?:?',
-                                'ast.Assign at ?:1',
-                                'ast.Lambda at ?:1:4',
-                                'ast.BinOp at ?:1:14'],
-     'ast.Constant at ?:1:23': ['ast.Module at ?:?', 'ast.Assign at ?:1:19'],
-     'ast.Lambda at ?:1:4': ['ast.Module at ?:?', 'ast.Assign at ?:1'],
-     'ast.Load at ?:?': ['ast.Module at ?:?',
-                         'ast.Assign at ?:1',
-                         'ast.Lambda at ?:1:4',
-                         'ast.BinOp at ?:1:14',
-                         'ast.Name at ?:1:14'],
-     'ast.Module at ?:?': [],
-     'ast.Name at ?:1': ['ast.Module at ?:?', 'ast.Assign at ?:1'],
-     'ast.Name at ?:1:11': ['ast.Module at ?:?',
-                            'ast.Assign at ?:1',
-                            'ast.Lambda at ?:1:4',
-                            'ast.arguments at ?:?'],
-     'ast.Name at ?:1:14': ['ast.Module at ?:?',
-                            'ast.Assign at ?:1',
-                            'ast.Lambda at ?:1:4',
-                            'ast.BinOp at ?:1:14'],
-     'ast.Name at ?:1:19': ['ast.Module at ?:?', 'ast.Assign at ?:1:19'],
-     'ast.Param at ?:?': ['ast.Module at ?:?',
-                          'ast.Assign at ?:1',
-                          'ast.Lambda at ?:1:4',
-                          'ast.arguments at ?:?',
-                          'ast.Name at ?:1:11'],
-     'ast.Store at ?:?': ['ast.Module at ?:?',
-                          'ast.Assign at ?:1:19',
-                          'ast.Name at ?:1:19'],
-     'ast.arguments at ?:?': ['ast.Module at ?:?',
-                              'ast.Assign at ?:1',
-                              'ast.Lambda at ?:1:4']}
-    '''
-
-    def generic_visit(self, node):
-        self.result[node] = current = self.current
-        self.current += node,
-        super().generic_visit(node)
-        self.current = current
-
-    visit = generic_visit
-
-    def do_pass(self, node: ast.Module) -> dict[ast.AST, Module]:
-        self.result = dict()
-        self.current = tuple()
-        self.visit(node)
-        return self.result
-
-class expand_expr(NodeAnalysis[str|None]):
-    ...
-
-class node_ancestor(NodeAnalysis[ast.AST]):
-    """
-    First node ancestor of class C{klass}
-    """
-    dependencies = (ancestors, )
-    requiredParameters = ('klass', )
-
-    def do_pass(self, node: ast.AST) -> ast.AST:
-        # special case module access for speed.
-        #             don't forget klass can be a tuple
-        if isinstance(self.klass, type) and issubclass(self.klass, ast.Module):
-            try:
-                mod = next(iter(self.ancestors[node]))
-            except StopIteration:
-                pass
-            else:
-                if isinstance(mod, self.klass):
-                    return mod  # type: ignore
-        for n in reversed(self.ancestors[node]):
-            # TODO: Use TypeGard annotation
-            if isinstance(n, self.klass):
-                return n  # type: ignore
-        raise exceptions.StaticValueError(node, f"node has no parent of type {self.klass}")
-
-class node_enclosing_scope(NodeAnalysis[ast.AST|None]):
-    """
-    Get the first enclosing scope of this use or definition.
-    Returns None only of the definition is a Module.
-    """
-    dependencies = (node_ancestor(klass=(
-            ast.SetComp,
-            ast.DictComp,
-            ast.ListComp,
-            ast.GeneratorExp,
-            ast.Lambda,
-            ast.FunctionDef,
-            ast.AsyncFunctionDef,
-            ast.ClassDef,
-            ast.Module,
-        )), )
-    
-    def do_pass(self, node: ast.AST) -> ast.AST | None:
-        if isinstance(node, ast.Module):
-            return None
-        return self.node_ancestor
-
-class node_qualname(NodeAnalysis[str|None]):
-    dependencies = (node_enclosing_scope, )
-
-class unreachable_nodes(ModuleAnalysis[set[ast.AST]]):
-    ...
-
-class _Beniget(passmanager.ModuleAnalysis):
-    def do_pass(self, node:ast.Module):
-        mod: passmanager.Module = self.passmanager.module
-        modname = mod.modname
-        if mod.is_package:
-            modname += '.__init__'
-        visitor = DefUseChains(mod.filename, modname, is_stub=mod.is_stub)
-        visitor.visit(node)        
-        return {'chains':visitor.chains, 
-                'locals':visitor.locals,
-                'builtins': visitor._builtins}
-
-class def_use_chains(passmanager.ModuleAnalysis):
-    dependencies = (_Beniget, )
-    def do_pass(self, node: ast.Module) -> dict[ast.AST, beniget.Def]:
-        return self.beniget_analsis['chains']
-
-class use_def_chains(passmanager.ModuleAnalysis):
-    dependencies = (def_use_chains, )
-    def do_pass(self, node: ast.Module) -> dict[ast.AST, list[beniget.Def]]:
-        return UseDefChains(self.def_use_chains).chains
-
-class method_resoltion_order(passmanager.ClassAnalysis):
-    dependencies = (passmanager.modules, )
-    
-    @classmethod
-    def prepare(self, node):
-        raise NotImplementedError()
-
-class locals_map(passmanager.NodeAnalysis):
-    dependencies = (_Beniget, )
-    optionalParameters = {'include_inherited': False}
-
-    @classmethod
-    def prepareClass(cls):
-        # There is two version of this analysis, when include_inherited=True
-        # a dependency is added...
-        if cls.include_inherited:
-            cls.dependencies += (method_resoltion_order, ) 
-
-        super().prepareClass()
-
-    def do_pass(self, node: ast.AST) -> dict[str, list[beniget.Def]]:
-        locals_list = self.beniget_analsis['locals'][node]
-        locals_dict: dict[str, list[beniget.Def]] = {}
-        for d in locals_list:
-            locals_dict.setdefault(d.name(), []).append(d)
-        return locals_dict
-
-class ivars_map(passmanager.ClassAnalysis):
-    dependencies = (def_use_chains, )
-    optionalParameters = {'include_inherited': False}
-    
-    @classmethod
-    def prepareClass(cls):
-        # There is two version of this analysis, when include_inherited=True
-        # a dependency is added...
-        if cls.include_inherited:
-            raise NotImplementedError() # TODO
-
-        return super().prepareClass()
-    
-    def do_pass(self, node: ast.ClassDef) -> dict[str, list[beniget.Def]]:
-        return _compute_ivars(self.def_use_chains, node)
-
-class get_submodule(ModuleAnalysis[Module | None]):
-    dependencies = (passmanager.modules, )
-    requiredParameters = ('name',)
-
-    def do_pass(self, node: ast.Module) -> Module | None:
-        modname = self.passmanager.module.modname
-        submodule_name = f'{modname}.{self.name}'
-        return self.modules.get(submodule_name)
-
-class get_ivar(ClassAnalysis[list[ast.AST]]):
-    requiredParameters = ('name',)
-    optionalParameters = {'include_inherited': False}
-
-    @classmethod
-    def prepareClass(cls): # dynamic dependenciess
-        cls.dependencies = (ivars_map(include_inherited=cls.include_inherited), )
-        super().prepareClass()
-
-    def do_pass(self, node: ast.ClassDef) -> list[ast.AST]:
-        return self.ivars_map[self.name]
-
-class get_local(NodeAnalysis[list[ast.AST]]):
-    requiredParameters = ('name',)
-    optionalParameters = {'include_inherited': False}
-
-    @classmethod
-    def prepareClass(cls): # dynamic dependencies
-        cls.dependencies += (locals_map(include_inherited=cls.include_inherited), )
-        super().prepareClass()
-    
-    def prepare(self, node: ast.AST):
-        super().prepare(node)
-        if not isinstance(node, (ast.Module, ast.ClassDef)):
-            raise TypeError(f'expected module or class, got {node}')
-
-    def do_pass(self, node: ast.AST) -> list[ast.AST]:
-        ...
-
-class get_attribute(NodeAnalysis[list[ast.AST]]):
-    """
-    >>> pm.gather(get_attribute(name='var', include_ivars=True), node)
-    """
-    requiredParameters = ('name',)
-    optionalParameters = {'ignore_locals':False,
-                          'filter_unreachable':True,
-                          'include_ivars':False,
-                          'include_inherited':True}
-
-    @classmethod
-    def prepareClass(cls):
-        cls.dependencies += (get_submodule, )
-        if not cls.ignore_locals:
-            cls.dependencies += (get_local(include_inherited=cls.include_inherited), )
-        if cls.include_ivars:
-            cls.dependencies += (get_ivar(include_inherited=cls.include_inherited), )
-        return super().prepareClass()
-
-    def prepare(self, node: ast.AST):
-        super().prepare(node)
-        if not isinstance(node, (ast.Module, ast.ClassDef)):
-            raise TypeError(f'expected module or class, got {node}')
-
-    def do_pass(self, node: ast.AST) -> list[ast.AST]:
-        values: list[beniget.Def] = []
-        if not self.ignore_locals:
-            if self.include_ivars and isinstance(node, ast.ClassDef):
-                values = self.passmanager.gather(get_ivar(name=self.name, include_inherited=self.include_inherited), node)
-            if not values:
-                values = self.passmanager.gather(get_local(name=self.name, include_inherited=self.include_inherited), node)
-            values = _softfilter_defs(values, # type:ignore
-                                        unreachable=self.filter_unreachable, 
-                                        killed=True)
-        else:
-            values = []
-        if not values and isinstance(node, ast.Module) and self.passmanager.module.is_package:
-            # a sub-package
-            sub = self.passmanager.gather(get_submodule(name=self.name))
-            if sub is not None:
-                return [sub.node]
-        if values:
-            return values
-
-        raise exceptions.StaticAttributeError(node, attr=self.name, 
-                                   filename=self.passmanager.module.filename)
-
-class parsed_imports(ModuleAnalysis[Mapping[ast.alias, ImportInfo]]):
-    """
-    Maps each ast.alias in the module to their ImportInfo counterpart.
-    """
-    def do_pass(self, node: ast.Module) -> Mapping[ast.alias, ImportInfo]:
-        return ParseImportedNames(self.passmanager.module.modname, 
-                                  is_package=self.passmanager.module.is_package).visit_Module(node)
-
-class definitions_of_imports(ModuleAnalysis[Mapping[ast.alias, list[ast.AST]]]):
-    dependencies = (parsed_imports, passmanager.modules)
-
-    def do_pass(self, node: ast.Module) -> Mapping[ast.alias, list[ast.AST]]:
-
-        self.modules
-
 
 # simple test stuff
 
 class simple_symbol_table(ModuleAnalysis[dict[str, list[ast.AST]]], ast.NodeVisitor):
     "A simbol table, for the module level only"
-    def do_pass(self, node: ast.Module) -> dict[str, list[ast.AST]]:
+    def doPass(self, node: ast.Module) -> dict[str, list[ast.AST]]:
         self.result = defaultdict(list)
         self.generic_visit(node)
         return self.result
@@ -392,9 +96,9 @@ class simple_symbol_table(ModuleAnalysis[dict[str, list[ast.AST]]], ast.NodeVisi
 
 class simple_goto_def(NodeAnalysis[ast.AST | None]):
     "goto the definition of th symbol, but only works at module level"
-    dependencies = (simple_symbol_table, ancestors)
+    dependencies = (simple_symbol_table, analyses.ancestors)
 
-    def do_pass(self, node: ast.Name) -> ast.AST | None:
+    def doPass(self, node: ast.Name) -> ast.AST | None:
         if node.__class__.__name__ != 'Name':
             raise TypeError(node)
         if node.ctx.__class__.__name__ == 'Store':
@@ -430,27 +134,27 @@ class transform_trues_into_ones(Transformation, ast.NodeTransformer):
         else:
             return node
     
-    def do_pass(self, node: ast.AST) -> ast.AST:
+    def doPass(self, node: ast.AST) -> ast.AST:
         return self.visit(node)
 
 # An analysis that has a transform in it's dependencies
 
 class has_optional_parameters(NodeAnalysis):
     optionalParameters = {'filter': False, 'inherited': False}
-    def do_pass(self, node): pass
+    def doPass(self, node): pass
 
 class has_required_parameters(NodeAnalysis):
     requiredParameters = ('name', 'thing', )
-    def do_pass(self, node): pass
+    def doPass(self, node): pass
 
 class has_both_required_and_optional_parameters(NodeAnalysis):
     requiredParameters = ('name', 'thing', )
     optionalParameters = {'filter': False, 'inherited': False}
-    def do_pass(self, node): pass
+    def doPass(self, node): pass
 
 class requires_modules(NodeAnalysis):
     dependencies = (passmanager.modules, )
-    def do_pass(self, node): pass
+    def doPass(self, node): return 1
 
 class has_dynamic_dependencies(NodeAnalysis):
     dependencies = (has_required_parameters, )
@@ -459,22 +163,20 @@ class has_dynamic_dependencies(NodeAnalysis):
     def prepareClass(cls):
         if cls.project_wide:
             cls.dependencies += (requires_modules, )
-    def do_pass(self, node): pass
+    def doPass(self, node): pass
 
 class literal_ones_count(ModuleAnalysis[int], ast.NodeVisitor):
     "counts the number of literal '1'"
     dependencies = (transform_trues_into_ones, 
                     # this analysis is useless but it should not 
-                    # crash because it's listed after the transform.
-                    # TODO: Actually since the transform preserves the class_count analysis,
-                    # both orders shouls be supported. But that might be hard to implement at this time.
+                    # crash because it's listed after the transform., even before is valid!
                     class_count) 
     
     def visit_Constant(self, node):
-        if node.value == 1:
+        if node.value is not True and node.value == 1:
             self.result += 1
 
-    def do_pass(self, node: ast.AST) -> int:
+    def doPass(self, node: ast.AST) -> int:
         self.result = 0
         self.visit(node)
         return self.result
@@ -485,12 +187,12 @@ class still_valid_analysis_dependencies_order(ModuleAnalysis[int]):
     "this analysis is not valid actually, not everything is ok."
     dependencies = (node_list, transform_trues_into_ones)
 
-    def do_pass(self, node: ast.AST) -> int:
+    def doPass(self, node: ast.AST) -> int:
         return 1
 
-# an invalid analysis because it has not do_pass() method
+# an invalid analysis because it has not doPass() method
 
-class invalid_analysis_no_do_pass_method(ModuleAnalysis[int]):
+class invalid_analysis_no_doPass_method(ModuleAnalysis[int]):
     ...
 
 
@@ -627,7 +329,7 @@ class TestPassManagerFramework(TestCase):
 
         class list_modules_keys(NodeAnalysis):
             dependencies = (passmanager.modules, )
-            def do_pass(self, node: ast.AST) -> list[str]:
+            def doPass(self, node: ast.AST) -> list[str]:
                 return list(self.modules)
         
         class other_ananlysis(NodeAnalysis):
@@ -726,6 +428,25 @@ class TestPassManagerFramework(TestCase):
         n = pm.gather(literal_ones_count, pm.modules['test'].node)
         assert n == 2
     
+    def test_analysis_with_transitive_transforms_dependencies_applies_still_eagerly(self):
+        src = 'v = True\nn = 1'
+        pm = PassManager()
+        pm.add_module(Module(
+            ast.parse(src), 'test', 'test.py', code=src, 
+        ))
+
+        class literal_1_count(NodeAnalysis[int]):
+            dependencies = (literal_ones_count, ) 
+            # list the pass which has the transform in it's dependency
+            # but do not access it with self.literal_ones_count, instead do the logic again
+            def doPass(self, node: ast.AST) -> int:
+                return len([
+                    n for n in ast.walk(node) if isinstance(n, ast.Constant) 
+                    and n.value is not True and n.value == 1])
+
+        n = pm.gather(literal_1_count, pm.modules['test'].node)
+        assert n == 2
+    
     def test_preserved_analysis(self):
         # TODO: Think of more test cases here.
         # This seems lite for now.
@@ -743,6 +464,96 @@ class TestPassManagerFramework(TestCase):
         assert pm._passmanagers[pm.modules['test']].cache.get(class_count, pm.modules['test'].node)
         assert not pm._passmanagers[pm.modules['test']].cache.get(node_list, pm.modules['test'].node)
     
+    
+    def test_cache_cleared_when_module_removed(self):
+        pm = PassManager()
+        pm.add_module(Module(ast.parse('pass'), 'test'))
+        pm.add_module(Module(ast.parse('import test'), 'test2'))
+        mod1 = pm.modules['test']
+        mod2 = pm.modules['test2']
+
+        pm.gather(node_list, mod1.node)
+        pm.gather(requires_modules, mod1.node)
+        mod1cache = pm._passmanagers[mod1].cache
+        assert mod1cache.get(requires_modules, mod1.node)
+
+        pm.remove_module(mod2)
+
+        assert mod1cache.get(node_list, mod1.node)
+        assert mod1cache.get(requires_modules, mod1.node) is None
+    
+    def test_cache_cleared_when_module_added(self):
+        pm = PassManager()
+        pm.add_module(Module(ast.parse('pass'), 'test'))
+        pm.add_module(Module(ast.parse('import test'), 'test2'))
+        mod1 = pm.modules['test']
+        mod2 = pm.modules['test2']
+
+        pm.gather(node_list, mod1.node)
+        pm.gather(requires_modules, mod1.node)
+        mod1cache = pm._passmanagers[mod1].cache
+        assert mod1cache.get(requires_modules, mod1.node)
+
+        pm.add_module(Module(ast.parse('import test'), 'test3'))
+
+        assert mod1cache.get(node_list, mod1.node)
+        assert mod1cache.get(requires_modules, mod1.node) is None
+    
+
+    def test_preserved_analysis_inter_modules(self):
+        pass
+        # TODO: an analysis that depends on other modules should be 
+        # cleared from the cache if it's not listed on the preserves_analysis attribute.
+    
+    def test_preserved_analysis_abstract(self):
+        pass
+        # TODO: an analysis that misses required parameters can be listed in both dependencies and
+        # preserves_analysis lists. When it's listed in preserves_analysis all subclasses with any
+        # required parameters and all same optional parameters are also preserved.
+
+    def test_analysis_with_parameters_get_invalidated_like_others(self):
+        pass
+        # TODO: simple case where a transform invalidates a parameterized analysis
+        # also when the transform preverses some of the derived parameterized analysis, but not all of them.
+    
+    def test_preserved_analysis_subclass_explosion_issue(self):
+        pass
+        # TODO: so the issue araise when dealing with more than two optional parameters. 
+        # it's required for the transformation to list all variant with non-default parameters
+        # that are preserved by the transform.
+        # To remidiate this situation we can:
+        # -  give-up on the class-call subclassing feature and move the analyses parameter in constructor
+        #    this means that we should add the parameters to the cache keys. the thing is the dependencies
+        #    currently needs to be declared at the class level, so in the case of dynamic dependencies this
+        #    does not work. 
+        # -  not a real solution by maybe move from using a metaclass and use __class_getitem__ ?
+        #    which would result into using analysis_name[keyword=42]
+        #  - a real solution would be to generate an ensemble of subclass that we can match against existing 
+        #    analyses in the cache (this is what it is about afer all - this plus the fact that dependencies must be static
+        #    at class level - but this might also be the thing to reconsider...)
+        #    A solution would be to overwrite __invert__ or something such that we can create a "ensemble of analyses" like
+        #    analysis_name.like(keyword=lambda v: bool(v), other_unimportant=lambda v:True)
+        #    or shorter: analysis_name.like(keyword=True, other_unimportant=None) # all keywords must be given when creating a ensemble.
+        #    this would be used in the Transformation.preserves_analysis attribute to indicate the transform preserves
+        #    a varieties of derivation of the given analysis.
+    
+    def test_pass_instrumentation_run_times(self):
+        pass # TODO: We should be able to hack something to get the run times of all analyses
+        # 
+
+    def test_not_using_modules_analysis_cannot_gather_other_using_modules_analysis(self):
+        pass # TODO: If none of the statically declared dependencies depends on the 'modules'
+        # analsis; trying to gather an analysis manually with self.passmanager.gather(analysis, node)
+        # will fail.
+
+    def test_analysis_that_applies_a_transformation(self):
+        # using self.passmanager.apply from the doPass method.
+        pass
+
+    def test_analysis_that_applies_a_transformation_to_another_module(self):
+        # using self.passmanager.apply from the doPass method.
+        pass
+    
     def test_analysis_valid_dependencies_order(self):
         src = 'pass'
         pm = PassManager()
@@ -752,35 +563,34 @@ class TestPassManagerFramework(TestCase):
         
         pm.gather(still_valid_analysis_dependencies_order, pm.modules['test'].node)
     
-    def test_analysis_invalid_no_do_pass_method(self):
+    def test_analysis_invalid_no_doPass_method(self):
         src = 'pass'
         pm = PassManager()
         pm.add_module(Module(
             ast.parse(src), 'test', 'test.py', code=src, 
         ))
         with self.assertRaises(Exception):
-            pm.gather(invalid_analysis_no_do_pass_method, pm.modules['test'].node)
+            pm.gather(invalid_analysis_no_doPass_method, pm.modules['test'].node)
 
-    def test_analysis_with_analysis_and_transforms_dependencies(self):
+    def test_analysis_not_run_if_not_accessed(self):
+        # when an analysis is declared as a dependency a descriptor is used to
+        # run the analysis only when accessed with self.analysis_name
         ...
 
     def test_transformation_with_analysis_dependencies(self):
-        # the test transformation would be to remove unused imports for instance.
-        # this will require the def-use chains.
-        ...
-    
-    def test_transformation_with_transforms_dependencies(self):
-        # so for instance
-        ...
-    
-    def test_transformation_with_analysis_and_transforms_dependencies(self):
+        # after the transformation have been executed, if the dependent analysis is not
+        # in the preserves_analysis collection, it it revomed from the cache
         ...
     
     def test_transformation_with_unsuported_cyclic_dependencies(self):
         ...
+        # TODO: Thid would br a transformation that transitively depends on itselft. 
     
     def test_transformation_with_suported_cyclic_dependencies(self):
-        # this uses 
+        # this uses a feeature that is still not implemented... 
+        # when a pass needs itself for the same node again it can either fail
+        # or provide a fallcack function that will return a dummy object or in the 
+        # best case do some addition logic to sort it out.
         ...
     
     def test_analysis_with_unsuported_cyclic_dependencies(self):
@@ -799,20 +609,4 @@ class TestPassManagerFramework(TestCase):
     def test_class_to_module_analysis_promotion(self):
         # class bases on a whole module
         ...
-    
-    def test_node_to_module_analysis_promotion(self):
-        ...
-    
-    def test_function_to_project_analysis_promotion(self):
-        ...
-    
-    def test_class_to_project_analysis_promotion(self):
-        ...
-    
-    def test_module_to_project_analysis_promotion(self):
-        ...
-    
-    def test_node_to_project_analysis_promotion(self):
-        ...
-    
 

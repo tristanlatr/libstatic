@@ -1,16 +1,202 @@
 """
-This module provides classes and functions for pass management.
+This module provides a framework for L{ast} pass management. 
+It's a building block to write static analyzer or compiler for Python. 
 
 There are two kinds of passes: transformations and analysis.
-    * ModuleAnalysis, FunctionAnalysis and NodeAnalysis are to be
+    * L{ModuleAnalysis}, L{FunctionAnalysis}, L{ClassAnalysis} and L{NodeAnalysis} are to be
       subclassed by any pass that collects information about the AST.
-    * gather is used to gather (!) the result of an analyses on an AST node.
-    * Transformation is to be sub-classed by any pass that updates the AST.
-    * apply is used to apply (sic) a transformation on an AST node.
-"""
+    * L{PassManager.gather} is used to gather (!) the result of an analyses on an AST node.
+    * L{Transformation} is to be sub-classed by any pass that updates the AST.
+    * L{PassManager.apply} is used to apply (sic) a transformation on an AST node.
 
-# TODO: Things to change:
-# Concerning the cache:
+To write an analysis: 
+
+    - Subclass one of the analysis class cited above.
+    - List analysis required by yours in the L{Analysis.dependencies} tuple, 
+      they will be built automatically and stored in the attribute with the corresponding name.
+    - Write your analysis logic inside the L{Analysis.doPass} method. The analysis result must be returned by
+      the L{Analysis.doPass} method or an exeception raised.
+    - Use it either from another pass’s C{dependencies}, or through the L{PassManager.gather} function.
+
+B{Example}: In the following code snippets we'll look at how to write a type inference function that
+understand literal values as well as builtins calls like L{list()} with a relatively high level of confidence
+we're not misinterpreting a symbol name.   
+
+Start by coding the logic of your lower-level analysis, which in our case computes the locals for a given scope:
+
+>>> class CollectLocals(ast.NodeVisitor):
+...    "Compute the set of identifiers local to a given node."
+...    def __init__(self):
+...        self.Locals = set()
+...        self.NonLocals = set()
+...    def visit_FunctionDef(self, node):
+...        # no recursion
+...        self.Locals.add(node.name)
+...    visit_AsyncFunctionDef = visit_FunctionDef
+...    visit_ClassDef = visit_FunctionDef
+...    def visit_Nonlocal(self, node):
+...        self.NonLocals.update(name for name in node.names)
+...    visit_Global = visit_Nonlocal
+...    def visit_Name(self, node):
+...        if isinstance(node.ctx, ast.Store) and node.id not in self.NonLocals:
+...            self.Locals.add(node.id)
+...    def visit_arg(self, node):
+...        self.Locals.add(node.arg)
+...    def skip(self, _):
+...        pass
+...    visit_SetComp = visit_DictComp = visit_ListComp = skip
+...    visit_GeneratorExp = skip
+...    visit_Lambda = skip
+...    def visit_Import(self, node):
+...        for alias in node.names:
+...            base = alias.name.split(".", 1)[0]
+...            self.Locals.add(alias.asname or base)
+...    def visit_ImportFrom(self, node):
+...        for alias in node.names:
+...            self.Locals.add(alias.asname or alias.name)
+
+Then wraps it inside an Analysis subclass:
+
+>>> class node_locals(NodeAnalysis[set[str]]):
+...     def doPass(self, node):
+...         visitor = CollectLocals()
+...         visitor.generic_visit(node)
+...         return visitor.Locals
+
+Now let's try out our analysis, here we are hard coding the source code for testing purposes
+but in real life you can use the L{Finder}. 
+
+>>> src = '''
+... import sys, os, set
+... from twisted.python import reflect
+... import twisted.python.filepath
+... from twisted.python.components import registerAdapter
+... foo, foo2 = 123, int()
+... def doFoo():
+...   import datetime
+... class Foo:
+...   x = 0
+...   list = lambda x: True
+...   y = list() or set()
+...   def __init__(self):
+...     self.a = [a for a in list()]
+... _foo = "boring internal details"
+... '''
+
+This is where is gets interesting, how to actually use the framework
+
+>>> pm = PassManager() # Create a PassManager instance
+>>> pm.add_module(Module(ast.parse(src), 'testmodulename')) # Add your module(s) to it
+
+When you add a module it's recorded in the L{PassManager.modules} mapping. It's a special mapping
+that allows accessing values by module name or by any node contained in the module tree.
+
+>>> testnode = pm.modules['testmodulename'].node
+>>> testclass = next(n for n in testnode.body if isinstance(n, ast.ClassDef) and n.name == 'Foo')
+>>> testmethod = next(n for n in testclass.body if isinstance(n, ast.FunctionDef) and n.name == '__init__')
+
+Gather analysis result with L{PassManager.gather}.
+
+>>> print(sorted(pm.gather(node_locals, testnode) ))
+['Foo', '_foo', 'doFoo', 'foo', 'foo2', 'os', 'reflect', 'registerAdapter', 'set', 'sys', 'twisted']
+
+>>> print(sorted(pm.gather(node_locals, testclass) ))
+['__init__', 'list', 'x', 'y']
+
+>>> print(sorted(pm.gather(node_locals, testmethod) ))
+['self']
+
+Now let's not forget about our goal: builtins calls inference. So in order to be relatively sure we're not 
+misinterpreting builtins names, we nee to know all accessible names from any expression nodes. If the name 'list' is not
+declared it means it's an actual builtins call. 
+
+Let's use one of the provided analysis: L{analyses.node_enclosing_scope} as another dependency.
+
+>>> from . import analyses
+
+Note how the analyses can both be used as instance attribute, in which case they are run on the current node; 
+or as C{self.passmanager.gather()} argument to run them on any other nodes.
+
+>>> ast_scopes = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, 
+...     ast.SetComp, ast.DictComp, ast.ListComp, ast.GeneratorExp, ast.Lambda, ast.Module)
+>>> class declared_names(NodeAnalysis[set[str]]):
+...     "Collects all the explicitely declared names accessible from the current node"
+...     dependencies = (node_locals, analyses.node_enclosing_scope, )
+...     def doPass(self, node):
+...         declared = set(); i = 0; 
+...         scope = self.node_enclosing_scope if not isinstance(node, ast_scopes) else node
+...         while scope is not None:                      # first iteration. 
+...             if not isinstance(scope, ast.ClassDef) or i==0:
+...                 declared.update(self.passmanager.gather(node_locals, scope))
+...             scope = self.passmanager.gather(analyses.node_enclosing_scope, scope)
+...             i += 1
+...         return declared
+
+Let's try out this new analysis.
+
+>>> print(sorted(pm.gather(declared_names, testnode) ))
+['Foo', '_foo', 'doFoo', 'foo', 'foo2', 'os', 'reflect', 'registerAdapter', 'set', 'sys', 'twisted']
+
+>>> print(sorted(pm.gather(declared_names, testclass) ))
+['Foo', '__init__', '_foo', 'doFoo', 'foo', 'foo2', 'list', 'os', 'reflect', 'registerAdapter', 'set', 'sys', 'twisted', 'x', 'y']
+
+>>> print(sorted(pm.gather(declared_names, testmethod) ))
+['Foo', '_foo', 'doFoo', 'foo', 'foo2', 'os', 'reflect', 'registerAdapter', 'self', 'set', 'sys', 'twisted']
+
+Looks good... Now putting everything together:
+
+>>> callfuncs2type = {'list': list, 'dict': dict, 'set': set, 'tuple': tuple, 'str': str, 'frozenset': frozenset, 'int': int}
+>>> class infer_type(NodeAnalysis[type]):
+...     '''
+...     This class tries to infer the types of literal expression as 
+...     well builtins calls like dict(). 
+...     '''
+...     dependencies = (declared_names, )
+...     def doPass(self, node) -> type | None:
+...         if (isinstance(node, ast.Call) and 
+...             isinstance(node.func, ast.Name) and 
+...             node.func.id in callfuncs2type):
+...             if node.func.id not in self.declared_names:
+...                 return callfuncs2type[node.func.id]
+...             return None
+...         try:
+...             # try as literal
+...             return type(ast.literal_eval(node))
+...         except Exception:
+...             return None
+
+>>> testintcall = next(n for n in ast.walk(testnode) if isinstance(n, ast.Call) and getattr(n.func, 'id', None) == 'int')
+>>> testsetcall = next(n for n in ast.walk(testclass) if isinstance(n, ast.Call) and getattr(n.func, 'id', None) == 'set')
+>>> testlistcall1 = next(n for n in ast.walk(testclass) if isinstance(n, ast.Call) and getattr(n.func, 'id', None) == 'list')
+>>> testlistcall2 = next(n for n in ast.walk(testmethod) if isinstance(n, ast.Call) and getattr(n.func, 'id', None) == 'list')
+>>> testliteralstring = next(n for n in ast.walk(testnode) if isinstance(n, ast.Constant) and isinstance(n.value, str))
+
+We now have a manner to statically infer types of builtins calls with relatively high confidence (It could be improved, this is just an example after all).
+
+>>> pm.gather(infer_type, testintcall)
+<class 'int'>
+>>> pm.gather(infer_type, testsetcall) is None # fails because 'set' is an imported name
+True
+>>> pm.gather(infer_type, testlistcall1) is None # fails because 'list' is defined in class body
+True
+>>> pm.gather(infer_type, testlistcall2)
+<class 'list'>
+>>> pm.gather(infer_type, testliteralstring)
+<class 'str'>
+
+Sometime it is required for an analysis to have different behaviour depending on optional or required parameters.
+To write an analysis taking parameters: 
+    
+    - List all required parameters names in the C{requiredParameters} tuple.
+    - List all optional parameters in the C{optionalParameters} dict; 
+      keys are parameters names are values are the default values in case none is provided.
+    - To create your parameterized analysis simply call your analysis class with keywords coresponding to your
+      parameters. This will create a devired subclass with the parameters set at class level.
+    
+To write a transformation...
+
+
+"""
 
 # 1 - Only true analysis results should be in there # DONE
 # adapters do not belong in the cache since they can be re-created on the fly # DONE
@@ -43,8 +229,14 @@ There are two kinds of passes: transformations and analysis.
 #       1/ local hash (module ast + modulename + is_package, ...): that is only valid for intra-module analysis
 #       2/ inter-modules hash: that is a combinaison of the module hash and all it's dependencies'inter-module hashes.
 
-# If an analysis raises an exception during processing, this execption should be saved in the cache so it's re-raised
+# If an analysis raises an exception during processing, this execption should be saved in the cache so it's re-raised # DONE
 # whenever the same analysis is requested again.
+
+# When a module is added or removed all transitively using modules analysis should be cleared from the cache. # DONE
+
+# TODO: Integrate with a simple logging framework.
+
+# TODO: Think of where to use weakrefs. 
 
 # TODO: Work for having function and classes transformations
 # that will invalidate only the required function analyses.
@@ -59,48 +251,38 @@ There are two kinds of passes: transformations and analysis.
 
 # Ressources:
 # LLVM PassManager documentation: https://llvm.org/doxygen/classllvm_1_1PassManager.html
+# https://llvm.org/docs/WritingAnLLVMPass.html
+
 from __future__ import annotations
 
 from collections import defaultdict
-import enum
-from functools import lru_cache, partialmethod, partial
-import itertools
+from functools import lru_cache, partial
+from itertools import chain
+import queue
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
     Collection,
-    Dict,
     Hashable,
     Iterable,
     Iterator,
     Mapping,
     Optional,
-    Self,
-    Tuple,
     TypeVar,
     Generic,
     Sequence,
-    Type,
     Union,
-    TypeAlias,
-    final,
     overload,
 )
 import ast
-from time import time
-from contextlib import contextmanager
 from pathlib import Path
 import dataclasses
-import abc
 
 from beniget.ordered_set import ordered_set
 
-from .exceptions import NodeLocation
-
-
 @lru_cache(maxsize=None, typed=True)
-def newsubclass(cls: type, **class_dict: Hashable) -> type:
+def _newsubclass(cls: type, **class_dict: Hashable) -> type:
     """
     Create a subclass with the same caracteristics as
     the given class but add the provided class attributes.
@@ -113,10 +295,6 @@ def newsubclass(cls: type, **class_dict: Hashable) -> type:
     newcls.__qualname__ = cls.__qualname__
     assert isinstance(newcls, type)
     return newcls
-
-
-def location(node: ast.AST, filename: "str|None" = None) -> str:
-    return str(NodeLocation.make(node, filename=filename))
 
 
 if TYPE_CHECKING:
@@ -185,7 +363,7 @@ def walk(
 ):
     """
     Recursively yield all nodes matching the typecheck
-    in the tree starting at *node* (excluding *node* itself), in bfs order.
+    in the tree starting at *node* (B{excluding} *node* itself), in bfs order.
 
     Do not recurse on children of types matching the stopTypecheck type.
 
@@ -219,14 +397,6 @@ class EventDispatcher:
     def __init__(self) -> None:
         self._events: dict[type[Event], list[EventListener]] = {}
 
-    # def update_from_other(self, other:EventDispatcher) -> None:
-    #     """
-    #     Update this dispatcher with the listeners another dispatcher.
-    #     """
-    #     for event_type, listeners in other._events.items():
-    #         for l in listeners:
-    #             self.addEventListener(event_type, l)
-
     def hasListener(self, event_type: type[Event], listener: EventListener) -> bool:
         """
         Return true if listener is register to event_type
@@ -241,20 +411,11 @@ class EventDispatcher:
         """
         Dispatch an instance of Event class
         """
-        if __debug__:
-            D = True
-        else:
-            D = False
-
-        if D:
-            print(f"dispatching event {event!r}")
         # Dispatch the event to all the associated listeners
         if type(event) in self._events:
             listeners = self._events[type(event)]
 
             for listener in listeners:
-                if D:
-                    print(f"dispatching event {event!r} to listener {listener!r}")
                 listener(event)
 
     def addEventListener(
@@ -324,7 +485,48 @@ class ModuleRemovedEvent(Event):
     When a module is removed from the passmanager.
     """
 
-    mod: "Module"
+    mod: Module
+
+
+@dataclasses.dataclass(frozen=True)
+class RunningTransform(Event):
+    """
+    Before a transformation is run. 
+    """
+    
+    transformation: type[Transformation]
+    node: ast.AST
+
+
+@dataclasses.dataclass(frozen=True)
+class TransformEnded(Event):
+    """
+    After a transformation has been run.
+    """
+    
+    transformation: type[Transformation]
+    node: ast.AST
+
+
+@dataclasses.dataclass(frozen=True)
+class RunningAnalysis(Event):
+    """
+    Before an analysis is run. 
+    """
+    
+    analysis: type[Analysis]
+    node: ast.AST
+
+
+@dataclasses.dataclass(frozen=True)
+class AnalysisEnded(Event):
+    """
+    After an analysis has been run.
+    """
+    
+    analysis: type[Analysis]
+    node: ast.AST
+    result: _AnalysisResult
 
 
 @dataclasses.dataclass(frozen=True)
@@ -351,16 +553,73 @@ class Module:
 
 class Finder:
     """
-    In charge of finding python modules and creating ModuleSpec instances for them.
+    In charge of finding python modules and creating L{Module} instances for them.
     """
 
     search_context: SearchContext
 
-    def find_module_by_name(self, modname: str) -> Module:
-        ...
+    def module_by_name(self, modname: str) -> Module:
+        """
+        Find a module by name based on the current search context.
+        """
 
-    def iter_module_path(self, path: Path) -> Iterator[Module]:
-        ...
+    def modules_by_path(self, path: Path) -> Iterator[Module]:
+        """
+        If the path points to a directory it will yield recursively
+        all modules under the directory. Pass a file and it will alway yield one Module entry.
+        """
+
+
+class _Node2RootMapping(Mapping[ast.AST, ast.Module]):
+    """
+    Tracks the root modules of all nodes in the system.
+
+    Part of L{ModuleCollection}. 
+    """
+    def __init__(self, dispatcher: EventDispatcher) -> None:
+        super().__init__()
+        # register the event listeners
+        dispatcher.addEventListener(ModuleAddedEvent, self._onModuleAddedEvent)
+        dispatcher.addEventListener(ModuleChangedEvent, self._onModuleChangedEvent)
+        dispatcher.addEventListener(ModuleRemovedEvent, self._onModuleRemovedEvent)
+
+        # We might be using weak keys and values dictionnary here.
+        self.__data: dict[ast.AST, ast.Module] = {}
+
+    def _onModuleAddedEvent(self, event: ModuleAddedEvent | ModuleChangedEvent) -> None:
+        newmod = event.mod.node
+        for node in ast.walk(newmod):
+            self.__data[node] = newmod
+
+    def _onModuleRemovedEvent(
+        self, event: ModuleRemovedEvent | ModuleChangedEvent
+    ) -> None:
+        # O(n), every time :/
+        node = event.mod.node
+        to_remove = []
+        for n, r in self.__data.items():
+            if r is node:
+                to_remove.append(n)
+        for n in to_remove:
+            del self.__data[n]
+
+    def _onModuleChangedEvent(self, event: ModuleChangedEvent) -> None:
+        self._onModuleRemovedEvent(event)
+        self._onModuleAddedEvent(event)
+
+    # Boring mapping interface
+
+    def __contains__(self, __key: object) -> bool:
+        return __key in self.__data
+
+    def __getitem__(self, __key: ast.AST) -> ast.Module:
+        return self.__data[__key]
+
+    def __iter__(self) -> Iterator[ast.AST]:
+        return iter(self.__data)
+
+    def __len__(self) -> int:
+        return len(self.__data)
 
 
 class ModuleCollection(Mapping[str | ast.Module | ast.AST, Module]):
@@ -371,10 +630,10 @@ class ModuleCollection(Mapping[str | ast.Module | ast.AST, Module]):
     both by module name or by module ast node (alternatively by any node contained in a known module).
     """
 
-    def __init__(self, dispatcher: EventDispatcher, roots: RootModuleMapping):
+    def __init__(self, dispatcher: EventDispatcher):
         self.__name2module: dict[str, Module] = {}
         self.__node2module: dict[ast.Module, Module] = {}
-        self.__roots = roots
+        self.__roots = _Node2RootMapping(dispatcher)
 
         dispatcher.addEventListener(ModuleAddedEvent, self._onModuleAddedEvent)
         dispatcher.addEventListener(ModuleRemovedEvent, self._onModuleRemovedEvent)
@@ -411,7 +670,7 @@ class ModuleCollection(Mapping[str | ast.Module | ast.AST, Module]):
         del self.__name2module[modname]
         del self.__node2module[modnode]
 
-    # mapping interface
+    # Mapping interface
 
     def __getitem__(self, __key: str | ast.Module | ast.AST) -> Module:
         if isinstance(__key, str):
@@ -430,31 +689,25 @@ class ModuleCollection(Mapping[str | ast.Module | ast.AST, Module]):
         return len(self.__name2module)
 
 
-class CachedAnalysis(abc.ABC):
+class _AnalysisResult:
+    """
+    Simple wrapper for the result of an analysis.
+    """
     @property
-    @abc.abstractmethod
     def result(self) -> object:
-        ...
+        raise NotImplementedError(self.result)
 
     @classmethod
     def Success(self, result):
-        return _CachedResult(result)
+        return _AnalysisSuccess(result)
 
     @classmethod
     def Error(self, exception):
-        return _CachedError(exception)
-
-    @property
-    def is_success(self):
-        return isinstance(self, _CachedResult)
-
-    @property
-    def is_error(self):
-        return isinstance(self, _CachedError)
+        return _AnalysisError(exception)
 
 
 @dataclasses.dataclass(frozen=True)
-class _CachedError(CachedAnalysis):
+class _AnalysisError(_AnalysisResult):
     _error: Exception
 
     @property
@@ -463,7 +716,7 @@ class _CachedError(CachedAnalysis):
 
 
 @dataclasses.dataclass(frozen=True)
-class _CachedResult(CachedAnalysis):
+class _AnalysisSuccess(_AnalysisResult):
     _result: object
 
     @property
@@ -471,24 +724,24 @@ class _CachedResult(CachedAnalysis):
         return self._result
 
 
-class AnalysisCache:
+class _AnalysisCache:
     """
     The strucutre of the cache consist in nested dicts.
     But this class facilitates the messages with the module pass manager.
     """
 
     def __init__(self) -> None:
-        self.__data: dict[type[Analysis], dict[ast.AST, CachedAnalysis]] = defaultdict(
+        self.__data: dict[type[Analysis], dict[ast.AST, _AnalysisResult]] = defaultdict(
             dict
         )
 
-    def set(self, analysis: type[Analysis], node: ast.AST, result: CachedAnalysis):
+    def set(self, analysis: type[Analysis], node: ast.AST, result: _AnalysisResult):
         """
         Store the analysis result in the cache.
         """
         self.__data[analysis][node] = result
 
-    def get(self, analysis: type[Analysis], node: ast.AST) -> Optional[CachedAnalysis]:
+    def get(self, analysis: type[Analysis], node: ast.AST) -> Optional[_AnalysisResult]:
         """
         Query for the cached result of this analysis.
         """
@@ -504,7 +757,7 @@ class AnalysisCache:
         if analysis in self.__data:
             del self.__data[analysis]
 
-    def iter_analysis_types(self) -> Iterator[type[Analysis]]:
+    def analysisTypes(self) -> Iterator[type[Analysis]]:
         yield from self.__data
 
 
@@ -514,34 +767,50 @@ ReturnsT = TypeVar("ReturnsT")
 ChildAnalysisReturnsT = TypeVar("ChildAnalysisReturnsT")
 
 
-class PassMeta(abc.ABCMeta):
-    # The mata type is only necessary to implement the subclassing with arguments
+class _PassMeta(type):
+    # The meta type is only necessary to implement the subclassing with arguments
     # feature of the Pass class.
     # We should not add methods to the meta type unless absolutely required.
-    # This hack limits the subclass explosition issue (https://python-patterns.guide/gang-of-four/composition-over-inheritance/)
+    # This hack limits the subclass explosition issue, but not really;
     # by creating cached subclasses when calling the class with arguments.
 
     # TODO: required parameter should be supported as positional arguments.
     # but we need to handle when there are several values for one argument.
-    def __call__(cls: Pass, **kwargs: Hashable) -> Any:
+    @overload
+    def __call__(cls: type[Pass]) -> Pass:...
+    @overload
+    def __call__(cls: type[Pass], **kwargs: Hashable) -> type[Pass]:...
+    def __call__(cls: type[Pass], **kwargs: Hashable) -> Pass | type[Pass]:
         if not kwargs:
             # create instance only when calling with no arguments.
             return super().__call__()
 
-        # other wise created a derived type that binds the class attributes.
+        # otherwise create a derived type that binds the class attributes.
         # This is how we create analysis with several options.
         return cls._newTypeWithOptions(**kwargs)
 
 
-class PassDependencyDescriptor:
+class _PassDependencyDescriptor:
+    """
+    Simple container for a callback. 
+    We kinda re-implement part of the descriptor protocol here.
+
+    @see: L{Pass.__getattribute__}
+    """
     def __init__(self, callback: Callable[[], Any]) -> None:
         self.callback = callback
 
 
-class Pass(Generic[RunsOnT, ReturnsT], abc.ABC, metaclass=PassMeta):
+class Pass(Generic[RunsOnT, ReturnsT], metaclass=_PassMeta):
+    """
+    The base class for L{Analysis} and L{Transformation}.
+    """
+    
     dependencies: Sequence[type[Pass]] = ()
     """
-    Statically declared dependencies
+    Statically declared dependencies: If your pass requires a previous pass list it here. 
+    All L{Transformation}s will be applied eagerly while L{Analysis} result will be wrapped in a descriptor
+    waiting to be accessed before running. 
     """
 
     requiredParameters: tuple[str] = ()
@@ -557,7 +826,7 @@ class Pass(Generic[RunsOnT, ReturnsT], abc.ABC, metaclass=PassMeta):
     passmanager: ModulePassManager
 
     @classmethod
-    def _newTypeWithOptions(cls, **kwargs):
+    def _newTypeWithOptions(cls, **kwargs:Hashable):
         # verify no junk arguments are slipping throught.
         validNames = ordered_set((*cls.requiredParameters, *cls.optionalParameters))
         try:
@@ -591,9 +860,9 @@ class Pass(Generic[RunsOnT, ReturnsT], abc.ABC, metaclass=PassMeta):
             )
 
         # This will automatically trigger __init_subclass__, but just once because the resulting class is cached.
-        return newsubclass(cls, **kwargs)
+        return _newsubclass(cls, **kwargs)
 
-    def __init_subclass__(cls, **kwargs):
+    def __init_subclass__(cls, **kwargs:Hashable):
         super().__init_subclass__(**kwargs)
 
         # Set the default values for optional arguments
@@ -632,42 +901,44 @@ class Pass(Generic[RunsOnT, ReturnsT], abc.ABC, metaclass=PassMeta):
             )
 
     @classmethod
-    def _getAllDependencies(
-        cls, _seen: set[type[Analysis]] = None
-    ) -> Collection[type[Pass]]:
-        seen = _seen or ordered_set()
-        for d in cls.dependencies:
-            if d in seen:
-                continue
-            seen.add(d)
-            d._getAllDependencies(seen)
-        return None if _seen else seen
-
+    @lru_cache(maxsize=None)
+    def _getAllDependencies(cls) -> Collection[type[Pass]]:
+        seen = ordered_set()
+        def _yieldDeps(c:type[Analysis]):
+            yield from (d for d in c.dependencies if d not in seen)
+            yield from (d for d in chain.from_iterable(_yieldDeps(dep) for dep in c.dependencies) if d not in seen)
+        seen.update(_yieldDeps(cls))
+        return tuple(seen) 
+    
     @classmethod
     def _isAbstract(cls) -> bool:
         try:
             cls._verifyRequiredParamaters()
         except TypeError:
             return True
-        if cls.do_pass is Pass.do_pass:
+        if cls.doPass is Pass.doPass:
             return True
         return False
 
     @classmethod
+    @lru_cache(maxsize=None)
     def _usesModulesTransitive(cls) -> bool:
+        """
+        Whether this analysis uses the L{modules}.
+        """
         return any(d is modules for d in cls._getAllDependencies())
 
     def __getattribute__(self, name):
         # re-implement part of the descriptor protocol such that it
         # works dynamically at class instances level; see prepare().
         attr = super().__getattribute__(name)
-        if isinstance(attr, PassDependencyDescriptor):
+        if isinstance(attr, _PassDependencyDescriptor):
             return attr.callback()
         return attr
 
     def _verifyDependencies(self):
-        """ """
-        # Any kinf of analsis can depend on any other.
+        pass
+        # Any kinf of analsis can depend on any other at the moment.
 
     @classmethod
     def _verifyRequiredParamaters(cls):
@@ -684,88 +955,168 @@ class Pass(Generic[RunsOnT, ReturnsT], abc.ABC, metaclass=PassMeta):
         else:
             raise TypeError(f"{cls.__qualname__}() is missing keyword {missing!r}")
 
-    def _verifyScoping(self):
-        # verify scoping
-        if self._usesModulesTransitive() and not isinstance(
-            self.passmanager, ModulePassManager
-        ):
-            raise TypeError(
-                "This analysis uses other modules, you must use it through a PassManager instance."
-            )
-
     def prepare(self, node: RunsOnT):
-        """Gather analysis result required by this analysis"""
+        """
+        Gather analysis result required by this analysis.
+        """
         self._verifyDependencies()
-        self._verifyScoping()
         self._verifyRequiredParamaters()
+        
+        # Apply all transformations eagerly, since we use a descriptor for all analyses
+        # we need to transitively iterate dependent transforms and apply then now.
+        for transformation in self._getAllDependencies():
+            if issubclass(transformation, Transformation):
+                # Transformations always run the module since there
+                # are only module wide transformations at the moment.
+                self.passmanager.apply(transformation, self.passmanager.module.node)
 
         for analysis in self.dependencies:
             if issubclass(analysis, Transformation):
-                # Transformations always run the module since there
-                # are only module wide transformations at the moment.
-                self.passmanager.apply(analysis, self.passmanager.module.node)
+                pass
             elif issubclass(analysis, Analysis):
                 gather_on_node = node
                 if issubclass(analysis, ModuleAnalysis):
                     gather_on_node = self.passmanager.module.node
 
-                # Use a descriptors for all non-transformations.
+                # Use a descriptor-like interfacefor all non-transformations.
+                # If the dependency is abstract (i.e it does not have a required parameter)
+                # the dependent analyses should not use the self.analysis_name attribute - 
+                # it's going to fail with TypeError :/
+                # And instead use self.gather(analysis_name(keyword='stuff'), node)
                 callback = partial(
                     self.passmanager.gather, analysis, gather_on_node
                 )  # type:ignore
-                setattr(self, analysis.__name__, PassDependencyDescriptor(callback))
+                setattr(self, analysis.__name__, _PassDependencyDescriptor(callback))
             else:
                 raise TypeError(
                     f"dependencies should be a Transformation or an Analysis, not {analysis}"
                 )
 
-    def attach(self, pm: ModulePassManager):
+    def _attach(self, pm: ModulePassManager):
+        # Since a pass will only be instantiated with no arguments,
+        # we need this extra method to set the pass manager.
         self.passmanager = pm
 
     def run(self, node: RunsOnT) -> ReturnsT:
-        """Override this to add special pre or post processing handlers."""
-        self.prepare(node)
-        return self.do_pass(node)
+        """
+        Compute the analysis results. 
+        If self is transformation, apply transform and return new node.
 
-    @abc.abstractmethod
-    def do_pass(self, node: RunsOnT) -> ReturnsT:
+        Override this to add special pre or post processing handlers.
+        """
+        self.prepare(node)
+        return self.doPass(node)
+
+    def apply(self, node: RunsOnT) -> tuple[bool, ReturnsT]:
+        """
+        Apply transformation and return if an update happened.
+        If self is an analysis, print results.
+        """
+        raise NotImplementedError(self.apply)
+
+    def doPass(self, node: RunsOnT) -> ReturnsT:
         """
         Override this to add actual pass logic.
         """
+        raise NotImplementedError(self.doPass)
 
 
 class Analysis(Pass[RunsOnT, ReturnsT]):
     """
     A pass that does not change its content but gathers informations about it.
+
+    An analysis can have transformations listed in it's dependencies 
+    but should not call C{self.passmanager.apply} and must not manually update the tree.
     """
 
     update = False  # TODO: Is this needed?
 
     def run(self, node: RunsOnT) -> ReturnsT:
         typ = type(self)
-        cached_result = self.passmanager.cache.get(typ, node)
-        if cached_result is not None:  # the result is cached
-            result = (
-                cached_result.result
-            )  # will rase an error if the initial analysis raised
-        else:
-            try:
-                # this will call prepare().
-                result = super().run(node)
-            except Exception as e:
-                self.passmanager.cache.set(typ, node, CachedAnalysis.Error(e))
-                raise
+        self.passmanager._dispatcher.dispatchEvent(
+            RunningAnalysis(typ, node)
+        )
+        try:
+            analysis_result = self.passmanager.cache.get(typ, node)
+            if analysis_result is not None:  # the result is cached
+                result = (
+                    analysis_result.result
+                )  # will rase an error if the initial analysis raised
             else:
-                if not isinstance(self, UncachableAnalysis):
+                try:
+                    # this will call prepare().
+                    result = super().run(node)
+                except Exception as e:
+                    analysis_result = _AnalysisResult.Error(e)
+                    self.passmanager.cache.set(typ, node, analysis_result)
+                    raise
+                analysis_result = _AnalysisResult.Success(result)
+                if not isinstance(self, DoNotCacheAnalysis):
                     # only set values in the cache for non-proxy analyses.
                     self.passmanager.cache.set(
-                        typ, node, CachedAnalysis.Success(result)
+                        typ, node, analysis_result
                     )
+        finally:
+            self.passmanager._dispatcher.dispatchEvent(
+                AnalysisEnded(typ, node, analysis_result)
+            )
         return result
 
     def apply(self, node: RunsOnT) -> tuple[bool, RunsOnT]:
         print(self.run(node))
         return False, node
+
+
+class Transformation(Pass[ast.Module | None, ast.Module]):
+    """
+    A pass that updates the module's content.
+    
+    A transformation must never update other modules, but otherwise can change anything in
+    the current module including global varibles functions and classes.
+    """
+
+    preserves_analysis = ()
+    """
+    One of the jobs of the PassManager is to optimize how and when analyses are run. 
+    In particular, it attempts to avoid recomputing data unless it needs to. 
+    For this reason, passes are allowed to declare that they preserve (i.e., they don’t invalidate) an 
+    existing analysis if it’s available. For example, a simple constant folding pass would not modify the 
+    CFG, so it can’t possibly affect the results of dominator analysis. 
+    
+    By default, all passes are assumed to invalidate all others in the current module as
+    well as all other analyses that transitively uses the L{modules} analisys.
+
+    This variable should be overridden by subclasses to provide specific list.
+    """
+
+    update = False
+    """
+    It should be True if the module was modified by the transformation and False otherwise.
+    """
+
+    def run(self, node: ast.Module | None = None) -> ast.Module:
+        typ = type(self)
+        if node is None:
+            node = self.passmanager.module.node
+        else:
+            assert node is self.passmanager.module.node
+        # TODO: think of a way to cache no-op transformations so that they are not re-run every time an analysis 
+        # with transformations in it's dependencies is ran...
+        self.passmanager._dispatcher.dispatchEvent(RunningTransform(typ, node))
+        try:
+            # TODO: Does it actually fixes the new node locations ? I don't think so.
+            n = super().run(node)
+            # the transformation updated the AST, so analyses may need to be rerun
+            if self.update:
+                self.passmanager._moduleTransformed(self, self.passmanager.module)
+        finally:
+            self.passmanager._dispatcher.dispatchEvent(TransformEnded(typ, node))
+
+        return n
+
+    def apply(self, node: ast.Module | None = None) -> tuple[bool, ast.Module]:
+        new_node = self.run(node)
+        return self.update, new_node
 
 
 class ModuleAnalysis(Analysis[ast.Module, ReturnsT]):
@@ -790,22 +1141,28 @@ class NodeAnalysis(Analysis[ast.AST, ReturnsT]):
     """An analysis that operates on any node."""
 
 
-class UncachableAnalysis(Analysis[RunsOnT, ReturnsT]):
-    ...
+class DoNotCacheAnalysis(Analysis[RunsOnT, ReturnsT]):
+    
+    """
+    An analysis that will never be cached.
+    """
 
 
-class AnalysisProxy(
-    UncachableAnalysis[ast.Module, Mapping["_FuncOrClassTypes", ChildAnalysisReturnsT]],
+class _AnalysisProxy(
+    DoNotCacheAnalysis[ast.Module, Mapping["_FuncOrClassTypes", ChildAnalysisReturnsT]],
     Generic[ChildAnalysisReturnsT],
 ):
     """
-    A module analysis that returns a simple structure proxy for containing nodes.
+    A module analysis that returns a simple structure proxy for containing class or function nodes.
     """
 
     # the results of each analysis and make them accessible in the result dict proxy.
     # the result must watch invalidations in order to reflect the changes
 
     requiredParameters = ("analysis",)
+
+    if TYPE_CHECKING:
+        analysis: type[Analysis]
 
     def __keys_factory(self, node: ast.Module) -> Collection[_FuncOrClassTypes]:
         if isinstance(self.analysis, ClassAnalysis):
@@ -819,22 +1176,22 @@ class AnalysisProxy(
             walk(
                 node,
                 typecheck,
-                # For performance, we stop the tree waling as soon as we hit
+                # For performance, we stop the tree walking as soon as we hit
                 # statement nodes that cannot contain class or functions.
                 _CannotContainClassOrFunctionTypes,
             )
         )
 
-    def do_pass(
+    def doPass(
         self, node: ast.Module
     ) -> Mapping[_FuncOrClassTypes, ChildAnalysisReturnsT]:
         assert isinstance(node, ast.Module)
-        return AnalysisProxyResult(
+        return _AnalysisProxyResult(
             self.passmanager, node, self.analysis, self.__keys_factory
         )
 
 
-class AnalysisProxyResult(
+class _AnalysisProxyResult(
     Mapping["_FuncOrClassTypes", ChildAnalysisReturnsT], Generic[ChildAnalysisReturnsT]
 ):
     # used for class/function to module analysis promotions
@@ -883,116 +1240,41 @@ class AnalysisProxyResult(
             self.__keys = self.__keys_factory(self.__module)
 
 
-class modules(UncachableAnalysis[None, ModuleCollection]):
+class modules(DoNotCacheAnalysis[None, ModuleCollection]):
     """
-    This analysis returns the mapping of modules: L{ModuleCollection}.
+    Special analysis that results in the mapping of modules: L{ModuleCollection}.
+    Use this to access other modules in the system.
     """
-
-    passmanager: ModulePassManager
 
     def run(self, _: None) -> Any:
         # skip prepare() since this analysis is trivially special
-        return self.do_pass(None)
+        return self.doPass(None)
 
-    def do_pass(self, _: None) -> ModuleCollection:
+    def doPass(self, _: None) -> ModuleCollection:
         return self.passmanager._getModules(self)
-
-
-class Transformation(Pass[ast.Module, ast.Module]):
-    """A pass that updates its content."""
-
-    preserves_analysis = ()
-    """
-    This variable should be overridden by subclasses to provide specific list.
-    By default, assume all analyses are affected. 
-    """
-
-    update = False
-
-    def run(self, node: ast.Module | None = None) -> ast.Module:
-        """Apply transformation and dependencies and fix new node location."""
-        if node is None:
-            node = self.passmanager.module.node
-        else:
-            assert node is self.passmanager.module.node
-
-        # TODO: Does it actually fixes the new node locations ? I don't think so.
-        n = super().run(node)
-        # the transformation updated the AST, so analyses may need to be rerun
-        if self.update:
-            self.passmanager._moduleTransformed(self, self.passmanager.module)
-
-        return n
-
-    def apply(self, node):
-        """Apply transformation and return if an update happened."""
-        new_node = self.run(node)
-        return self.update, new_node
-
-
-class RootModuleMapping(Mapping[ast.AST, ast.Module]):
-    def __init__(self, dispatcher: EventDispatcher) -> None:
-        super().__init__()
-        # register the event listeners
-        dispatcher.addEventListener(ModuleAddedEvent, self._onModuleAddedEvent)
-        dispatcher.addEventListener(ModuleChangedEvent, self._onModuleChangedEvent)
-        dispatcher.addEventListener(ModuleRemovedEvent, self._onModuleRemovedEvent)
-
-        # We might be using weak keys and values dictionnary here.
-        self.__data: dict[ast.AST, ast.Module] = {}
-
-    def _onModuleAddedEvent(self, event: ModuleAddedEvent | ModuleChangedEvent) -> None:
-        newmod = event.mod.node
-        for node in ast.walk(newmod):
-            self.__data[node] = newmod
-
-    def _onModuleRemovedEvent(
-        self, event: ModuleRemovedEvent | ModuleChangedEvent
-    ) -> None:
-        # O(n), every time :/
-        node = event.mod.node
-        to_remove = []
-        for n, r in self.__data.items():
-            if r is node:
-                to_remove.append(n)
-        for n in to_remove:
-            del self.__data[n]
-
-    def _onModuleChangedEvent(self, event: ModuleChangedEvent) -> None:
-        self._onModuleRemovedEvent(event)
-        self._onModuleAddedEvent(event)
-
-    # Mapping interface
-
-    def __contains__(self, __key: object) -> bool:
-        return __key in self.__data
-
-    def __getitem__(self, __key: ast.AST) -> ast.Module:
-        return self.__data[__key]
-
-    def __iter__(self) -> Iterator[ast.AST]:
-        return iter(self.__data)
-
-    def __len__(self) -> int:
-        return len(self.__data)
 
 
 class ModulePassManager:
     """
-    Front end to the module-level pass system.
-    One `ModulePassManager` can only be used to analyse one module.
+    Front end to the pass system when accessing L{self.passmanager <Pass.passmanager>} 
+    from an analysis or transformation methods.
     """
 
-    def __init__(self, module: Module, passmanager: ProjectPassManager) -> None:
-        """ """
+    def __init__(self, module: Module, passmanager: PassManager) -> None:
+        "constructor is private"
         self.module = module
-        self.cache = AnalysisCache()
-        self.__pm = passmanager
-        self.__pm._dispatcher.addEventListener(
+        self.cache = _AnalysisCache()
+        self._dispatcher = passmanager._dispatcher
+        self._dispatcher.addEventListener(
             InvalidatedAnalysisEvent, self._onInvalidatedAnalysisEvent
         )
+        self.__pm = passmanager
 
     def gather(self, analysis: type[Analysis], node: ast.AST | None = None):
+        """
+        Call an ``analysis`` on any node in the system. If the node os not given the current module is used.
+        """
+
         if not issubclass(analysis, Analysis):
             raise TypeError(f"unexpected analysis type: {analysis}")
 
@@ -1004,17 +1286,25 @@ class ModulePassManager:
 
         # Promote the analysis if necessary
         if isinstance(node, ast.Module):
+            # Node analysis cannot be prpoted because they can also run on modules.
+            # TODO: we could introduce an ExpressionAnalysis that could be promoted to module analysis.
             if issubclass(analysis, (FunctionAnalysis, ClassAnalysis)):
                 # scope to module promotions
-                analysis = AnalysisProxy(analysis=analysis)
+                analysis = _AnalysisProxy(analysis=analysis)
                 assert issubclass(analysis, Analysis)
 
         a = analysis()
-        a.attach(self)
+        a._attach(self)
         ret = a.run(node)
         return ret
 
     def apply(self, transformation: type[Pass], node: ast.Module | None = None):
+        """
+        Call a `transformation' on a `node'. If the node os not given the current module is used.
+        If the transformation is an analysis, the result of the analysis
+        is displayed.
+        """
+
         if not issubclass(transformation, (Transformation, Analysis)):
             raise TypeError(f"unexpected analysis type: {transformation}")
 
@@ -1028,17 +1318,14 @@ class ModulePassManager:
             raise TypeError(f"unexpected node type: {node}")
 
         a = transformation()
-        a.attach(self)
+        a._attach(self)
         ret = a.apply(node)
         return ret
-
-    def _iterPassManagers(self) -> Iterable[ModulePassManager]:
-        return self.__pm._passmanagers.values()
 
     def _moduleTransformed(self, transformation: Transformation, mod: Module):
         """
         Alert that the given module has been transformed, this is automatically called
-        at the end of a triaformation if it updated the module.
+        at the end of a transformation if it updated the module.
         """
         self.__pm._dispatcher.dispatchEvent(  # this is for the root modules mapping.
             ModuleChangedEvent(mod)
@@ -1048,20 +1335,19 @@ class ModulePassManager:
         # Instead of clearing the entire cache, only invalidate analysis that are affected
         # by the transformation.
         invalidated_analyses: set[type[Analysis]] = ordered_set()
-        for mpm in self._iterPassManagers():
-            for analysis in mpm.cache.iter_analysis_types():
-                if (
-                    # if the analysis is explicitely presedved by this transform,
-                    # do not invalidate.
-                    (analysis not in transformation.preserves_analysis)
-                    and (
-                        # if it's not explicately preserved and the transform affects the module
-                        # invalidate.             or if the analysis requires other modules
-                        (mpm.module.node is mod.node)
-                        or (analysis._usesModulesTransitive())
-                    )
-                ):
-                    invalidated_analyses.add(analysis)
+        for mpm, analysis in self.__pm._caches.managersAnalyses():
+            if (
+                # if the analysis is explicitely presedved by this transform,
+                # do not invalidate.
+                (analysis not in transformation.preserves_analysis)
+                and (
+                    # if it's not explicately preserved and the transform affects the module
+                    # invalidate.             or if the analysis requires other modules
+                    (mpm.module.node is mod.node)
+                    or (analysis._usesModulesTransitive())
+                )
+            ):
+                invalidated_analyses.add(analysis)
 
         for analys in invalidated_analyses:
             # alert that this analysis has been invalidated
@@ -1078,14 +1364,13 @@ class ModulePassManager:
         # FunctionAnalysis
         # ClassAnalysis
         # ModuleAnalysis
-        # AnalysisAdaptor -> cannot be
 
         analysis: type[Analysis] = event.analysis
         node: ast.Module = event.node
 
         assert isinstance(node, ast.Module)
         # It cannot be an adaptor because we don't store them in the cache
-        assert not issubclass(analysis, UncachableAnalysis)
+        assert not issubclass(analysis, DoNotCacheAnalysis)
 
         if analysis._usesModulesTransitive() or node is self.module.node:
             self.cache.clear(analysis)
@@ -1098,8 +1383,11 @@ class ModulePassManager:
         return self.__pm.modules
 
 
-class PassManagerCollection(Mapping[Module, ModulePassManager]):
-    def __init__(self, passmanager: ProjectPassManager) -> None:
+class _PassManagerCollection(Mapping[Module, ModulePassManager]):
+    """
+    Mapping from L{Module} to their L{ModulePassManager}.
+    """
+    def __init__(self, passmanager: PassManager) -> None:
         super().__init__()
         self._passmanager = passmanager
 
@@ -1116,9 +1404,25 @@ class PassManagerCollection(Mapping[Module, ModulePassManager]):
 
     def _onModuleAddedEvent(self, event: ModuleAddedEvent) -> None:
         self.__data[event.mod] = ModulePassManager(event.mod, self._passmanager)
+        
+        # dispatch InvalidatedAnalysisEvent for all analyses, this will only remove analyses that
+        # depends on other modules
+        for a in self._passmanager._caches.allAnalyses():
+            if a._usesModulesTransitive():
+                self._passmanager._dispatcher.dispatchEvent(
+                    InvalidatedAnalysisEvent(a, event.mod.node)
+                )
 
     def _onModuleRemovedEvent(self, event: ModuleRemovedEvent) -> None:
-        del self.__data[event.mod]
+        del self.__data[event.mod] # this **should** free the memory from all analyses in the cache for this module.
+        
+        # dispatch InvalidatedAnalysisEvent for all analyses, this will only remove analyses that
+        # depends on other modules
+        for a in self._passmanager._caches.allAnalyses():
+            if a._usesModulesTransitive():
+                self._passmanager._dispatcher.dispatchEvent(
+                    InvalidatedAnalysisEvent(a, event.mod.node)
+                )
 
     # Mapping interface
 
@@ -1135,7 +1439,31 @@ class PassManagerCollection(Mapping[Module, ModulePassManager]):
         return len(self.__data)
 
 
-class ProjectPassManager:
+class _PMCacheProxy:
+    """
+    Provide methods to acces cached analyses types accros all L{ModulePassManager}s.
+    """
+    def __init__(self, pms: _PassManagerCollection) -> None:
+        self.__pms = pms
+    
+    def managersAnalyses(self) -> Iterator[tuple[ModulePassManager, type[Analysis]]]:
+        """
+        For each analysis in each passmanagers yield C{(ModulePassManager, type[Analysis])}.
+        """
+        for mpm in self.__pms.values():
+            for analysis in mpm.cache.analysisTypes():
+                yield mpm, analysis
+    
+    def allAnalyses(self) -> Collection[type[Analysis]]:
+        """
+        Collect all analyses types in a set.
+        """
+        r = ordered_set()
+        for _, a in self.managersAnalyses():
+            r.add(a)
+        return r
+
+class PassManager:
     """
     Front end to the inter-modules pass system.
     One `PassManager` can be used for the analysis of a collection of modules.
@@ -1143,12 +1471,11 @@ class ProjectPassManager:
 
     def __init__(self):
         d = EventDispatcher()
-        r = RootModuleMapping(d)
 
-        self.modules = ModuleCollection(d, r)
-
+        self.modules = ModuleCollection(d)
         self._dispatcher = d
-        self._passmanagers = PassManagerCollection(self)
+        self._passmanagers = pms = _PassManagerCollection(self)
+        self._caches = _PMCacheProxy(pms)
 
     def add_module(self, mod: Module):
         """
@@ -1200,4 +1527,9 @@ class ProjectPassManager:
         return mpm.apply(transformation, node)
 
 
-PassManager = ProjectPassManager
+class Statistics:
+    def __init__(self, dispatcher: EventDispatcher) -> None:
+        pass
+
+    def _onRun(self, event):...
+    def _onFinish(self, event):...
