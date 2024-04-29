@@ -335,8 +335,8 @@ class TestPassManagerFramework(TestCase):
         class other_ananlysis(NodeAnalysis):
             dependencies = (list_modules_keys, )
         
-        assert list_modules_keys._usesModulesTransitive()
-        assert other_ananlysis._usesModulesTransitive()
+        assert list_modules_keys._isInterModuleAnalysis()
+        assert other_ananlysis._isInterModuleAnalysis()
 
         assert pm.gather(list_modules_keys, node1) == ['test', 'test2']
         assert pm.gather(list_modules_keys, node2) == ['test', 'test2']
@@ -346,8 +346,8 @@ class TestPassManagerFramework(TestCase):
         project = has_dynamic_dependencies(project_wide=True)
 
         assert normal.dependencies != project.dependencies
-        assert not normal._usesModulesTransitive()
-        assert project._usesModulesTransitive()
+        assert not normal._isInterModuleAnalysis()
+        assert project._isInterModuleAnalysis()
 
     def test_simple_module_analysis(self):
         src = ('class A(object): ...\n'
@@ -541,10 +541,33 @@ class TestPassManagerFramework(TestCase):
         pass # TODO: We should be able to hack something to get the run times of all analyses
         # 
 
+    def test_pass_can_gather_analyses_noy_listed_in_dependencies(self):
+        ...
+    
+    def test_pass_can_apply_transformation_not_listed_in_dependencies(self):
+        ...
+
     def test_not_using_modules_analysis_cannot_gather_other_using_modules_analysis(self):
         pass # TODO: If none of the statically declared dependencies depends on the 'modules'
         # analsis; trying to gather an analysis manually with self.passmanager.gather(analysis, node)
         # will fail.
+        assertRaisesRe = self.assertRaisesRegex
+        class main_intra_module_analysis(NodeAnalysis):
+            dependencies = (node_list, )
+            def doPass(self, node: ast.AST) -> Any:
+                with assertRaisesRe(TypeError, 'You must list passmanager.modules in you pass dependencies'):
+                    self.passmanager.gather(has_dynamic_dependencies(project_wide=True), node)
+        
+        src = 'pass'
+        pm = PassManager()
+        pm.add_module(Module(
+            ast.parse(src), 'test', 'test.py', code=src, 
+        ))
+        
+        pm.gather(main_intra_module_analysis, pm.modules['test'].node)
+                
+    def test_not_using_modules_analysis_cannot_apply_transformation_using_modules_analysis(self):
+        pass # TODO: same for a transformation
 
     def test_analysis_that_applies_a_transformation(self):
         # using self.passmanager.apply from the doPass method.
@@ -576,6 +599,27 @@ class TestPassManagerFramework(TestCase):
         # when an analysis is declared as a dependency a descriptor is used to
         # run the analysis only when accessed with self.analysis_name
         ...
+        class dependency_that_raises_an_error(NodeAnalysis[None]):
+            def doPass(self, node: ast.AST) -> None:
+                raise RuntimeError()
+        
+        class dependent(NodeAnalysis[None]):
+            dependencies = (dependency_that_raises_an_error, )
+            optionalParameters = {'access_dependency_that_raises_an_error': False}
+            def doPass(self, node: ast.AST) -> None:
+                if self.access_dependency_that_raises_an_error:
+                    self.dependency_that_raises_an_error
+        
+        src = 'pass'
+        pm = PassManager()
+        pm.add_module(Module(
+            ast.parse(src), 'test', 'test.py', code=src, 
+        ))
+
+        pm.gather(dependent, pm.modules['test'].node)
+
+        with self.assertRaises(RuntimeError):
+            pm.gather(dependent(access_dependency_that_raises_an_error=True), pm.modules['test'].node)
 
     def test_transformation_with_analysis_dependencies(self):
         # after the transformation have been executed, if the dependent analysis is not
@@ -604,9 +648,58 @@ class TestPassManagerFramework(TestCase):
     
     def test_function_to_module_analysis_promotion(self):
         # we'll gather the results of whether the function accepts any keywords on a whole module
-        ...
+        node = ast.parse(dedent('''
+        def f1(a, *, b):...                   
+        def f2(**kw):
+            def f3(*, c, d):...
+            class s:
+                def __init__(self, ):...
+        '''))
+        class test_analysis(ModuleAnalysis[None]):
+            requiredParameters = ('expected_number_of_functions', )
+            dependencies = (function_arguments, )
+            def doPass(self, node: ast.Module) -> True:
+                assert isinstance(self.function_arguments, passmanager._AnalysisProxyResult)
+                assert len(self.function_arguments) == self.expected_number_of_functions
+                assert all(isinstance(n, ast.FunctionDef) for n in self.function_arguments)
+                return True
+        
+        class RemoveAllInitMethod(Transformation):
+            """Dummy transform that removed all __init__ methods."""
+            dependencies = (analyses.node_enclosing_scope, )
+            def doPass(self, node: ast.Module | None) -> ast.Module:
+                updates = False
+                class transformer(ast.NodeTransformer):
+                    def visit_FunctionDef(tself, node: ast.FunctionDef) -> Any:
+                        if node.name == '__init__' and isinstance(
+                            self.passmanager.gather(analyses.node_enclosing_scope, node), ast.ClassDef):
+                            nonlocal updates
+                            updates = True
+                            return None
+                        return tself.generic_visit(node)
+                transformer().visit(node)
+                self.update = updates
+                return node
+
+        pm = PassManager()
+        pm.add_module(Module(node, 'test'))
+        assert pm.gather(test_analysis(expected_number_of_functions=4), node)
+        assert passmanager._AnalysisProxy not in pm._caches.allAnalyses()
+
+        pm.apply(RemoveAllInitMethod, node)
+        assert test_analysis not in pm._caches.allAnalyses()
+        assert analyses.node_enclosing_scope not in pm._caches.allAnalyses()
+        
+        assert pm.gather(test_analysis(expected_number_of_functions=3), node)
+        assert test_analysis(expected_number_of_functions=3) in pm._caches.allAnalyses()
+        
+        pm.apply(RemoveAllInitMethod, node) # it did not updated
+        assert test_analysis(expected_number_of_functions=3) in pm._caches.allAnalyses()
     
     def test_class_to_module_analysis_promotion(self):
         # class bases on a whole module
         ...
 
+    def test_do_not_cache_analysis_honored(self):
+        # TODO: It seem that _AnalysisProxy types are still added to the caches
+        ...

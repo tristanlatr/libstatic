@@ -1131,7 +1131,9 @@ class modules(DoNotCacheAnalysis[None, ModuleCollection]):
     def doPass(self, _: None) -> ModuleCollection:
         return self.passmanager._getModules(self)
 
-
+# TODO: wrap the self.passmanager attribute in passes so that it's has knowledge of the type of analysis
+# we're in so it can raise a runtime exception when a inter-modules analysis is used when it shound't for instance. 
+# Also this will gives us the ability to remove references to PassManager in the ModulePassManager which is a very nice decouplage to have.
 class ModulePassManager:
     """
     Front end to the pass system when accessing L{self.passmanager <Pass.passmanager>} 
@@ -1150,7 +1152,7 @@ class ModulePassManager:
 
     def gather(self, analysis: type[Analysis], node: ast.AST):
         """
-        Call an L{analysis} on any node in the system. If the node os not given the current module is used.
+        Call an L{analysis} on any node in the system.
         """
 
         if not issubclass(analysis, Analysis):
@@ -1169,7 +1171,7 @@ class ModulePassManager:
                 assert issubclass(analysis, Analysis)
 
         a = analysis()
-        a._attach(self)
+        a._attach(VerifyCallsPassManager(a, self))
         ret = a.run(node)
         return ret
 
@@ -1190,7 +1192,7 @@ class ModulePassManager:
             raise TypeError(f"unexpected node type: {node}")
 
         a = transformation()
-        a._attach(self)
+        a._attach(VerifyCallsPassManager(a, self))
         ret = a.apply(node)
         return ret
 
@@ -1251,6 +1253,38 @@ class ModulePassManager:
                 f"Only the analysis {modules.__qualname__!r} can access the ModuleCollection, use that in your pass dependecies."
             )
         return self.__pm.modules
+
+
+class VerifyCallsPassManager:
+    """
+    A proxy to the pass manager that makes sure an intra-module analysis does not depend on inter-module analysis.
+    """
+    def __init__(self, analysis: Analysis, mpm: ModulePassManager) -> None:
+        self.__mpm = mpm
+        
+        if not analysis._isInterModuleAnalysis():
+
+            def gather(analysis_: type[Analysis], node: ast.AST):
+                if analysis_._isInterModuleAnalysis():
+                    raise TypeError(f'You must list passmanager.modules in you pass dependencies to gather this analysis: {analysis_}')    
+                return mpm.gather(analysis_, node)        
+            
+            def apply(transformation_: type[Transformation], node: ast.AST):
+                if transformation_._isInterModuleAnalysis():
+                    raise TypeError(f'You must list passmanager.modules in you pass dependencies to apply this transformation: {transformation_}')  
+                return mpm.apply(transformation_, node)        
+
+            self.apply = apply
+            self.gather = gather
+    
+    def __getattribute__(self, name: str) -> Any:
+        try:
+            return super().__getattribute__(name)
+        except AttributeError as e:
+            try:
+                return getattr(self.__mpm, name)
+            except AttributeError:
+                raise e
 
 
 class _PassManagerCollection(Mapping[Module, ModulePassManager]):
@@ -1356,23 +1390,25 @@ class PassManager:
         self._dispatcher.dispatchEvent(ModuleRemovedEvent(mod))
 
     # How to handle cycles ? With a context manager that will push onto a set of running analyses.
-    @overload
-    def gather(
-        self, analysis: type[Analysis[RunsOnT, ReturnsT]], node: RunsOnT
-    ) -> ReturnsT:
-        ...
+    # @overload
+    # def gather(
+    #     self, analysis: type[Analysis[RunsOnT, ReturnsT]], node: RunsOnT
+    # ) -> ReturnsT:
+    #     ...
 
-    @overload
-    def gather(
-        self,
-        analysis: type[ClassAnalysis[ReturnsT] | FunctionAnalysis[ReturnsT]],
-        node: ast.Module,
-    ) -> Mapping[_FuncOrClassTypes, ReturnsT]:
-        ...
+    # @overload
+    # def gather(
+    #     self,
+    #     analysis: type[ClassAnalysis[ReturnsT] | FunctionAnalysis[ReturnsT]],
+    #     node: ast.Module,
+    # ) -> Mapping[_FuncOrClassTypes, ReturnsT]:
+    #     ...
 
-    def gather(
-        self, analysis: type[Analysis[RunsOnT, ReturnsT]], node: RunsOnT | ast.Module
-    ) -> ReturnsT | Mapping[_FuncOrClassTypes, ReturnsT]:
+    # def gather(
+    #     self, analysis: type[Analysis[RunsOnT, ReturnsT]], node: RunsOnT | ast.Module
+    # ) -> ReturnsT | Mapping[_FuncOrClassTypes, ReturnsT]:
+
+    def gather(self, analysis: type[Analysis], node: ast.AST):
         """
         High-level function to call an L{Analysis} on any node in the system.
         """
