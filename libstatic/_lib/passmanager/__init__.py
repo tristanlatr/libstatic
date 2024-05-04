@@ -24,6 +24,7 @@ we're not misinterpreting a symbol name.
 
 Start by coding the logic of your lower-level analysis, which in our case computes the locals for a given scope:
 
+>>> import ast
 >>> class CollectLocals(ast.NodeVisitor):
 ...    "Compute the set of identifiers local to a given node."
 ...    def __init__(self):
@@ -204,6 +205,7 @@ Instead of writing several L{Analysis} subclass calling un underlying function w
       parameters. This will create a devired subclass with the parameters set at class level.
     
 To write a transformation...
+
     - Subclass L{Transformation} class. Keep in mind that a transformation is always run at the module level.
     - List passes required by yours in the L{Analysis.dependencies} tuple, 
       they will be built automatically and stored in the attribute with the corresponding name.
@@ -316,89 +318,6 @@ def _newsubclass(cls: type, **class_dict: Hashable) -> type:
     newcls.__qualname__ = cls.__qualname__
     assert isinstance(newcls, type)
     return newcls
-
-
-if TYPE_CHECKING:
-    _FuncOrClassTypes = ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef
-    _ScopesTypes = (
-        _FuncOrClassTypes
-        | ast.SetComp
-        | ast.DictComp
-        | ast.ListComp
-        | ast.GeneratorExp
-        | ast.Lambda
-    )
-    _CannotContainClassOrFunctionTypes = (
-        ast.expr
-        | ast.Return
-        | ast.Delete
-        | ast.Assign
-        | ast.AugAssign
-        | ast.AnnAssign
-        | ast.Raise
-        | ast.Assert
-        | ast.Import
-        | ast.ImportFrom
-        | ast.Global
-        | ast.Nonlocal
-        | ast.Expr
-        | ast.Pass
-        | ast.Break
-        | ast.Continue
-    )
-
-else:
-    _FuncOrClassTypes = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
-    _ScopesTypes = (
-        *_FuncOrClassTypes,
-        ast.SetComp,
-        ast.DictComp,
-        ast.ListComp,
-        ast.GeneratorExp,
-        ast.Lambda,
-    )
-    _CannotContainClassOrFunctionTypes = (
-        ast.expr,
-        ast.Return,
-        ast.Delete,
-        ast.Assign,
-        ast.AugAssign,
-        ast.AnnAssign,
-        ast.Raise,
-        ast.Assert,
-        ast.Import,
-        ast.ImportFrom,
-        ast.Global,
-        ast.Nonlocal,
-        ast.Expr,
-        ast.Pass,
-        ast.Break,
-        ast.Continue,
-    )
-
-# TODO add ast.TypeAlias to the list when python 3.13 is supported by gast
-
-
-def walk(
-    node: ast.AST, typecheck: type | None = None, stopTypecheck: type | None = None
-):
-    """
-    Recursively yield all nodes matching the typecheck
-    in the tree starting at *node* (B{excluding} *node* itself), in bfs order.
-
-    Do not recurse on children of types matching the stopTypecheck type.
-
-    See also L{ast.walk} that behaves diferently.
-    """
-    from collections import deque
-
-    todo = deque(ast.iter_child_nodes(node))
-    while todo:
-        node = todo.popleft()
-        if stopTypecheck is None or not isinstance(node, stopTypecheck):
-            todo.extend(ast.iter_child_nodes(node))
-        if typecheck is None or isinstance(node, typecheck):
-            yield node
 
 
 @dataclasses.dataclass(frozen=True)
@@ -617,16 +536,19 @@ class _AnalysisCache:
         """
         Store the analysis result in the cache.
         """
+        assert not analysis.do_not_cache
         self.__data[analysis][node] = result
 
     def get(self, analysis: type[Analysis], node: ast.AST) -> Optional[_AnalysisResult]:
         """
         Query for the cached result of this analysis.
         """
-        try:
-            return self.__data[analysis][node]
-        except KeyError:
-            return None
+        if analysis in self.__data:
+            try:
+                return self.__data[analysis][node]
+            except KeyError:
+                return None
+        return None
 
     def clear(self, analysis: type[Analysis]):
         """
@@ -669,6 +591,22 @@ class _PassMeta(type):
         # otherwise create a derived type that binds the class attributes.
         # This is how we create analysis with several options.
         return cls._newTypeWithOptions(**kwargs)
+
+    # Custom repr so we can showcase the parameter values.
+    def __str__(self: type[Pass]) -> str:
+        passname = self.__qualname__
+        args = []
+        for p in self.requiredParameters:
+            args.append( f'{p}={getattr(self, p, '<?>')}' )
+        for p in self.optionalParameters:
+            args.append( f'{p}={getattr(self, p, '<?>')}' )
+        if args:
+            passname += f'({", ".join(args)})'
+        return f'<class {passname!r}>'
+    
+    __repr__ = __str__
+            
+
 
 
 class _PassDependencyDescriptor:
@@ -907,7 +845,15 @@ class Analysis(Pass[RunsOnT, ReturnsT]):
     but should not call C{self.passmanager.apply} and must not manually update the tree.
     """
 
-    update = False  # TODO: Is this needed?
+    do_not_cache = False
+    """
+    This indicates the pass manager that this analysis should never be cached. 
+    """
+    
+    update = False
+    """
+    Since there is nothing that technically avoids calling L{apply} on an analysis, this flag must be set to L{False}.
+    """
 
     def run(self, node: RunsOnT) -> ReturnsT:
         typ = type(self)
@@ -926,11 +872,11 @@ class Analysis(Pass[RunsOnT, ReturnsT]):
                     result = super().run(node)
                 except Exception as e:
                     analysis_result = _AnalysisResult.Error(e)
-                    if not isinstance(self, DoNotCacheAnalysis):
+                    if not typ.do_not_cache:
                         self.passmanager.cache.set(typ, node, analysis_result)
                     raise
                 analysis_result = _AnalysisResult.Success(result)
-                if not isinstance(self, DoNotCacheAnalysis):
+                if not typ.do_not_cache:
                     # only set values in the cache for non-proxy analyses.
                     self.passmanager.cache.set(
                         typ, node, analysis_result
@@ -1018,111 +964,63 @@ class NodeAnalysis(Analysis[ast.AST, ReturnsT]):
 
     """An analysis that operates on any node."""
 
-
-class DoNotCacheAnalysis(Analysis[RunsOnT, ReturnsT]):
-    
+class GetProxy(Generic[RunsOnT, ReturnsT]):
     """
-    An analysis that will never be cached.
+    Provide L{get} method that defers to the given callable in the constructor.
     """
+    def __init__(self, factory: Callable[[RunsOnT], ReturnsT]):
+        self._factory = factory
+
+    # TODO: write overloads for this method...
+    def get(self, 
+            key: RunsOnT, 
+            default: T = None, 
+            suppress: bool | type[Exception] | tuple[type[Exception], ...] = False) -> ReturnsT:
+        """
+        Request a value from this proxy. 
+
+        @param suppress: If suppres is a type or tuple of types, will return C{default} if an exception matching
+            given types is raise during processing. If suppress is True, it will return C{default} for all L{Exception}s. 
+            The default behaviour is to always raise.
+        """
+        try:
+            return self._factory(key)
+        except Exception as e:
+            if suppress is not False:
+                if suppress is True:
+                    return default
+                if isinstance(e, suppress):
+                    return default
+            raise
 
 
-class _AnalysisProxy(
-    DoNotCacheAnalysis[ast.Module, Mapping["_FuncOrClassTypes", ChildAnalysisReturnsT]],
-    Generic[ChildAnalysisReturnsT],
-):
+class analysis_proxy(Analysis):
     """
-    A module analysis that returns a simple structure proxy for containing class or function nodes.
+    An analysis that returns a simple proxy that provide a C{get} method which trigers
+    the underlying analysis on the given node.
     """
 
     # the results of each analysis and make them accessible in the result dict proxy.
     # the result must watch invalidations in order to reflect the changes
-
+    
+    do_not_cache = True
     requiredParameters = ("analysis",)
 
     if TYPE_CHECKING:
         analysis: type[Analysis]
 
-    def __keys_factory(self, node: ast.Module) -> Collection[_FuncOrClassTypes]:
-        if issubclass(self.analysis, ClassAnalysis):
-            typecheck = (ast.ClassDef,)
-        elif issubclass(self.analysis, FunctionAnalysis):
-            typecheck = (ast.FunctionDef, ast.AsyncFunctionDef)
-        else:
-            raise NotImplementedError(self.analysis)
-
-        return ordered_set(
-            walk( #TODO: If walk() is used only here it might be interesting to inline the logic and drop thif function.
-                node,
-                typecheck,
-                # For performance, we stop the tree walking as soon as we hit
-                # statement nodes that cannot contain class or functions.
-                _CannotContainClassOrFunctionTypes,
-            )
-        )
-
-    def doPass(
-        self, node: ast.Module
-    ) -> Mapping[_FuncOrClassTypes, ChildAnalysisReturnsT]:
-        assert isinstance(node, ast.Module)
-        return _AnalysisProxyResult(
-            self.passmanager, node, self.analysis, self.__keys_factory
-        )
+    def doPass(self, node: object) -> GetProxy:
+        return GetProxy(partial(self.passmanager.gather, self.analysis))
 
 
-class _AnalysisProxyResult(
-    Mapping["_FuncOrClassTypes", ChildAnalysisReturnsT], Generic[ChildAnalysisReturnsT]
-):
-    # used for class/function to module analysis promotions
-
-    def __init__(
-        self,
-        passmanager: ModulePassManager,
-        module: ast.Module,
-        analysis_type: type[Analysis[_FuncOrClassTypes, ChildAnalysisReturnsT]],
-        keys_factory: Callable,
-    ) -> None:
-        assert issubclass(analysis_type, (FunctionAnalysis, ClassAnalysis))
-
-        self.__module = module
-        self.__analysis_type = analysis_type
-        self.__keys_factory = keys_factory
-        self.__keys = keys_factory(module)
-        # register the event listener
-        passmanager._dispatcher.addEventListener(
-            ModuleChangedEvent, self._onModuleChangedEvent
-        )
-        self.__pm = passmanager
-
-    def keys(self) -> Collection[_FuncOrClassTypes]:  # type:ignore[override]
-        return self.__keys
-
-    def __contains__(self, __key: object) -> bool:
-        return __key in self.__keys
-
-    def __getitem__(self, __key: _FuncOrClassTypes) -> ChildAnalysisReturnsT:
-        if __key not in self.__keys:
-            raise KeyError(__key)
-        return self.__pm.gather(self.__analysis_type, __key)
-
-    def __iter__(self) -> Iterator[_FuncOrClassTypes]:
-        return iter(self.__keys)
-
-    def __len__(self) -> int:
-        return len(self.__keys)
-
-    def _onModuleChangedEvent(self, event: ModuleChangedEvent) -> None:
-        # if the node is the module.
-        node = event.mod.node
-        if node is self.__module:
-            # refresh keys
-            self.__keys = self.__keys_factory(self.__module)
-
-
-class modules(DoNotCacheAnalysis[None, ModuleCollection]):
+# This would be called a immutable pass in the LLVM jargo.
+class modules(Analysis[None, ModuleCollection]):
     """
     Special analysis that results in the mapping of modules: L{ModuleCollection}.
     Use this to access other modules in the system.
     """
+
+    do_not_cache = True
 
     def run(self, _: None) -> Any:
         # skip prepare() since this analysis is trivially special
@@ -1167,7 +1065,7 @@ class ModulePassManager:
             # TODO: we could introduce an ExpressionAnalysis that could be promoted to module analysis.
             if issubclass(analysis, (FunctionAnalysis, ClassAnalysis)):
                 # scope to module promotions
-                analysis = _AnalysisProxy(analysis=analysis)
+                analysis = analysis_proxy(analysis=analysis)
                 assert issubclass(analysis, Analysis)
 
         a = analysis()
@@ -1266,12 +1164,12 @@ class VerifyCallsPassManager:
 
             def gather(analysis_: type[Analysis], node: ast.AST):
                 if analysis_._isInterModuleAnalysis():
-                    raise TypeError(f'You must list passmanager.modules in you pass dependencies to gather this analysis: {analysis_}')    
+                    raise TypeError(f'You must list {modules.__qualname__} in you pass dependencies to gather this pass: {analysis_}')    
                 return mpm.gather(analysis_, node)        
             
             def apply(transformation_: type[Transformation], node: ast.AST):
                 if transformation_._isInterModuleAnalysis():
-                    raise TypeError(f'You must list passmanager.modules in you pass dependencies to apply this transformation: {transformation_}')  
+                    raise TypeError(f'You must list {modules.__qualname__} in you pass dependencies to apply this pass: {transformation_}')  
                 return mpm.apply(transformation_, node)        
 
             self.apply = apply

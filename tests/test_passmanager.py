@@ -525,13 +525,11 @@ class TestPassManagerFramework(TestCase):
         # -  give-up on the class-call subclassing feature and move the analyses parameter in constructor
         #    this means that we should add the parameters to the cache keys. the thing is the dependencies
         #    currently needs to be declared at the class level, so in the case of dynamic dependencies this
-        #    does not work. 
-        # -  not a real solution by maybe move from using a metaclass and use __class_getitem__ ?
-        #    which would result into using analysis_name[keyword=42]
+        #    does not work.
         #  - a real solution would be to generate an ensemble of subclass that we can match against existing 
         #    analyses in the cache (this is what it is about afer all - this plus the fact that dependencies must be static
         #    at class level - but this might also be the thing to reconsider...)
-        #    A solution would be to overwrite __invert__ or something such that we can create a "ensemble of analyses" like
+        #    A solution would be to add new class method such that we can create a "ensemble of analyses" like
         #    analysis_name.like(keyword=lambda v: bool(v), other_unimportant=lambda v:True)
         #    or shorter: analysis_name.like(keyword=True, other_unimportant=None) # all keywords must be given when creating a ensemble.
         #    this would be used in the Transformation.preserves_analysis attribute to indicate the transform preserves
@@ -541,30 +539,40 @@ class TestPassManagerFramework(TestCase):
         pass # TODO: We should be able to hack something to get the run times of all analyses
         # 
 
-    def test_pass_can_gather_analyses_noy_listed_in_dependencies(self):
-        ...
+    def test_pass_can_gather_analyses_not_listed_in_dependencies(self):
+
+        class test_analysis(FunctionAnalysis):
+            dependencies = (node_list, )
+            def doPass(self, node: ast.AST) -> Any:
+                self.node_list # access it, why? idk..
+                return self.passmanager.gather(function_accepts_any_keywords, node) # ok even not in depedencies
+        
+        src = 'def f(a, *, b, **k):pass'
+        pm = PassManager()
+        pm.add_module(Module(
+            ast.parse(src), 'test', 'test.py', code=src, 
+        ))
+        assert pm.gather(test_analysis, pm.modules['test'].node.body[0]) is True
     
     def test_pass_can_apply_transformation_not_listed_in_dependencies(self):
         ...
 
     def test_not_using_modules_analysis_cannot_gather_other_using_modules_analysis(self):
-        pass # TODO: If none of the statically declared dependencies depends on the 'modules'
-        # analsis; trying to gather an analysis manually with self.passmanager.gather(analysis, node)
+        # If none of the statically declared dependencies depends on the 'modules'
+        # analsis; trying to gather an inter-modules analysis manually with self.passmanager.gather(analysis, node)
         # will fail.
-        assertRaisesRe = self.assertRaisesRegex
         class main_intra_module_analysis(NodeAnalysis):
             dependencies = (node_list, )
             def doPass(self, node: ast.AST) -> Any:
-                with assertRaisesRe(TypeError, 'You must list passmanager.modules in you pass dependencies'):
-                    self.passmanager.gather(has_dynamic_dependencies(project_wide=True), node)
+                self.passmanager.gather(has_dynamic_dependencies(project_wide=True), node) # raises
         
         src = 'pass'
         pm = PassManager()
         pm.add_module(Module(
             ast.parse(src), 'test', 'test.py', code=src, 
         ))
-        
-        pm.gather(main_intra_module_analysis, pm.modules['test'].node)
+        with self.assertRaisesRegex(TypeError, f'You must list {passmanager.modules.__qualname__} in you pass dependencies'):
+            pm.gather(main_intra_module_analysis, pm.modules['test'].node)
                 
     def test_not_using_modules_analysis_cannot_apply_transformation_using_modules_analysis(self):
         pass # TODO: same for a transformation
@@ -659,12 +667,13 @@ class TestPassManagerFramework(TestCase):
             requiredParameters = ('expected_number_of_functions', )
             dependencies = (function_arguments, )
             def doPass(self, node: ast.Module) -> True:
-                assert isinstance(self.function_arguments, passmanager._AnalysisProxyResult)
-                assert len(self.function_arguments) == self.expected_number_of_functions
-                assert all(isinstance(n, ast.FunctionDef) for n in self.function_arguments)
+                assert isinstance(self.function_arguments, passmanager.GetProxy)
+                functions = tuple(f for f in ast.walk(node) if isinstance(f, ast.FunctionDef))
+                assert len(functions) == self.expected_number_of_functions
+                assert all(self.function_arguments.get(f) for f in functions)
                 return True
         
-        class RemoveAllInitMethod(Transformation):
+        class remove_all_init_methods(Transformation):
             """Dummy transform that removed all __init__ methods."""
             dependencies = (analyses.node_enclosing_scope, )
             def doPass(self, node: ast.Module | None) -> ast.Module:
@@ -684,17 +693,19 @@ class TestPassManagerFramework(TestCase):
         pm = PassManager()
         pm.add_module(Module(node, 'test'))
         assert pm.gather(test_analysis(expected_number_of_functions=4), node)
-        assert passmanager._AnalysisProxy not in pm._caches.allAnalyses()
+        assert list(pm._caches.allAnalyses()) == [test_analysis(expected_number_of_functions=4), 
+                                                  function_arguments]
 
-        pm.apply(RemoveAllInitMethod, node)
-        assert test_analysis not in pm._caches.allAnalyses()
-        assert analyses.node_enclosing_scope not in pm._caches.allAnalyses()
+        pm.apply(remove_all_init_methods, node)
+        assert list(pm._caches.allAnalyses()) == []
         
         assert pm.gather(test_analysis(expected_number_of_functions=3), node)
-        assert test_analysis(expected_number_of_functions=3) in pm._caches.allAnalyses()
+        assert list(pm._caches.allAnalyses()) == [test_analysis(expected_number_of_functions=3), 
+                                                  function_arguments]
         
-        pm.apply(RemoveAllInitMethod, node) # it did not updated
-        assert test_analysis(expected_number_of_functions=3) in pm._caches.allAnalyses()
+        pm.apply(remove_all_init_methods, node) # it did not updated
+        assert list(pm._caches.allAnalyses()) == [test_analysis(expected_number_of_functions=3), 
+                                                  function_arguments]
     
     def test_class_to_module_analysis_promotion(self):
         # class bases on a whole module
