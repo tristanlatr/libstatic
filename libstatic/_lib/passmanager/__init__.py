@@ -275,6 +275,7 @@ To write a transformation...
 from __future__ import annotations
 
 from collections import defaultdict
+from contextlib import contextmanager
 from functools import lru_cache, partial
 from itertools import chain
 
@@ -304,6 +305,16 @@ from .events import (EventDispatcher, ClearAnalysisEvent, ModuleAddedEvent,
 
 __docformat__ = 'epytext'
 
+ModuleNode = Hashable
+"""
+Symbol that represent a ast module node. 
+"""
+
+AnyNode = Hashable
+"""
+Symbol that represent any kind of ast node. 
+"""
+
 @lru_cache(maxsize=None, typed=True)
 def _newsubclass(cls: type, **class_dict: Hashable) -> type:
     """
@@ -314,7 +325,7 @@ def _newsubclass(cls: type, **class_dict: Hashable) -> type:
     if all(getattr(cls, k, object()) == v for k, v in class_dict.items()):
         return cls
     newcls = type(cls.__name__, (cls,), class_dict)
-    assert newcls.__name__ == cls.__name__
+    # assert newcls.__name__ == cls.__name__
     newcls.__qualname__ = cls.__qualname__
     assert isinstance(newcls, type)
     return newcls
@@ -326,9 +337,9 @@ class Module:
     The specifications of a python module.
     """
 
-    node: ast.Module
+    node: ModuleNode
     """
-    The module node as given by the L{ast.parse()} function.
+    The module node.
     """
     
     modname: str
@@ -364,7 +375,7 @@ class Module:
     """
 
 
-class _Node2RootMapping(Mapping[ast.AST, ast.Module]):
+class _Node2RootMapping(Mapping[AnyNode, ModuleNode]):
     """
     Tracks the root modules of all nodes in the system.
 
@@ -378,12 +389,19 @@ class _Node2RootMapping(Mapping[ast.AST, ast.Module]):
         dispatcher.addEventListener(ModuleRemovedEvent, self._onModuleRemovedEvent)
 
         # We might be using weak keys and values dictionnary here.
-        self.__data: dict[ast.AST, ast.Module] = {}
+        self.__data: dict[AnyNode, ModuleNode] = {}
 
     def _onModuleAddedEvent(self, event: ModuleAddedEvent | ModuleChangedEvent) -> None:
         newmod = event.mod.node
-        for node in ast.walk(newmod):
-            self.__data[node] = newmod
+        # TODO: this is one of the only places that actually depend on the ast module!
+        # This will work for both gast and the standard library AST, but won't for astroif, parso or other ASTs.
+        # The solution is to audit all runtime references to the ast module and determine the requirements and feed
+        # that as registerable strategies once the pass manager has been instanciated.
+        if isinstance(newmod, ast.AST):
+            for node in ast.walk(newmod):
+                self.__data[node] = newmod
+        else:
+            raise TypeError()
 
     def _onModuleRemovedEvent(
         self, event: ModuleRemovedEvent | ModuleChangedEvent
@@ -406,19 +424,19 @@ class _Node2RootMapping(Mapping[ast.AST, ast.Module]):
     def __contains__(self, __key: object) -> bool:
         return __key in self.__data
 
-    def __getitem__(self, __key: ast.AST) -> ast.Module:
+    def __getitem__(self, __key: AnyNode) -> ModuleNode:
         return self.__data[__key]
 
-    def __iter__(self) -> Iterator[ast.AST]:
+    def __iter__(self) -> Iterator[AnyNode]:
         return iter(self.__data)
 
     def __len__(self) -> int:
         return len(self.__data)
 
 
-class ModuleCollection(Mapping[str | ast.Module | ast.AST, Module]):
+class ModuleCollection(Mapping[str | ModuleNode | AnyNode, Module]):
     """
-    A fake sys.modules to contain the pass manager modules.
+    A fake C{sys.modules} to contain the pass manager modules.
 
     To be used like a read-only mapping where the values can be accessed
     both by module name or by module ast node (alternatively by any node contained in a known module).
@@ -528,18 +546,18 @@ class _AnalysisCache:
     """
 
     def __init__(self) -> None:
-        self.__data: dict[type[Analysis], dict[ast.AST, _AnalysisResult]] = defaultdict(
+        self.__data: dict[type[Analysis], dict[Hashable, _AnalysisResult]] = defaultdict(
             dict
         )
 
-    def set(self, analysis: type[Analysis], node: ast.AST, result: _AnalysisResult):
+    def set(self, analysis: type[Analysis], node: Hashable, result: _AnalysisResult):
         """
         Store the analysis result in the cache.
         """
         assert not analysis.do_not_cache
         self.__data[analysis][node] = result
 
-    def get(self, analysis: type[Analysis], node: ast.AST) -> Optional[_AnalysisResult]:
+    def get(self, analysis: type[Analysis], node: Hashable) -> Optional[_AnalysisResult]:
         """
         Query for the cached result of this analysis.
         """
@@ -565,7 +583,8 @@ class _AnalysisCache:
 
 
 T = TypeVar("T")
-RunsOnT = TypeVar("RunsOnT")
+RunsOnT = TypeVar("RunsOnT", bound=Hashable)
+
 ReturnsT = TypeVar("ReturnsT")
 ChildAnalysisReturnsT = TypeVar("ChildAnalysisReturnsT")
 
@@ -607,8 +626,6 @@ class _PassMeta(type):
     __repr__ = __str__
             
 
-
-
 class _PassDependencyDescriptor:
     """
     Simple container for a callback. 
@@ -618,6 +635,37 @@ class _PassDependencyDescriptor:
     """
     def __init__(self, callback: Callable[[], Any]) -> None:
         self.callback = callback
+
+
+class PassContext(object):
+
+    """
+    Class that does the book-keeping of the chains of passes runs.
+    """
+    
+    def __init__(self) -> None:
+        self._stack: set[tuple[type[Pass], AnyNode]] = ordered_set()
+
+    @property
+    def current(self) -> AnyNode | None:
+        try:
+            _, node = next(reversed(self._stack))
+            return node
+        except StopIteration:
+            return None
+
+    @contextmanager
+    def pushPass(self, passs: type[Pass], node: AnyNode) -> Iterator[None]:
+        key = (passs, node)
+        if key in self._stack:
+            raise RuntimeError(f'cycle detected with pass: {key}')
+        self._stack.add(key)
+        yield
+        # pop last element
+        e = next(reversed(self._stack))
+        if e is not key:
+            raise RuntimeError(f'pass context is confused: {e} is not {key}')
+        self._stack.discard(e)
 
 
 class Pass(Generic[RunsOnT, ReturnsT], metaclass=_PassMeta):
@@ -632,17 +680,24 @@ class Pass(Generic[RunsOnT, ReturnsT], metaclass=_PassMeta):
     waiting to be accessed before running. 
     """
 
-    requiredParameters: tuple[str] = ()
+    requiredParameters: tuple[Hashable] | tuple[()] = ()
     """
     Some passes looks for specific name that needs to be provided as arguments. 
     """
 
-    optionalParameters: dict[str, Any] = {}
+    optionalParameters: dict[str, Hashable] = {}
     """
     Other optional arguments to their default values.
     """
 
+    update = False
+    """
+    Since there is nothing that technically avoids calling L{apply} on an analysis, this flag must be set to L{False} here
+    and potentially overriden in transformations.
+    """
+
     passmanager: ModulePassManager
+    ctx: PassContext
 
     @classmethod
     def _verifyNoJunkParameters(cls, **kwargs:Hashable):
@@ -689,6 +744,7 @@ class Pass(Generic[RunsOnT, ReturnsT], metaclass=_PassMeta):
         return _newsubclass(cls, **kwargs)
 
     def __init_subclass__(cls, **kwargs:Hashable):
+        # https://docs.python.org/3/reference/datamodel.html#customizing-class-creation
         super().__init_subclass__(**kwargs)
 
         # Set the default values for optional arguments
@@ -730,7 +786,7 @@ class Pass(Generic[RunsOnT, ReturnsT], metaclass=_PassMeta):
     @lru_cache(maxsize=None)
     def _getAllDependencies(cls) -> Collection[type[Pass]]:
         seen = ordered_set()
-        def _yieldDeps(c:type[Analysis]):
+        def _yieldDeps(c: type[Pass]):
             yield from (d for d in c.dependencies if d not in seen)
             yield from (d for d in chain.from_iterable(_yieldDeps(dep) for dep in c.dependencies) if d not in seen)
         seen.update(_yieldDeps(cls))
@@ -808,9 +864,10 @@ class Pass(Generic[RunsOnT, ReturnsT], metaclass=_PassMeta):
                     f"dependencies should be a Transformation or an Analysis, not {analysis}"
                 )
 
-    def _attach(self, pm: ModulePassManager):
+    def _attach(self, pm: ModulePassManager, ctx: PassContext):
         # Since a pass will only be instantiated with no arguments,
-        # we need this extra method to set the pass manager.
+        # we need this extra method to set the pass instance variables
+        self.ctx = ctx
         self.passmanager = pm
 
     def run(self, node: RunsOnT) -> ReturnsT:
@@ -849,11 +906,6 @@ class Analysis(Pass[RunsOnT, ReturnsT]):
     """
     This indicates the pass manager that this analysis should never be cached. 
     """
-    
-    update = False
-    """
-    Since there is nothing that technically avoids calling L{apply} on an analysis, this flag must be set to L{False}.
-    """
 
     def run(self, node: RunsOnT) -> ReturnsT:
         typ = type(self)
@@ -890,9 +942,19 @@ class Analysis(Pass[RunsOnT, ReturnsT]):
     def apply(self, node: RunsOnT) -> tuple[bool, RunsOnT]:
         print(self.run(node))
         return False, node
+    
+    @classmethod
+    def proxy(cls) -> analysis_proxy[RunsOnT, ReturnsT]:
+        """
+        Derive this analysis to return a simple proxy that provide a C{get} method which trigers
+        the original analysis on the given node. 
+        
+        This can be used to avoid calling repetitively C{self.passmanager.gather(analysis, ...)}.
+        """
+        return analysis_proxy(analysis=cls)
 
 
-class Transformation(Pass[ast.Module, ast.Module]):
+class Transformation(Pass[ModuleNode, ModuleNode]):
     """
     A pass that updates the module's content.
     
@@ -919,7 +981,7 @@ class Transformation(Pass[ast.Module, ast.Module]):
     It should be True if the module was modified by the transformation and False otherwise.
     """
 
-    def run(self, node: ast.Module) -> ast.Module:
+    def run(self, node: ModuleNode) -> ModuleNode:
         typ = type(self)
         if node is not self.passmanager.module.node:
             # TODO: This limitation might be lifted in the future.
@@ -938,12 +1000,12 @@ class Transformation(Pass[ast.Module, ast.Module]):
 
         return n
 
-    def apply(self, node: ast.Module) -> tuple[bool, ast.Module]:
+    def apply(self, node: ModuleNode) -> tuple[bool, ModuleNode]:
         new_node = self.run(node)
         return self.update, new_node
 
 
-class ModuleAnalysis(Analysis[ast.Module, ReturnsT]):
+class ModuleAnalysis(Analysis[ModuleNode, ReturnsT]):
 
     """An analysis that operates on a whole module."""
 
@@ -964,6 +1026,7 @@ class NodeAnalysis(Analysis[ast.AST, ReturnsT]):
 
     """An analysis that operates on any node."""
 
+
 class GetProxy(Generic[RunsOnT, ReturnsT]):
     """
     Provide L{get} method that defers to the given callable in the constructor.
@@ -974,7 +1037,7 @@ class GetProxy(Generic[RunsOnT, ReturnsT]):
     # TODO: write overloads for this method...
     def get(self, 
             key: RunsOnT, 
-            default: T = None, 
+            default: Any = None, 
             suppress: bool | type[Exception] | tuple[type[Exception], ...] = False) -> ReturnsT:
         """
         Request a value from this proxy. 
@@ -994,27 +1057,33 @@ class GetProxy(Generic[RunsOnT, ReturnsT]):
             raise
 
 
-class analysis_proxy(Analysis):
+# This would be called a immutable pass in the LLVM jargo.
+class analysis_proxy(Analysis[object, GetProxy[RunsOnT, ChildAnalysisReturnsT]], Generic[RunsOnT, ChildAnalysisReturnsT]):
     """
     An analysis that returns a simple proxy that provide a C{get} method which trigers
     the underlying analysis on the given node.
     """
-
-    # the results of each analysis and make them accessible in the result dict proxy.
-    # the result must watch invalidations in order to reflect the changes
     
     do_not_cache = True
+
     requiredParameters = ("analysis",)
 
     if TYPE_CHECKING:
         analysis: type[Analysis]
+    
+    def __init_subclass__(cls, **kwargs: Hashable):
+        super().__init_subclass__(**kwargs)
+        cls.__name__ = cls.analysis.__name__
 
-    def doPass(self, node: object) -> GetProxy:
+    def doPass(self, _: object) -> GetProxy:
+        if issubclass(self.analysis, __class__):
+            raise TypeError(f"Can't proxy an alaysis that is already a proxy: {self.analysis}")
+        
         return GetProxy(partial(self.passmanager.gather, self.analysis))
 
 
 # This would be called a immutable pass in the LLVM jargo.
-class modules(Analysis[None, ModuleCollection]):
+class modules(Analysis[object, ModuleCollection]):
     """
     Special analysis that results in the mapping of modules: L{ModuleCollection}.
     Use this to access other modules in the system.
@@ -1022,16 +1091,15 @@ class modules(Analysis[None, ModuleCollection]):
 
     do_not_cache = True
 
-    def run(self, _: None) -> Any:
+    def run(self, _: object) -> Any:
         # skip prepare() since this analysis is trivially special
         return self.doPass(None)
 
-    def doPass(self, _: None) -> ModuleCollection:
+    def doPass(self, _: object) -> ModuleCollection:
         return self.passmanager._getModules(self)
 
-# TODO: wrap the self.passmanager attribute in passes so that it's has knowledge of the type of analysis
-# we're in so it can raise a runtime exception when a inter-modules analysis is used when it shound't for instance. 
-# Also this will gives us the ability to remove references to PassManager in the ModulePassManager which is a very nice decouplage to have.
+# TODO: We could unify ModulePassManager and PassManager classes since they are very coupled.
+# and use the _VerifyCallsPassManager to ensure no modules are added or removed from within a pass.
 class ModulePassManager:
     """
     Front end to the pass system when accessing L{self.passmanager <Pass.passmanager>} 
@@ -1042,7 +1110,7 @@ class ModulePassManager:
         "constructor is private"
         self.module = module
         self.cache = _AnalysisCache()
-        self._dispatcher = passmanager._dispatcher
+        self._dispatcher: EventDispatcher = passmanager._dispatcher
         self._dispatcher.addEventListener(
             ClearAnalysisEvent, self._onClearAnalysisEvent
         )
@@ -1068,30 +1136,32 @@ class ModulePassManager:
                 analysis = analysis_proxy(analysis=analysis)
                 assert issubclass(analysis, Analysis)
 
-        a = analysis()
-        a._attach(VerifyCallsPassManager(a, self))
-        ret = a.run(node)
+        with self.__pm._ctx.pushPass(analysis, node):
+            a = analysis()
+            a._attach(_VerifyCallsPassManager(a, self), self.__pm._ctx)
+            ret = a.run(node)
+        
         return ret
 
-    def apply(self, transformation: type[Pass], node: ast.Module):
+    def apply(self, transformation: type[Pass], node: Any):
         """
-        Call a C{transformation} on a C{node}. If the node os not given the current module is used.
-        If the transformation is an analysis, the result of the analysis
-        is displayed.
+        Call a C{transformation} on a module C{node}.
         """
 
-        if not issubclass(transformation, (Transformation, Analysis)):
-            raise TypeError(f"unexpected analysis type: {transformation}")
+        if not issubclass(transformation, Pass):
+            raise TypeError(f"unexpected pass type: {transformation}")
 
         if self.__pm.modules[node] is not self.module:
             return self.__pm.apply(transformation, node)
 
-        if not isinstance(node, ast.Module):
-            raise TypeError(f"unexpected node type: {node}")
-
-        a = transformation()
-        a._attach(VerifyCallsPassManager(a, self))
-        ret = a.apply(node)
+        # if not isinstance(node, ast.Module):
+        #     raise TypeError(f"unexpected node type: {node}")
+        
+        with self.__pm._ctx.pushPass(transformation, node):
+            a = transformation()
+            a._attach(_VerifyCallsPassManager(a, self), self.__pm._ctx)
+            ret = a.apply(node)
+        
         return ret
 
     def _moduleTransformed(self, transformation: Transformation, mod: Module):
@@ -1152,10 +1222,9 @@ class ModulePassManager:
             )
         return self.__pm.modules
 
-
-class VerifyCallsPassManager:
+class _VerifyCallsPassManager:
     """
-    A proxy to the pass manager that makes sure an intra-module analysis does not depend on inter-module analysis.
+    A proxy to the pass manager that makes sure an intra-module analyses does never depend on inter-module analysis.
     """
     def __init__(self, analysis: Analysis, mpm: ModulePassManager) -> None:
         self.__mpm = mpm
@@ -1184,6 +1253,8 @@ class VerifyCallsPassManager:
             except AttributeError:
                 raise e
 
+if TYPE_CHECKING:
+    _VerifyCallsPassManager = ModulePassManager
 
 class _PassManagerCollection(Mapping[Module, ModulePassManager]):
     """
@@ -1234,7 +1305,7 @@ class _PassManagerCollection(Mapping[Module, ModulePassManager]):
         return len(self.__data)
 
 
-class _PMCachesProxy:
+class _Caches:
     """
     Provide methods to acces cached analyses types accros all L{ModulePassManager}s.
     """
@@ -1261,7 +1332,7 @@ class _PMCachesProxy:
 
 class PassManager:
     """
-    Front end to the inter-modules pass system.
+    Front end to the pass system.
     One L{PassManager} can be used for the analysis of a collection of modules.
     """
 
@@ -1269,9 +1340,14 @@ class PassManager:
         d = EventDispatcher()
 
         self.modules = ModuleCollection(d)
+        """
+        Contains all the modules in the system.
+        """
+
         self._dispatcher = d
         self._passmanagers = pms = _PassManagerCollection(self)
-        self._caches = _PMCachesProxy(pms)
+        self._caches = _Caches(pms)
+        self._ctx = PassContext()
 
     def add_module(self, mod: Module):
         """
