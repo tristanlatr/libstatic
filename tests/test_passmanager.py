@@ -665,7 +665,7 @@ class TestPassManagerFramework(TestCase):
         '''))
         class test_analysis(ModuleAnalysis[None]):
             requiredParameters = ('expected_number_of_functions', )
-            dependencies = (function_arguments, )
+            dependencies = (function_arguments.proxy(), )
             def doPass(self, node: ast.Module) -> True:
                 assert isinstance(self.function_arguments, passmanager.GetProxy)
                 functions = tuple(f for f in ast.walk(node) if isinstance(f, ast.FunctionDef))
@@ -693,19 +693,19 @@ class TestPassManagerFramework(TestCase):
         pm = PassManager()
         pm.add_module(Module(node, 'test'))
         assert pm.gather(test_analysis(expected_number_of_functions=4), node)
-        assert list(pm._caches.allAnalyses()) == [test_analysis(expected_number_of_functions=4), 
-                                                  function_arguments]
+        assert list(pm._caches.allAnalyses()) == [function_arguments, test_analysis(expected_number_of_functions=4),]
 
         pm.apply(remove_all_init_methods, node)
         assert list(pm._caches.allAnalyses()) == []
         
         assert pm.gather(test_analysis(expected_number_of_functions=3), node)
-        assert list(pm._caches.allAnalyses()) == [test_analysis(expected_number_of_functions=3), 
-                                                  function_arguments]
+        assert list(pm._caches.allAnalyses()) == [function_arguments, test_analysis(expected_number_of_functions=3),]
         
         pm.apply(remove_all_init_methods, node) # it did not updated
-        assert list(pm._caches.allAnalyses()) == [test_analysis(expected_number_of_functions=3), 
-                                                  function_arguments]
+        assert list(pm._caches.allAnalyses()) == [function_arguments, test_analysis(expected_number_of_functions=3),]
+
+        v = pm.gather(function_arguments.proxy(), node)
+        v
     
     def test_class_to_module_analysis_promotion(self):
         # class bases on a whole module

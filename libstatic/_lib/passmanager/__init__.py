@@ -294,7 +294,7 @@ from typing import (
     Union,
     overload,
 )
-import ast
+import ast as _ast
 import dataclasses
 
 from beniget.ordered_set import ordered_set
@@ -397,8 +397,8 @@ class _Node2RootMapping(Mapping[AnyNode, ModuleNode]):
         # This will work for both gast and the standard library AST, but won't for astroif, parso or other ASTs.
         # The solution is to audit all runtime references to the ast module and determine the requirements and feed
         # that as registerable strategies once the pass manager has been instanciated.
-        if isinstance(newmod, ast.AST):
-            for node in ast.walk(newmod):
+        if isinstance(newmod, _ast.AST):
+            for node in _ast.walk(newmod):
                 self.__data[node] = newmod
         else:
             raise TypeError()
@@ -444,7 +444,7 @@ class ModuleCollection(Mapping[str | ModuleNode | AnyNode, Module]):
 
     def __init__(self, dispatcher: EventDispatcher):
         self.__name2module: dict[str, Module] = {}
-        self.__node2module: dict[ast.Module, Module] = {}
+        self.__node2module: dict[ModuleNode, Module] = {}
         self.__roots = _Node2RootMapping(dispatcher)
 
         dispatcher.addEventListener(ModuleAddedEvent, self._onModuleAddedEvent)
@@ -484,15 +484,17 @@ class ModuleCollection(Mapping[str | ModuleNode | AnyNode, Module]):
 
     # Mapping interface
 
-    def __getitem__(self, __key: str | ast.Module | ast.AST) -> Module:
+    def __getitem__(self, __key: str | ModuleNode | AnyNode) -> Module:
         if isinstance(__key, str):
             return self.__name2module[__key]
-        elif isinstance(__key, ast.Module):
+        try:
             return self.__node2module[__key]
-        elif isinstance(__key, ast.AST):
-            return self.__node2module[self.__roots[__key]]
-        else:
-            raise TypeError(f"unexpected key type: {__key}")
+        except KeyError:
+            try: 
+                return self.__node2module[self.__roots[__key]]
+            except KeyError:
+                pass
+        raise KeyError(__key)
 
     def __iter__(self) -> Iterator[str]:
         return iter(self.__name2module)
@@ -1009,22 +1011,21 @@ class ModuleAnalysis(Analysis[ModuleNode, ReturnsT]):
 
     """An analysis that operates on a whole module."""
 
+class NodeAnalysis(Analysis[AnyNode, ReturnsT]):
 
-class FunctionAnalysis(
-    Analysis[Union[ast.FunctionDef, ast.AsyncFunctionDef], ReturnsT]
-):
+    """An analysis that operates on any node."""
+
+class FunctionAnalysis(Analysis[AnyNode, ReturnsT]):
 
     """An analysis that operates on a function."""
 
 
-class ClassAnalysis(Analysis[ast.ClassDef, ReturnsT]):
+class ClassAnalysis(Analysis[AnyNode, ReturnsT]):
 
     """An analysis that operates on a class."""
 
 
-class NodeAnalysis(Analysis[ast.AST, ReturnsT]):
 
-    """An analysis that operates on any node."""
 
 
 class GetProxy(Generic[RunsOnT, ReturnsT]):
@@ -1116,7 +1117,7 @@ class ModulePassManager:
         )
         self.__pm = passmanager
 
-    def gather(self, analysis: type[Analysis], node: ast.AST):
+    def gather(self, analysis: type[Analysis], node: AnyNode):
         """
         Call an L{analysis} on any node in the system.
         """
@@ -1127,14 +1128,16 @@ class ModulePassManager:
         if self.__pm.modules[node] is not self.module:
             return self.__pm.gather(analysis, node)
 
-        # Promote the analysis if necessary
-        if isinstance(node, ast.Module):
-            # Node analysis cannot be prpoted because they can also run on modules.
-            # TODO: we could introduce an ExpressionAnalysis that could be promoted to module analysis.
-            if issubclass(analysis, (FunctionAnalysis, ClassAnalysis)):
-                # scope to module promotions
-                analysis = analysis_proxy(analysis=analysis)
-                assert issubclass(analysis, Analysis)
+        # TODO: This feature is nice but it can be replaced by usung 'analysis.proxy()' instead of 'analysis'.
+        # So I don't think it's worth it given the fact we aim to be library agnostic.
+        # # Promote the analysis if necessary
+        # if isinstance(node, ast.Module):
+        #     # Node analysis cannot be promoted because they can also run on modules.
+        #     # TODO: we could introduce an ExpressionAnalysis that could be promoted to module analysis.
+        #     if issubclass(analysis, (FunctionAnalysis, ClassAnalysis)):
+        #         # scope to module promotions
+        #         analysis = analysis_proxy(analysis=analysis)
+        #         assert issubclass(analysis, Analysis)
 
         with self.__pm._ctx.pushPass(analysis, node):
             a = analysis()
@@ -1208,9 +1211,7 @@ class ModulePassManager:
         # ModuleAnalysis
 
         analysis: type[Analysis] = event.analysis
-        node: ast.Module = event.node
-
-        assert isinstance(node, ast.Module)
+        node: ModuleNode = event.node
 
         if analysis._isInterModuleAnalysis() or node is self.module.node:
             self.cache.clear(analysis)
@@ -1231,12 +1232,12 @@ class _VerifyCallsPassManager:
         
         if not analysis._isInterModuleAnalysis():
 
-            def gather(analysis_: type[Analysis], node: ast.AST):
+            def gather(analysis_: type[Analysis], node: AnyNode):
                 if analysis_._isInterModuleAnalysis():
                     raise TypeError(f'You must list {modules.__qualname__} in you pass dependencies to gather this pass: {analysis_}')    
                 return mpm.gather(analysis_, node)        
             
-            def apply(transformation_: type[Transformation], node: ast.AST):
+            def apply(transformation_: type[Transformation], node: AnyNode):
                 if transformation_._isInterModuleAnalysis():
                     raise TypeError(f'You must list {modules.__qualname__} in you pass dependencies to apply this pass: {transformation_}')  
                 return mpm.apply(transformation_, node)        
@@ -1382,7 +1383,7 @@ class PassManager:
     #     self, analysis: type[Analysis[RunsOnT, ReturnsT]], node: RunsOnT | ast.Module
     # ) -> ReturnsT | Mapping[_FuncOrClassTypes, ReturnsT]:
 
-    def gather(self, analysis: type[Analysis], node: ast.AST):
+    def gather(self, analysis: type[Analysis], node: AnyNode):
         """
         High-level function to call an L{Analysis} on any node in the system.
         """
@@ -1390,7 +1391,7 @@ class PassManager:
         mpm = self._passmanagers[mod]
         return mpm.gather(analysis, node)
 
-    def apply(self, transformation: type[Transformation], node: ast.Module):
+    def apply(self, transformation: type[Transformation], node: ModuleNode):
         """
         High-level function to call a L{Transformation} on a C{node}.
         If the transformation is an analysis, the result of the analysis
