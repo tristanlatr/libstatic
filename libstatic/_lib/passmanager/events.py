@@ -1,12 +1,11 @@
 
 from __future__ import annotations
 
-import ast
 import dataclasses
-from typing import Callable, TYPE_CHECKING
+from typing import Any, Callable, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from . import _AnalysisResult, Analysis, Module, Transformation
+    from . import _AnalysisResult, Analysis, Module, Transformation, ILibrarySupport
 
 
 class Event:
@@ -103,7 +102,7 @@ class ClearAnalysisEvent(Event):
     The analysis type invalidated. 
     """
     
-    node: ast.Module
+    node: Any
     """
     Old the module node transformed (or added/removed).
     """
@@ -144,7 +143,7 @@ class RunningTransform(Event):
     The transformstion type.
     """
 
-    node: ast.AST
+    node: Any
     """
     The module node that we're transforming.
     """
@@ -161,7 +160,7 @@ class TransformEnded(Event):
     The transformstion type.
     """
     
-    node: ast.AST
+    node: Any
     """
     The module node that was potentially transformed.
     """
@@ -178,7 +177,7 @@ class RunningAnalysis(Event):
     The analysis type.
     """
     
-    node: ast.AST
+    node: Any
     """
     The module node that we are about to transform.
     """
@@ -195,7 +194,7 @@ class AnalysisEnded(Event):
     The analysis type.
     """
     
-    node: ast.AST
+    node: Any
     """
     The node the analyis has ran on.
     """
@@ -204,3 +203,11 @@ class AnalysisEnded(Event):
     """
     The result of the analysis. 
     """
+
+@dataclasses.dataclass(frozen=True)
+class SupportLibraryEvent(Event):
+    """
+    When a library is supported.
+    """
+
+    lib: ILibrarySupport

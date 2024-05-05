@@ -279,29 +279,32 @@ from contextlib import contextmanager
 from functools import lru_cache, partial
 from itertools import chain
 
+import sys
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
     Collection,
     Hashable,
+    Iterable,
     Iterator,
     Mapping,
     Optional,
+    Protocol,
     TypeVar,
     Generic,
     Sequence,
     Union,
     overload,
 )
-import ast as _ast
+
 import dataclasses
 
 from beniget.ordered_set import ordered_set
 
 from .events import (EventDispatcher, ClearAnalysisEvent, ModuleAddedEvent, 
                      ModuleChangedEvent, ModuleRemovedEvent, AnalysisEnded, 
-                     RunningAnalysis, TransformEnded, RunningTransform)
+                     RunningAnalysis, SupportLibraryEvent, TransformEnded, RunningTransform)
 
 __docformat__ = 'epytext'
 
@@ -381,7 +384,7 @@ class _Node2RootMapping(Mapping[AnyNode, ModuleNode]):
 
     Part of L{ModuleCollection}. 
     """
-    def __init__(self, dispatcher: EventDispatcher) -> None:
+    def __init__(self, dispatcher: EventDispatcher, astsupport: ASTCompat) -> None:
         super().__init__()
         # register the event listeners
         dispatcher.addEventListener(ModuleAddedEvent, self._onModuleAddedEvent)
@@ -390,18 +393,12 @@ class _Node2RootMapping(Mapping[AnyNode, ModuleNode]):
 
         # We might be using weak keys and values dictionnary here.
         self.__data: dict[AnyNode, ModuleNode] = {}
+        self._ast = astsupport
 
     def _onModuleAddedEvent(self, event: ModuleAddedEvent | ModuleChangedEvent) -> None:
         newmod = event.mod.node
-        # TODO: this is one of the only places that actually depend on the ast module!
-        # This will work for both gast and the standard library AST, but won't for astroif, parso or other ASTs.
-        # The solution is to audit all runtime references to the ast module and determine the requirements and feed
-        # that as registerable strategies once the pass manager has been instanciated.
-        if isinstance(newmod, _ast.AST):
-            for node in _ast.walk(newmod):
-                self.__data[node] = newmod
-        else:
-            raise TypeError()
+        for node in self._ast.walk(newmod):
+            self.__data[node] = newmod
 
     def _onModuleRemovedEvent(
         self, event: ModuleRemovedEvent | ModuleChangedEvent
@@ -442,10 +439,10 @@ class ModuleCollection(Mapping[str | ModuleNode | AnyNode, Module]):
     both by module name or by module ast node (alternatively by any node contained in a known module).
     """
 
-    def __init__(self, dispatcher: EventDispatcher):
+    def __init__(self, dispatcher: EventDispatcher, astsupport: ASTCompat):
         self.__name2module: dict[str, Module] = {}
         self.__node2module: dict[ModuleNode, Module] = {}
-        self.__roots = _Node2RootMapping(dispatcher)
+        self.__roots = _Node2RootMapping(dispatcher, astsupport)
 
         dispatcher.addEventListener(ModuleAddedEvent, self._onModuleAddedEvent)
         dispatcher.addEventListener(ModuleRemovedEvent, self._onModuleRemovedEvent)
@@ -1025,9 +1022,6 @@ class ClassAnalysis(Analysis[AnyNode, ReturnsT]):
     """An analysis that operates on a class."""
 
 
-
-
-
 class GetProxy(Generic[RunsOnT, ReturnsT]):
     """
     Provide L{get} method that defers to the given callable in the constructor.
@@ -1058,7 +1052,6 @@ class GetProxy(Generic[RunsOnT, ReturnsT]):
             raise
 
 
-# This would be called a immutable pass in the LLVM jargo.
 class analysis_proxy(Analysis[object, GetProxy[RunsOnT, ChildAnalysisReturnsT]], Generic[RunsOnT, ChildAnalysisReturnsT]):
     """
     An analysis that returns a simple proxy that provide a C{get} method which trigers
@@ -1074,6 +1067,7 @@ class analysis_proxy(Analysis[object, GetProxy[RunsOnT, ChildAnalysisReturnsT]],
     
     def __init_subclass__(cls, **kwargs: Hashable):
         super().__init_subclass__(**kwargs)
+        # Override the __name__ so the dependency still has the actual analysis name.
         cls.__name__ = cls.analysis.__name__
 
     def doPass(self, _: object) -> GetProxy:
@@ -1331,6 +1325,68 @@ class _Caches:
         return r
 
 
+class ILibrarySupport(Protocol):
+    """
+    Instances of this class carry all the required information for the passmanager to support
+    concrete types of nodes like the one created by standard library L{ast} or L{astroid} or L{gast} or L{parso}.
+
+    Currently, the only thing that needs to be known about the AST is how to iterate across
+    all the children nodes. But that list might grow with the future developments
+    """
+
+    iter_child_nodes: Callable[[AnyNode], Iterable[AnyNode]]
+    """
+    Callable that yields the direct child node starting at the given node inclusively. Like L{ast.iter_child_nodes}.
+    If the given node is not one of the supported types, the function must raise L{NotImplementedError}.
+    """
+
+
+class ASTCompat:
+    """
+    Wrapper to support multiple concrete types of nodes based on registered strategies.
+    """
+    
+    def __init__(self, dispatcher: EventDispatcher):
+        self._supports: ordered_set[ILibrarySupport] = ordered_set()
+        dispatcher.addEventListener(SupportLibraryEvent, self._onSupportLibraryEvent)
+
+
+    def _onSupportLibraryEvent(self, event: SupportLibraryEvent):
+        self._supports.add(event.lib)
+
+
+    def iter_child_nodes(self, node: AnyNode) -> Iterable[AnyNode]:
+        """
+        Like L{ast.iter_child_nodes}.
+        """
+        for lib in self._supports:
+            try:
+                it = lib.iter_child_nodes(node)
+            except NotImplementedError:
+                continue
+            else:
+                return it
+        raise TypeError(f'node type not supported: {node}')
+    
+
+    def walk(self, node: AnyNode, typecheck: type | None = None, stopTypecheck: type | None = None):
+        """
+        Recursively yield all nodes matching the typecheck
+        in the tree starting at *node* (B{excluding} *node* itself), in bfs order.
+
+        Do not recurse on children of types matching the stopTypecheck type.
+        """
+        from collections import deque
+
+        todo = deque(self.iter_child_nodes(node))
+        while todo:
+            node = todo.popleft()
+            if stopTypecheck is None or not isinstance(node, stopTypecheck):
+                todo.extend(self.iter_child_nodes(node))
+            if typecheck is None or isinstance(node, typecheck):
+                yield node
+
+
 class PassManager:
     """
     Front end to the pass system.
@@ -1338,14 +1394,17 @@ class PassManager:
     """
 
     def __init__(self):
-        d = EventDispatcher()
+        
+        self._dispatcher = d = EventDispatcher()
+        self._ast = astsupport = ASTCompat(d)
+        _init_support(self)
 
-        self.modules = ModuleCollection(d)
+        self.modules = ModuleCollection(d, astsupport)
         """
         Contains all the modules in the system.
         """
 
-        self._dispatcher = d
+        
         self._passmanagers = pms = _PassManagerCollection(self)
         self._caches = _Caches(pms)
         self._ctx = PassContext()
@@ -1400,6 +1459,63 @@ class PassManager:
         mod = self.modules[node]
         mpm = self._passmanagers[mod]
         return mpm.apply(transformation, node)
+
+    def support(self, lib: ILibrarySupport) -> None:
+        """
+        Add support for AST parser. This should be called first if you use the pass manager with 
+        a AST parser library that is not supported by default.
+        """
+        self._dispatcher.dispatchEvent(SupportLibraryEvent(lib))
+    
+def _init_support(pm: PassManager):
+
+    # At the moment I'm writing this lines, a simple self.support(ast) would suffice
+    # but in order to settle the structure for future developments each library has it's onw class.
+
+    # Support standard library
+    import ast
+    class standard_lib:
+        @staticmethod
+        def iter_child_nodes(node:ast.AST) -> Iterable[ast.AST]:
+            if not isinstance(node, ast.AST):
+                raise NotImplementedError()
+            return ast.iter_child_nodes(node)
+    
+    pm.support(standard_lib)
+    
+    # Support gast library
+    if 'gast' in sys.modules:
+        import gast
+        # At the moment this strategy provides the same information as the standard library one,
+        # but that might evolve in the future.
+        class gast_lib:
+            iter_child_nodes = standard_lib.iter_child_nodes
+        
+        pm.support(gast_lib)
+    
+    # Support parso library
+    if 'parso' in sys.modules:
+        import parso.tree
+        class parso_lib:
+            @staticmethod
+            def iter_child_nodes(node):
+                if isinstance(node, parso.tree.BaseNode):
+                    return node.children
+                raise NotImplementedError()
+        
+        pm.support(parso_lib)
+
+    # Support astroid library
+    if 'astroid' in sys.modules:
+        import astroid
+        class astroid_lib:
+            @staticmethod
+            def iter_child_nodes(node):
+                if isinstance(node, astroid.NodeNG):
+                    return node.children
+                raise NotImplementedError()
+        
+        pm.support(astroid_lib)
 
 
 class Statistics:
