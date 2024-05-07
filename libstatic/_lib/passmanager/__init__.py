@@ -397,6 +397,7 @@ class _Node2RootMapping(Mapping[AnyNode, ModuleNode]):
 
     def _onModuleAddedEvent(self, event: ModuleAddedEvent | ModuleChangedEvent) -> None:
         newmod = event.mod.node
+        # O(n), every time :/
         for node in self._ast.walk(newmod):
             self.__data[node] = newmod
 
@@ -413,6 +414,9 @@ class _Node2RootMapping(Mapping[AnyNode, ModuleNode]):
             del self.__data[n]
 
     def _onModuleChangedEvent(self, event: ModuleChangedEvent) -> None:
+        # TODO (optimizations): 2xO(n), every time: Thid could be improved by introducing 'uptdates_regions' Transformation
+        # attribute that will contain a sequence of all nodes added in the tree, we also would need a sequnce
+        # aof nodes removed from the tree. 
         self._onModuleRemovedEvent(event)
         self._onModuleAddedEvent(event)
 
@@ -975,10 +979,15 @@ class Transformation(Pass[ModuleNode, ModuleNode]):
     This variable should be overridden by subclasses to provide specific list.
     """
 
-    update = False
-    """
-    It should be True if the module was modified by the transformation and False otherwise.
-    """
+    def __init__(self,):
+        self.update = False
+        """
+        It should be True if the module was modified by the transformation and False otherwise.
+        """
+
+        # TODO: Work in this optimization
+        # self.added_nodes: Sequence[AnyNode] = ()
+        # self.removed_nodes: Sequence[AnyNode] = ()
 
     def run(self, node: ModuleNode) -> ModuleNode:
         typ = type(self)
@@ -1122,7 +1131,7 @@ class ModulePassManager:
         if self.__pm.modules[node] is not self.module:
             return self.__pm.gather(analysis, node)
 
-        # TODO: This feature is nice but it can be replaced by usung 'analysis.proxy()' instead of 'analysis'.
+        # TODO: This feature is nice but it can be replaced by using 'analysis.proxy()' instead of 'analysis'.
         # So I don't think it's worth it given the fact we aim to be library agnostic.
         # # Promote the analysis if necessary
         # if isinstance(node, ast.Module):
