@@ -6,7 +6,7 @@ from unittest import TestCase
 
 from libstatic._lib.scopetree import Builder, GlobalScope, ClassScope, FunctionScope
 
-class TestPassManagerFramework(TestCase):
+class TestScopeTree(TestCase):
     def test_scopes(self, ):
         # Set up a sample program
         # class C:
