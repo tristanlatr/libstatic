@@ -3,7 +3,7 @@ This module provides a framework for L{ast} pass management.
 It's a building block to write static analyzer or compiler for Python. 
 
 There are two kinds of passes: transformations and analysis.
-    * L{ModuleAnalysis}, L{FunctionAnalysis}, L{ClassAnalysis} and L{NodeAnalysis} are to be
+    * L{ModuleAnalysis} and L{NodeAnalysis} are to be
       subclassed by any pass that collects information about the AST.
     * L{PassManager.gather} is used to gather (!) the result of an analyses on an AST node.
     * L{Transformation} is to be sub-classed by any pass that updates the AST.
