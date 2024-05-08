@@ -995,7 +995,7 @@
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">get_type</span><span class="function-signature">(self, expr: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#list" class="intersphinx-link">list</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
+    <span class="py-keyword">def</span> <span class="py-defname">get_type</span><span class="function-signature">(self, expr: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#set" class="intersphinx-link">set</a>[<wbr></wbr><a href="https://docs.python.org/3/library/functions.html#object" class="intersphinx-link">object</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
     <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/typeinfer.py#L794">
       
       (source)
@@ -1022,7 +1022,7 @@
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">visit_arg</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.arg" class="intersphinx-link">ast.arg</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#list" class="intersphinx-link">list</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>, typevars: <code><a href="https://docs.python.org/3/library/stdtypes.html#dict" class="intersphinx-link">dict</a>[<wbr></wbr><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>, <wbr></wbr><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>]|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code> = <a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
+    <span class="py-keyword">def</span> <span class="py-defname">visit_arg</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.arg" class="intersphinx-link">ast.arg</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#set" class="intersphinx-link">set</a>[<wbr></wbr><a href="https://docs.python.org/3/library/functions.html#object" class="intersphinx-link">object</a>]</code>, typevars: <code><a href="https://docs.python.org/3/library/stdtypes.html#dict" class="intersphinx-link">dict</a>[<wbr></wbr><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>, <wbr></wbr><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>]|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code> = <a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
     <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/typeinfer.py#L1125">
       
       (source)
@@ -1049,7 +1049,7 @@
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">visit_Attribute_Load</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.Attribute" class="intersphinx-link">ast.Attribute</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#list" class="intersphinx-link">list</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
+    <span class="py-keyword">def</span> <span class="py-defname">visit_Attribute_Load</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.Attribute" class="intersphinx-link">ast.Attribute</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#set" class="intersphinx-link">set</a>[<wbr></wbr><a href="https://docs.python.org/3/library/functions.html#object" class="intersphinx-link">object</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
     <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/typeinfer.py#L1112">
       
       (source)
@@ -1076,7 +1076,7 @@
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">visit_BinOp</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.BinOp" class="intersphinx-link">ast.BinOp</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#list" class="intersphinx-link">list</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
+    <span class="py-keyword">def</span> <span class="py-defname">visit_BinOp</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.BinOp" class="intersphinx-link">ast.BinOp</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#set" class="intersphinx-link">set</a>[<wbr></wbr><a href="https://docs.python.org/3/library/functions.html#object" class="intersphinx-link">object</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
     <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/typeinfer.py#L918">
       
       (source)
@@ -1103,7 +1103,7 @@
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">visit_BoolOp</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.BoolOp" class="intersphinx-link">ast.BoolOp</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#list" class="intersphinx-link">list</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
+    <span class="py-keyword">def</span> <span class="py-defname">visit_BoolOp</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.BoolOp" class="intersphinx-link">ast.BoolOp</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#set" class="intersphinx-link">set</a>[<wbr></wbr><a href="https://docs.python.org/3/library/functions.html#object" class="intersphinx-link">object</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
     <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/typeinfer.py#L939">
       
       (source)
@@ -1130,7 +1130,7 @@
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">visit_Call</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.Call" class="intersphinx-link">ast.Call</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#list" class="intersphinx-link">list</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
+    <span class="py-keyword">def</span> <span class="py-defname">visit_Call</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.Call" class="intersphinx-link">ast.Call</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#set" class="intersphinx-link">set</a>[<wbr></wbr><a href="https://docs.python.org/3/library/functions.html#object" class="intersphinx-link">object</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
     <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/typeinfer.py#L976">
       
       (source)
@@ -1157,7 +1157,7 @@
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">visit_ClassDef</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.ClassDef" class="intersphinx-link">ast.ClassDef</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#list" class="intersphinx-link">list</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a></code></span>:
+    <span class="py-keyword">def</span> <span class="py-defname">visit_ClassDef</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.ClassDef" class="intersphinx-link">ast.ClassDef</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#set" class="intersphinx-link">set</a>[<wbr></wbr><a href="https://docs.python.org/3/library/functions.html#object" class="intersphinx-link">object</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a></code></span>:
     <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/typeinfer.py#L1241">
       
       (source)
@@ -1184,7 +1184,7 @@
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">visit_Compare</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.Compare" class="intersphinx-link">ast.Compare</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#list" class="intersphinx-link">list</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
+    <span class="py-keyword">def</span> <span class="py-defname">visit_Compare</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.Compare" class="intersphinx-link">ast.Compare</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#set" class="intersphinx-link">set</a>[<wbr></wbr><a href="https://docs.python.org/3/library/functions.html#object" class="intersphinx-link">object</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
     <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/typeinfer.py#L950">
       
       (source)
@@ -1211,7 +1211,7 @@
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">visit_Constant</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.Constant" class="intersphinx-link">ast.Constant</a>, <wbr></wbr>ast.Str, <wbr></wbr>ast.NameConstant, <wbr></wbr>ast.Bytes, <wbr></wbr>ast.Num]</code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#list" class="intersphinx-link">list</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a></code></span>:
+    <span class="py-keyword">def</span> <span class="py-defname">visit_Constant</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/typing.html#typing.Union" class="intersphinx-link">Union</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.Constant" class="intersphinx-link">ast.Constant</a>, <wbr></wbr>ast.Str, <wbr></wbr>ast.NameConstant, <wbr></wbr>ast.Bytes, <wbr></wbr>ast.Num]</code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#set" class="intersphinx-link">set</a>[<wbr></wbr><a href="https://docs.python.org/3/library/functions.html#object" class="intersphinx-link">object</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a></code></span>:
     <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/typeinfer.py#L817">
       
       (source)
@@ -1238,7 +1238,7 @@
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">visit_Dict</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.Dict" class="intersphinx-link">ast.Dict</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#list" class="intersphinx-link">list</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a></code></span>:
+    <span class="py-keyword">def</span> <span class="py-defname">visit_Dict</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.Dict" class="intersphinx-link">ast.Dict</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#set" class="intersphinx-link">set</a>[<wbr></wbr><a href="https://docs.python.org/3/library/functions.html#object" class="intersphinx-link">object</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a></code></span>:
     <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/typeinfer.py#L873">
       
       (source)
@@ -1265,7 +1265,7 @@
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">visit_DictComp</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.DictComp" class="intersphinx-link">ast.DictComp</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#list" class="intersphinx-link">list</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
+    <span class="py-keyword">def</span> <span class="py-defname">visit_DictComp</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.DictComp" class="intersphinx-link">ast.DictComp</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#set" class="intersphinx-link">set</a>[<wbr></wbr><a href="https://docs.python.org/3/library/functions.html#object" class="intersphinx-link">object</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
     <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/typeinfer.py#L966">
       
       (source)
@@ -1292,7 +1292,7 @@
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">visit_FunctionDef</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.FunctionDef" class="intersphinx-link">ast.FunctionDef</a>|<a href="https://docs.python.org/3/library/ast.html#ast.AsyncFunctionDef" class="intersphinx-link">ast.AsyncFunctionDef</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#list" class="intersphinx-link">list</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>, overloads: <code><a href="https://docs.python.org/3/library/collections.html#collections.deque" class="intersphinx-link">deque</a>[<wbr></wbr><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>]|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code> = <a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a>, typevars: <code><a href="https://docs.python.org/3/library/stdtypes.html#dict" class="intersphinx-link">dict</a>[<wbr></wbr><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>, <wbr></wbr><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>]|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code> = <a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a></code></span>:
+    <span class="py-keyword">def</span> <span class="py-defname">visit_FunctionDef</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.FunctionDef" class="intersphinx-link">ast.FunctionDef</a>|<a href="https://docs.python.org/3/library/ast.html#ast.AsyncFunctionDef" class="intersphinx-link">ast.AsyncFunctionDef</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#set" class="intersphinx-link">set</a>[<wbr></wbr><a href="https://docs.python.org/3/library/functions.html#object" class="intersphinx-link">object</a>]</code>, overloads: <code><a href="https://docs.python.org/3/library/collections.html#collections.deque" class="intersphinx-link">deque</a>[<wbr></wbr><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>]|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code> = <a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a>, typevars: <code><a href="https://docs.python.org/3/library/stdtypes.html#dict" class="intersphinx-link">dict</a>[<wbr></wbr><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>, <wbr></wbr><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>]|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code> = <a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a></code></span>:
     <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/typeinfer.py#L1165">
       
       (source)
@@ -1319,7 +1319,7 @@
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">visit_GeneratorExp</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.GeneratorExp" class="intersphinx-link">ast.GeneratorExp</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#list" class="intersphinx-link">list</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
+    <span class="py-keyword">def</span> <span class="py-defname">visit_GeneratorExp</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.GeneratorExp" class="intersphinx-link">ast.GeneratorExp</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#set" class="intersphinx-link">set</a>[<wbr></wbr><a href="https://docs.python.org/3/library/functions.html#object" class="intersphinx-link">object</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
     <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/typeinfer.py#L970">
       
       (source)
@@ -1346,7 +1346,7 @@
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">visit_JoinedStr</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.JoinedStr" class="intersphinx-link">ast.JoinedStr</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#list" class="intersphinx-link">list</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a></code></span>:
+    <span class="py-keyword">def</span> <span class="py-defname">visit_JoinedStr</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.JoinedStr" class="intersphinx-link">ast.JoinedStr</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#set" class="intersphinx-link">set</a>[<wbr></wbr><a href="https://docs.python.org/3/library/functions.html#object" class="intersphinx-link">object</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a></code></span>:
     <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/typeinfer.py#L839">
       
       (source)
@@ -1373,7 +1373,7 @@
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">visit_List</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.List" class="intersphinx-link">ast.List</a>|<a href="https://docs.python.org/3/library/ast.html#ast.Set" class="intersphinx-link">ast.Set</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#list" class="intersphinx-link">list</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a></code></span>:
+    <span class="py-keyword">def</span> <span class="py-defname">visit_List</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.List" class="intersphinx-link">ast.List</a>|<a href="https://docs.python.org/3/library/ast.html#ast.Set" class="intersphinx-link">ast.Set</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#set" class="intersphinx-link">set</a>[<wbr></wbr><a href="https://docs.python.org/3/library/functions.html#object" class="intersphinx-link">object</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a></code></span>:
     <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/typeinfer.py#L843">
       
       (source)
@@ -1400,7 +1400,7 @@
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">visit_ListComp</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.ListComp" class="intersphinx-link">ast.ListComp</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#list" class="intersphinx-link">list</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
+    <span class="py-keyword">def</span> <span class="py-defname">visit_ListComp</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.ListComp" class="intersphinx-link">ast.ListComp</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#set" class="intersphinx-link">set</a>[<wbr></wbr><a href="https://docs.python.org/3/library/functions.html#object" class="intersphinx-link">object</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
     <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/typeinfer.py#L958">
       
       (source)
@@ -1427,7 +1427,7 @@
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">visit_Module</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.Module" class="intersphinx-link">ast.Module</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#list" class="intersphinx-link">list</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a></code></span>:
+    <span class="py-keyword">def</span> <span class="py-defname">visit_Module</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.Module" class="intersphinx-link">ast.Module</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#set" class="intersphinx-link">set</a>[<wbr></wbr><a href="https://docs.python.org/3/library/functions.html#object" class="intersphinx-link">object</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a></code></span>:
     <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/typeinfer.py#L1234">
       
       (source)
@@ -1454,7 +1454,7 @@
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">visit_Name_Load</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.Name" class="intersphinx-link">ast.Name</a>|<a href="https://docs.python.org/3/library/ast.html#ast.alias" class="intersphinx-link">ast.alias</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#list" class="intersphinx-link">list</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
+    <span class="py-keyword">def</span> <span class="py-defname">visit_Name_Load</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.Name" class="intersphinx-link">ast.Name</a>|<a href="https://docs.python.org/3/library/ast.html#ast.alias" class="intersphinx-link">ast.alias</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#set" class="intersphinx-link">set</a>[<wbr></wbr><a href="https://docs.python.org/3/library/functions.html#object" class="intersphinx-link">object</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
     <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/typeinfer.py#L1077">
       
       (source)
@@ -1481,7 +1481,7 @@
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">visit_Name_Store</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.Name" class="intersphinx-link">ast.Name</a>|<a href="https://docs.python.org/3/library/ast.html#ast.Attribute" class="intersphinx-link">ast.Attribute</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#list" class="intersphinx-link">list</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
+    <span class="py-keyword">def</span> <span class="py-defname">visit_Name_Store</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.Name" class="intersphinx-link">ast.Name</a>|<a href="https://docs.python.org/3/library/ast.html#ast.Attribute" class="intersphinx-link">ast.Attribute</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#set" class="intersphinx-link">set</a>[<wbr></wbr><a href="https://docs.python.org/3/library/functions.html#object" class="intersphinx-link">object</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
     <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/typeinfer.py#L1047">
       
       (source)
@@ -1508,7 +1508,7 @@
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">visit_SetComp</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.SetComp" class="intersphinx-link">ast.SetComp</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#list" class="intersphinx-link">list</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
+    <span class="py-keyword">def</span> <span class="py-defname">visit_SetComp</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.SetComp" class="intersphinx-link">ast.SetComp</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#set" class="intersphinx-link">set</a>[<wbr></wbr><a href="https://docs.python.org/3/library/functions.html#object" class="intersphinx-link">object</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
     <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/typeinfer.py#L962">
       
       (source)
@@ -1535,7 +1535,7 @@
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">visit_Subscript</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.Subscript" class="intersphinx-link">ast.Subscript</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#list" class="intersphinx-link">list</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
+    <span class="py-keyword">def</span> <span class="py-defname">visit_Subscript</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.Subscript" class="intersphinx-link">ast.Subscript</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#set" class="intersphinx-link">set</a>[<wbr></wbr><a href="https://docs.python.org/3/library/functions.html#object" class="intersphinx-link">object</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
     <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/typeinfer.py#L1003">
       
       (source)
@@ -1562,7 +1562,7 @@
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">visit_Tuple</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.Tuple" class="intersphinx-link">ast.Tuple</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#list" class="intersphinx-link">list</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a></code></span>:
+    <span class="py-keyword">def</span> <span class="py-defname">visit_Tuple</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.Tuple" class="intersphinx-link">ast.Tuple</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#set" class="intersphinx-link">set</a>[<wbr></wbr><a href="https://docs.python.org/3/library/functions.html#object" class="intersphinx-link">object</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a></code></span>:
     <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/typeinfer.py#L859">
       
       (source)
@@ -1589,7 +1589,7 @@
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">visit_UnaryOp</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.UnaryOp" class="intersphinx-link">ast.UnaryOp</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#list" class="intersphinx-link">list</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
+    <span class="py-keyword">def</span> <span class="py-defname">visit_UnaryOp</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.UnaryOp" class="intersphinx-link">ast.UnaryOp</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#set" class="intersphinx-link">set</a>[<wbr></wbr><a href="https://docs.python.org/3/library/functions.html#object" class="intersphinx-link">object</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
     <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/typeinfer.py#L908">
       
       (source)
@@ -1645,7 +1645,7 @@ Unwrap unions and overloads.</p></div>
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">_get_type_attribute</span><span class="function-signature">(self, valuetype: <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a></code>, attr: <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code>, ctx: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#list" class="intersphinx-link">list</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a></code></span>:
+    <span class="py-keyword">def</span> <span class="py-defname">_get_type_attribute</span><span class="function-signature">(self, valuetype: <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a></code>, attr: <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code>, ctx: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code>, path: <code><a href="https://docs.python.org/3/library/stdtypes.html#set" class="intersphinx-link">set</a>[<wbr></wbr><a href="https://docs.python.org/3/library/functions.html#object" class="intersphinx-link">object</a>]</code>) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a></code></span>:
     <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/typeinfer.py#L1254">
       
       (source)
@@ -1727,7 +1727,7 @@ Unwrap unions and overloads.</p></div>
     <div class="container">
       <a href="index.html">API Documentation</a> for <a href="https://github.com/tristanlatr/libstatic" class="projecthome">libstatic</a>,
     generated by <a href="https://github.com/twisted/pydoctor/">pydoctor</a>
-      23.4.1.dev0 at 2024-05-08 18:52:50.
+      23.4.1.dev0 at 2024-05-08 19:39:25.
     </div>
     
     <script src="ajax.js" type="text/javascript"></script>

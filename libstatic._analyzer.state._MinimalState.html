@@ -356,7 +356,7 @@
         </div>
 
         <div class="extrasDocstring">
-          <p class="class-signature"><code><span class="py-keyword">class</span> <span class="py-defname">_MinimalState</span>(<a href="https://docs.python.org/3/library/typing.html#typing.Protocol" class="intersphinx-link">Protocol</a>): <a href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L65" class="sourceLink">(source)</a></code></p><p>Known subclasses: <code><a href="libstatic.State.html" class="internal-link">libstatic.State</a></code></p>
+          <p class="class-signature"><code><span class="py-keyword">class</span> <span class="py-defname">_MinimalState</span>(<a href="https://docs.python.org/3/library/typing.html#typing.Protocol" class="intersphinx-link">Protocol</a>): <a href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L66" class="sourceLink">(source)</a></code></p><p>Known subclasses: <code><a href="libstatic.State.html" class="internal-link">libstatic.State</a></code></p>
           <p><a href="classIndex.html#libstatic._analyzer.state._MinimalState">View In Hierarchy</a></p>
         </div>
 
@@ -434,7 +434,7 @@
     
     
     <span class="py-keyword">def</span> <span class="py-defname">expand_expr</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L79">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L80">
       
       (source)
     </a>
@@ -461,7 +461,7 @@
     
     
     <span class="py-keyword">def</span> <span class="py-defname">get_attribute</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code>, name: <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.List" class="intersphinx-link">List</a>[<wbr></wbr>Def]</code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L70">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L71">
       
       (source)
     </a>
@@ -488,7 +488,7 @@
     @<a href="https://docs.python.org/3/library/typing.html#typing.overload" class="intersphinx-link">overload</a><br /><div><span class="py-keyword">def</span> <span class="py-defname">get_def</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.alias" class="intersphinx-link">ast.alias</a></code>) -&gt; <code>Imp</code></span>:</div>@<a href="https://docs.python.org/3/library/typing.html#typing.overload" class="intersphinx-link">overload</a><br /><div><span class="py-keyword">def</span> <span class="py-defname">get_def</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code>) -&gt; <code>Def</code></span>:</div>
     @<a href="https://docs.python.org/3/library/typing.html#typing.overload" class="intersphinx-link">overload</a><br />
     
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L71">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L72">
       
       (source)
     </a>
@@ -515,7 +515,7 @@
     
     
     <span class="py-keyword">def</span> <span class="py-defname">get_filename</span><span class="function-signature">(self, n: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L67">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L68">
       
       (source)
     </a>
@@ -542,7 +542,7 @@
     
     
     <span class="py-keyword">def</span> <span class="py-defname">get_local</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code>, name: <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.List" class="intersphinx-link">List</a>[<wbr></wbr><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr>Def]]</code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L68">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L69">
       
       (source)
     </a>
@@ -569,7 +569,7 @@
     
     
     <span class="py-keyword">def</span> <span class="py-defname">get_parent_instance</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code>, cls: <code><a href="https://docs.python.org/3/library/functions.html#type" class="intersphinx-link">type</a>[<wbr></wbr><a href="libstatic._analyzer.state.html#T" class="internal-link" title="libstatic._analyzer.state.T">T</a>]|<a href="https://docs.python.org/3/library/typing.html#typing.Tuple" class="intersphinx-link">Tuple</a>[<wbr></wbr><a href="https://docs.python.org/3/library/functions.html#type" class="intersphinx-link">type</a>[<wbr></wbr><a href="libstatic._analyzer.state.html#T" class="internal-link" title="libstatic._analyzer.state.T">T</a>], <wbr></wbr><span class="rst-variable-ellipsis">...</span>]</code>) -&gt; <code><a href="libstatic._analyzer.state.html#T" class="internal-link" title="libstatic._analyzer.state.T">T</a></code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L78">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L79">
       
       (source)
     </a>
@@ -596,7 +596,7 @@
     
     
     <span class="py-keyword">def</span> <span class="py-defname">goto_def</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code>, raise_on_ambiguity: <code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code> = <a href="https://docs.python.org/3/library/constants.html#False" class="intersphinx-link">False</a>) -&gt; <code>Def</code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L77">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L78">
       
       (source)
     </a>
@@ -623,7 +623,7 @@
     
     
     <span class="py-keyword">def</span> <span class="py-defname">goto_defs</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a></code>) -&gt; <code><a href="https://docs.python.org/3/library/typing.html#typing.Sequence" class="intersphinx-link">Sequence</a>[<wbr></wbr>Def]</code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L76">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L77">
       
       (source)
     </a>
@@ -649,7 +649,7 @@
   <div class="functionHeader">
     
     <span class="py-defname">msg</span>: <code><a href="libstatic._lib.model._Msg.html" class="internal-link" title="libstatic._lib.model._Msg">_Msg</a></code> =
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L66">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L67">
       
       (source)
     </a>
@@ -677,7 +677,7 @@
     <div class="container">
       <a href="index.html">API Documentation</a> for <a href="https://github.com/tristanlatr/libstatic" class="projecthome">libstatic</a>,
     generated by <a href="https://github.com/twisted/pydoctor/">pydoctor</a>
-      23.4.1.dev0 at 2024-05-08 18:52:50.
+      23.4.1.dev0 at 2024-05-08 19:39:25.
     </div>
     
     <script src="ajax.js" type="text/javascript"></script>
