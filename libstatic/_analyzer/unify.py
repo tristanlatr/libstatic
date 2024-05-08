@@ -317,15 +317,15 @@ def better_signature(callable_type:Type) -> inspect.Signature | None:
     Get a signature from the function def information wrapped by this type instance.
     Return None if there is no function wrapped, in the case of a written 'Callable' annotation for instance.
     """
-    definition = callable_type.get_meta('definition', Def)
+    definition = callable_type.get_meta('definition')
     if not isinstance(definition, Func):
         return None
     parameters: list[inspect.Parameter] = []
     for i, arg in enumerate(callable_type.args[:-1]):
-        argdef = arg.get_meta('definition', Arg)
-        if argdef is None:
+        argdef = arg.definition
+        if not isinstance(argdef, Arg):
             # the type vars seem to replace the type here:/ with no informations anymore.
-            msg = f'missing definition of callable {definition.name()!r} argument {i}: {arg}'
+            msg = f'missing definition of callable {definition.name()!r} argument {i}: {arg} - {argdef}'
             raise StaticCodeUnsupported(callable_type, msg)
         parameters.append(argdef.to_parameter().replace(annotation=arg))
     return inspect.Signature(parameters, return_annotation=callable_type.args[-1])
@@ -341,7 +341,7 @@ def callable_struct(callable_type:Type) -> tuple[Sequence[Type], Mapping[str, Ty
     keywords: dict[str, Type] = {}
 
     for a in callable_type.args[:-1]:
-        keyword = a.get_meta('keyword', str)
+        keyword = a.get_meta('keyword')
         if keyword is not None:
             keywords[keyword] = keywords.setdefault(keyword, Type.Any).merge(a)
         else:

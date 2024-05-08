@@ -57,7 +57,7 @@ class BenigetConverter:
     ) -> None:
         self.alias2importinfo = alias2importinfo
         self.arg2spec = arg2spec
-        self.converted: Dict[BenigetDef, Optional[Def]] = {}
+        self.converted: Dict[BenigetDef, Def] = {}
 
 
     def convert(self, b: DefUseChains) -> Tuple[Chains, Locals, BuiltinsChains]:
@@ -101,7 +101,7 @@ class BenigetConverter:
                     new_chains[new_def.node] = new_def
         return new_chains
 
-    def _def_factory(self, node: ast.AST, islive:bool) -> "Def|None":
+    def _def_factory(self, node: ast.AST, islive:bool) -> Def:
         # attributes **are** NameDef
         if isinstance(node, ast.ClassDef):
             return Cls(node, islive=islive)
