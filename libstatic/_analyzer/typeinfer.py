@@ -421,9 +421,8 @@ def AnnotationType(state:State, qualname:str) -> Type:
         return SimpleType(qualname)
     if isinstance(typedef, Cls):
         return ClsType(state, typedef)
-    elif typedef is not None:
-        # Else it could be a type alias/typevar etc.
-        return SymbolType(state, typedef)
+    # Else it could be a type alias/typevar etc.
+    return SymbolType(state, typedef)
 
 def SimpleType(qualname:str) -> Type:
     """
