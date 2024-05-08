@@ -19,12 +19,13 @@ from typing import (
     TYPE_CHECKING,
     cast,
     overload,
+    Literal as Lit, 
 )
 from inspect import Parameter
 
 from .._lib.structures import LazySeq, FrozenDict, ChainMap, LazyMap
 from .._lib.model import (Scope, Def, Mod, 
-                          Func, Cls, Arg,
+                          Cls, Arg,
                           NameDef, Var)
 from .._lib.ivars import is_instance_method
 from .._lib.shared import node2dottedname, ast_node_name
@@ -42,7 +43,7 @@ from .asteval import _EvalBaseVisitor
 import attr as attrs
 from attrs import validators
 
-from beniget.beniget import BuiltinsSrc, ordered_set  # type: ignore
+from beniget.beniget import BuiltinsSrc  # type: ignore
 
 if TYPE_CHECKING:
     from .state import State
@@ -114,7 +115,7 @@ class Type(_BaseType):
         # mypy is not very smart with the converter option :/
         args: Sequence['Type'] = attrs.ib(factory=tuple, converter=tuple, kw_only=True)
 
-    location: NodeLocation = attrs.ib(factory=NodeLocation, kw_only=True, eq=False, repr=False, hash=False)
+    # location: NodeLocation = attrs.ib(factory=NodeLocation, kw_only=True, eq=False, repr=False, hash=False)
     """
     The location of the node that defined this type.
     It's set to an unknown location by default so special 
@@ -130,7 +131,7 @@ class Type(_BaseType):
     if not TYPE_CHECKING:
         meta: Mapping[str, object] = attrs.ib(factory=FrozenDict, converter=FrozenDict, kw_only=True, eq=False, hash=False)
     
-    definition: Def|None = attrs.ib(default=None, eq=False, hash=False)
+    # definition: Def|None = attrs.ib(default=None, eq=False, hash=False)
     """
     The type symbol definition, if it has one. 
     Can be None for builtins (if the builtins module is not in the system) 
@@ -167,7 +168,7 @@ class Type(_BaseType):
 
     @property
     def unknown(self) -> bool:
-        return (self.qualname == 'typing.Any' and self.get_meta('unknown', bool) is True)
+        return (self.qualname == 'typing.Any' and self.get_meta('unknown') is True)
 
     @property
     def is_union(self) -> bool:
@@ -199,7 +200,7 @@ class Type(_BaseType):
 
     @property
     def is_protocol(self) -> bool:
-        return self.get_meta('is_protocol', bool) or False
+        return bool(self.get_meta('is_protocol'))
 
     @property
     def is_overload(self) -> bool:
@@ -277,20 +278,26 @@ class Type(_BaseType):
         return self._replace(meta={**self.meta, **meta})
     
     @overload
-    def get_meta(self, key:str, typ:type[_T]) -> _T|None:...
+    def get_meta(self, key: Lit['definition']) -> Def | None:...
     @overload
-    def get_meta(self, key:str) -> object|None:...
-    def get_meta(self, key:str, typ:type[Any]=object) -> Any:
-        val = self.meta.get(key)
-        if val is None:
-            return None
-        if not isinstance(val, typ):
-            raise TypeError(f'expected {typ}, got {type(val)}')
-        return val
+    def get_meta(self, key: Lit['location']) -> NodeLocation | None:...
+    @overload
+    def get_meta(self, key: Lit['members']) -> Mapping[str, Type] | None:...
+    @overload
+    def get_meta(self, key: Lit['mro']) -> Sequence[Type] | None:...
+    @overload
+    def get_meta(self, key: Lit['unknown']) -> bool | None:...
+    @overload
+    def get_meta(self, key: Lit['is_protocol']) -> bool | None:...
+    @overload
+    def get_meta(self, key: Lit['keyword']) -> str | None:...
+    
+    def get_meta(self, key: str) -> Any:
+        return self.meta.get(key)
 
     @property
     def supertype(self) -> Type | None:
-        mro: Sequence[Type] | None = self.get_meta('mro', LazySeq)
+        mro = self.get_meta('mro')
         if mro: 
             return mro[0]
         return None
@@ -320,8 +327,8 @@ class Type(_BaseType):
         
         # Check protocol based matches.
         if self.is_protocol:
-            members: Mapping[str, Type]|None = self.get_meta('members', LazyMap)
-            other_members: Mapping[str, Type]|None = other.get_meta('members', LazyMap)
+            members = self.get_meta('members')
+            other_members = other.get_meta('members')
             if members is not None and other_members is not None:
                 for name, membertype in members.items():
                     other_membertype = other_members.get(name)
@@ -360,7 +367,7 @@ class Type(_BaseType):
             if self.is_callable:
                 def format_arg(p:Type) -> str:
                     ann = p.annotation
-                    keyword = p.get_meta('keyword', str)
+                    keyword = p.get_meta('keyword')
                     if keyword:
                         return f'{keyword}:{ann}'
                     else:
@@ -393,6 +400,14 @@ class Type(_BaseType):
                 args = ', '.join(arg.long_annotation for arg in self.args)
             return f'{name}[{args}]'
         return name
+    
+    @property
+    def definition(self) -> Def | None:
+        return self.get_meta('definition')
+
+    @property
+    def location(self) -> NodeLocation | None:
+        return self.get_meta('location')
     
     # Special types:
     Any: ClassVar[Type]
@@ -440,13 +455,11 @@ def SymbolType(state:State, definition:NameDef) -> Type:
     if scopedef is not None:
         scope = state.get_qualname(scopedef)
     else:
-        # rare cases where a module is used in an annotation?
+        # Rare cases where a module name is used in an annotation?
         scope = ''
     location = state.get_location(definition)
     return Type(name=name, 
-                scope=scope, 
-                definition=definition, 
-                location=location)
+                scope=scope).add_meta(definition=definition, location=location)
 
 def ClsType(state:State, definition:Cls) -> Type:
     """
@@ -1381,7 +1394,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
                         break
                     except StaticException as e:
                         self._state.msg(f'incomplete {valuetype.name}: {e.location()}:{e.msg()}', 
-                                        ctx=valuetype.get_meta('location', NodeLocation))
+                                        ctx=valuetype.location)
 
         elif valuetype.is_literal:
             # unwrap_Literal_classdef
@@ -1397,7 +1410,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
                 #     raise StaticNameError(type(val).__name__, filename='<missing builtin>')
                 yield valuetype, definition
         elif valuetype.is_type or valuetype.is_module or valuetype.is_callable:
-            definition = valuetype.get_meta('definition', Def)
+            definition = valuetype.definition
             yield valuetype, definition
         else:
             # catch-all case
