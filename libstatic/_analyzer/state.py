@@ -46,7 +46,8 @@ from .._lib.exceptions import (
     NodeLocation,
     HasLocation, 
 )
-from .._lib.model import _Msg, Def, NameDef, Mod, Cls, Func, Imp, Scope, ClosedScope, LazySeq, ChainMap, Type
+from .._lib.model import _Msg, Def, NameDef, Mod, Cls, Func, Imp, Scope, ClosedScope, Type
+from .._lib.structures import LazySeq, ChainMap
 
 from .asteval import LiteralValue, _LiteralEval, _GotoDefinition
 from .typeinfer import _TypeInference, cleanup_unresolved_typevars

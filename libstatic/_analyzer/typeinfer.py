@@ -22,9 +22,9 @@ from typing import (
 )
 from inspect import Parameter
 
+from .._lib.structures import LazySeq, FrozenDict, ChainMap, LazyMap
 from .._lib.model import (Scope, Def, Mod, 
-                          Func, Cls, Arg, LazySeq, 
-                          FrozenDict, ChainMap, LazyMap, 
+                          Func, Cls, Arg,
                           NameDef, Var)
 from .._lib.ivars import is_instance_method
 from .._lib.shared import node2dottedname, ast_node_name
@@ -454,8 +454,10 @@ def ClsType(state:State, definition:Cls) -> Type:
     Create a `Type` from a classdef.
     """
     return SymbolType(state, definition).add_meta(
-            is_protocol=any(state.expand_expr(n) in ('typing.Protocol', 
-                                                     'typing_extensions.Protocol')
+            # Protocol[T, S, ...] is allowed as a shorthand for Protocol, Generic[T, S, ...].
+            # So we need to handle subscript explicitly here.
+            is_protocol=any(state.expand_expr(n.value if isinstance(n, ast.Subscript) else n)
+                            in ('typing.Protocol', 'typing_extensions.Protocol')
                             for n in definition.node.bases), 
             mro=SuperTypes(state, definition),
             members=MembersTypes(state, definition),
