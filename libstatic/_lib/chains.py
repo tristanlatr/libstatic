@@ -9,6 +9,9 @@ from typing import Any, Dict, List, Mapping, Optional, Tuple, Sequence
 from beniget.standard import DefUseChains as BenigetDefUseChains
 from beniget.beniget import Def as BenigetDef
 
+# TODO: This module mixes-up argument paring ans import reolving as part of the def use chains
+# Even if that might have looked as a good idea, it's not and this should be separared in several analyses
+
 from .model import Cls, Func, Var, Imp, Def, Arg, Lamb, Comp, Attr, NameDef
 from .imports import ParseImportedNames, ImportInfo
 from .exceptions import StaticCodeUnsupported
@@ -64,7 +67,7 @@ class BenigetConverter:
         locals = self._convert_locals(b.locals)
         return chains, locals, builtins_chains
 
-    def _convert_definition(self, definition: BenigetDef) -> "Def|None":
+    def _convert_definition(self, definition: BenigetDef) -> Def:
         if definition in self.converted:
             return self.converted[definition]
 
@@ -73,18 +76,14 @@ class BenigetConverter:
             new_definition = self._def_factory(definition.node, islive=True)
         else:
             ast_node = definition.node
-            if ast_node is None:
-                new_definition = None
-            else:
-                new_definition = self._def_factory(ast_node, 
+            new_definition = self._def_factory(ast_node, 
                                     islive=getattr(definition, 'islive', True))
 
         self.converted[definition] = new_definition
         if new_definition:
             for user in definition.users():
                 new_user = self._convert_definition(user)
-                if new_user:
-                    new_definition.add_user(new_user)
+                new_definition.add_user(new_user)
 
         return new_definition
 
@@ -183,6 +182,8 @@ def defuse_chains_and_locals(
     setattr(defuse, "future_annotations", True)
     # There is somthing wrong with the stub support in beniget-ng :/ 
     # so we hard set the stub value to False here 
+    # TODO: Fix this problem... This is likely due to the builtins chains and how we handle
+    # these links when is_stub=False is not compatible with the builtins.pyi module :/
     setattr(defuse, "is_stub", False)
     defuse.visit(node)
 
