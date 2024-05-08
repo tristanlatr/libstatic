@@ -19,9 +19,8 @@ Libstatic tries to be relatively lightweight and fast, so here are some trade-of
 - No pointer or shape analysis: Aliasing that happens in non-trivial ways will not be detected.
 - No soundness guarantees: ignores the effects of `eval`-like, `setattr`, etc. functions on the program state. 
   It doesn’t make worst-case sound assumptions, but rather "reasonable" ones.
-
-.. - Incomplete type system: While *basic* type inference is provided, 
-..   libstatic does not carry the complexity to support full-featured type-checking.
+- Incomplete type system: While *basic* type inference is provided, 
+  libstatic does not carry the complexity to support full-featured type-checking.
   
 The model
 =========
@@ -35,9 +34,8 @@ using one of the specialized `Def` subclass: `Mod`, `Cls`, `Func`, `Var`, `etc <
 are accessible with `Def.users()`, which returns a collection of `Def` (generally wrapping a `ast.Name` or `ast.alias`).
 
 Additionnaly, reachability analysis helps with cutting down the number of potential definitions 
-for a given user, giving more precise results. From there, we can go to the genuine definition of an 
-imported symbol, given the fact that we run python 3.11 for instance.
-Or the opposite, finding all references of a given symbol, accross all modules in the project.
+for a given user, giving more precise results. From there, we can trace the genuine definition 
+of any symbol if it's in the system. As well find all references of a given symbol, accross all modules in the project.
 
 The Def-Use chains and Use-Def chains, and other analyses results are made available througth the `State`.
 
@@ -66,7 +64,7 @@ for several kind of analyses.
 from ._analyzer.state import Project, State, MutableState, Options
 from ._analyzer.loader import load_path
 from ._lib.model import (Def, Mod, Cls, Func, Var, Arg, Imp, Comp, Lamb, Attr, 
-                         ClosedScope, OpenScope, Scope, NameDef)
+                         ClosedScope, OpenScope, Scope, NameDef, Type)
 from ._lib.process import TopologicalProcessor
 from ._lib.exceptions import *
 
@@ -75,7 +73,7 @@ __all__ = (
     "Project", 
     "Options", 
     "State", 
-    "MutableState", 
+    "MutableState", # not public API
     "load_path",
 
     "Def",
@@ -94,6 +92,8 @@ __all__ = (
     "NameDef",
 
     "TopologicalProcessor",
+
+    "Type",
 
     "NodeLocation",
     "StaticException",

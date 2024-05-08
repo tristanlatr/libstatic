@@ -28,7 +28,7 @@ software.**
 
 import pytest
 
-from libstatic._lib.model import LazySeq
+from libstatic._lib.structures import LazySeq
 
 
 def test_init() -> None:

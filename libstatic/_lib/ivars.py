@@ -7,6 +7,32 @@ from typing import Any, Dict, List, Mapping, Sequence
 from .model import Def, Attr, NameDef
 from .shared import LocalStmtVisitor, StmtVisitor
 
+def is_instance_method(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool: 
+    args = node.args.args
+    if (
+        len(args) == 0
+        # special methods known not to be instance methods,
+        # TODO: are there more?
+        or node.name in {"__new__", 
+                            "__init_subclass__",
+                            "__class_getitem__", 
+                            "__subclasscheck__", 
+                            "__subclasshook__", }
+        or any((getattr(d, "id", None)
+                in {"classmethod", "staticmethod"}
+                for d in node.decorator_list))
+        # we include only methods that follows the 
+        # 'self' convention to exclude code like
+        # class C:
+        #   def stmeth(thing):
+        #       thing.var = 2
+        #   stmeth = staticmethod(stmeth)
+        or not args[0].arg=='self'
+    ):
+        # not a typical instance method
+        return False
+    return True
+
 class IVarsVisitor(LocalStmtVisitor):
     def __init__(self, chains:Mapping[ast.AST, Def]) -> None:
         self.chains = chains
@@ -14,29 +40,11 @@ class IVarsVisitor(LocalStmtVisitor):
 
     # gather attributes of 'self'
     def visit_FunctionDef(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
-        args = node.args.args
-        if (
-            len(args) == 0
-            # special methods known not to be instance methods,
-            # TODO: are there more?
-            or node.name in {"__new__", 
-                                "__init_subclass__",
-                                "__class_getitem__", 
-                                "__subclasscheck__", 
-                                "__subclasshook__", }
-            or any((getattr(d, "id", None)
-                    in {"classmethod", "staticmethod"}
-                    for d in node.decorator_list))
-            # we include only methods that follows the 
-            # 'self' convention to exclude code like
-            # class C:
-            #   def stmeth(thing):
-            #       thing.var = 2
-            #   stmeth = staticmethod(stmeth)
-            or not args[0].arg=='self'
-        ):
+        if not is_instance_method(node):
             # not a typical instance method
             return
+
+        args = node.args.args
         self_def = self.chains[args[0]]
         for use in (u for u in self_def.users() if isinstance(u.node, ast.Name)):
             try:

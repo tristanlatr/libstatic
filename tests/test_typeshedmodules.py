@@ -13,12 +13,14 @@ class TestTypeshedLoading(TestCase):
 
     def test_builtins_module_load_dependencies(self):
         proj = Project(dependencies=1)
-        builtinsmodule = proj.add_typeshed_module('builtins')
+        builtinsmodule = proj.state.get_module('builtins')
         # assert len(proj._modules)>40
         proj.analyze_project()
         modlist = [mod.name() for mod in proj.state.get_all_modules()]
         assert 'typing' in modlist
-        assert '_collections_abc' in modlist
-        assert 'collections.abc' in modlist
+        # this module is only present when using the stubs from typeshed.
+        # But since we're using our custom stubs from pytype, it does not exist.
+        # assert '_collections_abc' in modlist
+        assert 'sys' in modlist
         assert proj.state.get_local(builtinsmodule, 'len')[-1].node.__class__.__name__=='FunctionDef'
     

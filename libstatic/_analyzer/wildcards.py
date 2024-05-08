@@ -101,6 +101,10 @@ class _ComputeWildcards:
         self._builder = builder
 
     def _process_wildcard_imports(self, node: ast.Module) -> None:
+
+        from .driver import ChainDefUseOfImports #TODO: move this class somewhere else.
+        chain_imports = ChainDefUseOfImports(self._state)
+
         visitor = _VisitWildcardImports(self._state, self._builder)
         alias2bnames = visitor.visit_Module(node)
         
@@ -150,6 +154,8 @@ class _ComputeWildcards:
                         resolved_def.add_user(unbound_name)
                 # add the new def to the state
                 self._state.add_definition(resolved_def)
+                chain_imports.visit(new_node)
+            
             # should not call remove_definition(old_def) here because some names might still
             # be only bound to the wildcard in complex __all__ definitions.
     

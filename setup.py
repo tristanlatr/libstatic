@@ -9,7 +9,8 @@ setup(
     install_requires = [
         'attrs',
         'typeshed_client',
-        'beniget',
+        # 'beniget @ git+https://github.com/serge-sans-paille/beniget.git',
+        'beniget @ git+https://github.com/pyforks/beniget-ng.git',
         'astor',
         ],
     python_requires='>=3.7',

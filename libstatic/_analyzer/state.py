@@ -24,7 +24,6 @@ from typing import (
     TextIO,
     Tuple,
     Union,
-    Type,
     TypeVar,
     cast,
     overload,
@@ -44,26 +43,22 @@ from .._lib.exceptions import (
     StaticValueError,
     StaticTypeError,
     StaticAmbiguity, 
-    NodeLocation
+    NodeLocation,
+    HasLocation, 
 )
-from .._lib.model import Def, NameDef, Mod, Cls, Func, Imp, Scope, ClosedScope, LazySeq, ChainMap
+from .._lib.model import _Msg, Def, NameDef, Mod, Cls, Func, Imp, Scope, ClosedScope, Type
+from .._lib.structures import LazySeq, ChainMap
 
 from .asteval import LiteralValue, _LiteralEval, _GotoDefinition
+from .typeinfer import _TypeInference, cleanup_unresolved_typevars
 
 
 if TYPE_CHECKING:
-    from typing import Literal, NoReturn, Protocol, _KT, _VT
+    from typing import Literal, NoReturn, Protocol, _KT, _VT, TypeAlias
 else:
     Protocol = object
 
 T = TypeVar("T", bound=ast.AST)
-
-
-class _Msg(Protocol):
-    def __call__(
-        self, msg: str, ctx: Optional[ast.AST] = None, thresh: int = 0
-    ) -> None:
-        ...
 
 ### Project-wide state and accessors
 
@@ -80,9 +75,7 @@ class _MinimalState(Protocol):
     def get_def(self, node:ast.AST) -> 'Def':...
     def goto_defs(self, node:ast.AST) -> Sequence['Def']:...
     def goto_def(self, node: ast.AST, raise_on_ambiguity: bool = False) -> Def:...
-    def get_parent_instance(
-        self, node: ast.AST, cls: "Type[T]|Tuple[Type[T],...]"
-    ) -> T:...
+    def get_parent_instance(self, node: ast.AST, cls: type[T]|Tuple[type[T],...]) -> T:...
     def expand_expr(self, node:ast.AST) -> 'str|None':
         ...
 
@@ -144,7 +137,10 @@ class State(_MinimalState):
 
     Accessor: `literal_eval`.
 
-    .. - Basic, lazy type inference 
+    Basic type inference 
+    -------------------- 
+
+    Accessor: `get_type`.
     """
 
     def __init__(self, msg: _Msg) -> None:
@@ -437,6 +433,25 @@ class State(_MinimalState):
                 include_unknown:bool=False) -> Iterator[Union[str, Cls]]:
         """
         Get an iterator on the elements of the MRO of class ``node``.
+
+        >>> src = '''
+        ... from x import thing
+        ... class A(thing, object):...
+        ... class B(A): ...
+        ... class C(B): ...
+        ... '''
+        >>> p = Project()
+        >>> m = p.add_module(ast.parse(src), 't')
+        >>> p.analyze_project()
+        >>> C = m.node.body[-1]
+        >>> list(p.state.get_mro(C))
+        [<Cls(name=C)>, <Cls(name=B)>, <Cls(name=A)>]
+        >>> list(p.state.get_mro(C, include_self=False))
+        [<Cls(name=B)>, <Cls(name=A)>]
+        >>> list(p.state.get_mro(C, include_self=False, include_unknown=True))
+        [<Cls(name=B)>, <Cls(name=A)>, 'x.thing', 'object']
+        >>> list(p.state.get_mro(C, include_unknown=True))
+        [<Cls(name=C)>, <Cls(name=B)>, <Cls(name=A)>, 'x.thing', 'object']
         """
         if isinstance(node, ast.AST):
             node = self.get_def(node)
@@ -446,7 +461,7 @@ class State(_MinimalState):
         try:
             _mro: Iterator[Union[str, Cls]] = iter(self._mros[node])
         except KeyError as e:
-            raise StaticStateIncomplete(node, 'missing mro info', 
+            raise StaticStateIncomplete(node, 'missing mro', 
                                         filename=self.get_filename(node)) from e
         if include_self is False:
             next(_mro)
@@ -465,6 +480,28 @@ class State(_MinimalState):
 
         :raises StaticValueError: If the given ``node`` cannot have locals
             (it's not a scope definition).
+        
+        >>> src = '''
+        ... class A:
+        ...    def f(self, x):
+        ...        self.x = x
+        ... class B(A): ...
+        ... class C(B): ...
+        ... '''
+        >>> p = Project()
+        >>> m = p.add_module(ast.parse(src), 't')
+        >>> p.analyze_project()
+        >>> A = m.node.body[-3]
+        >>> B = m.node.body[-2]
+        >>> C = m.node.body[-1]
+        >>> dict(p.state.get_locals(A))
+        {'f': [<Func(name=f)>]}
+        >>> dict(p.state.get_locals(B))
+        {}
+        >>> dict(p.state.get_locals(B, include_inherited=True))
+        {'f': [<Func(name=f)>]}
+        >>> dict(p.state.get_locals(C, include_inherited=True))
+        {'f': [<Func(name=f)>]}
         """
         if isinstance(node, Def):
             node = node.node
@@ -478,12 +515,18 @@ class State(_MinimalState):
                 # A scope with no locals, since beniget uses a defaultdict,
                 # we don't have the information when a class has no locals at all, 
                 # it's simply not present in the mapping
-                return {}
-            raise StaticValueError(node, f"{type(node).__name__.lower()} cannot have locals", 
+                if not include_inherited or not isinstance(node, ast.ClassDef):
+                    return {}
+                locals = {}
+            else:
+                raise StaticValueError(node, f"{type(node).__name__.lower()} cannot have locals", 
                                    filename=self.get_filename(node)) from e
-        else:
-            return ChainMap(LazySeq(chain((locals,), chain.from_iterable((self.get_locals(cls),) for 
-                    cls in self.get_mro(node, include_self=False)))))
+        
+        if include_inherited and isinstance(node, ast.ClassDef):
+            return ChainMap(LazySeq(chain((locals,), 
+                        chain.from_iterable((self.get_locals(cls),) for 
+                            cls in self.get_mro(node, include_self=False)))))
+        return {}
 
     def get_local( #type:ignore[override]
         self, node: Union["Mod", "Def", ast.AST], name: str, *,
@@ -523,13 +566,13 @@ class State(_MinimalState):
                                   filename=self.get_filename(node))
         try:
             ivars = self._ivars[node]
-            if not include_inherited:
-                return ivars
         except KeyError as e:
-            raise StaticStateIncomplete(node, 'missing instance variable infos', 
+            raise StaticStateIncomplete(node, 'missing instance variables', 
                                         filename=self.get_filename(node)) from e
-        else:
-            return ChainMap(LazySeq(chain((ivars,), chain.from_iterable((self.get_ivars(cls),) for 
+        
+        if not include_inherited:
+            return ivars
+        return ChainMap(LazySeq(chain((ivars,), chain.from_iterable((self.get_ivars(cls),) for 
                     cls in self.get_mro(node, include_self=False)))))
 
     def get_ivar(self, node: Cls | ast.ClassDef, name: str, *, 
@@ -616,11 +659,23 @@ class State(_MinimalState):
         :raises StaticException: Other kind of exceptions can also be raised by callees.
 
         .. note:: It always filter out killed definitions.
+
+        >>> src = '''
+        ... class A:
+        ...    def f(self, x):
+        ...        self.x = x
+        ... class B(A): ...
+        ... class C(B): ...
+        ... '''
+        >>> p = Project()
+        >>> m = p.add_module(ast.parse(src), 't')
+        >>> p.analyze_project()
+        >>> C = m.node.body[-1]
+        >>> p.state.get_attribute(C, 'f')
+        [<Func(name=f)>]
         """
         # TODO: Handle {"__name__", "__doc__", "__file__", "__path__", "__package__"}?
         # TODO: Handle {__class__, __module__, __qualname__}?
-        # TODO: Handle instance variables?
-        # TODO: Handle looking up in super classes?
 
         if isinstance(node, ast.AST):
             node = self.get_def(node, noraise=noraise) # type: ignore
@@ -671,7 +726,7 @@ class State(_MinimalState):
         try:
             return self._dunder_all[mod]
         except KeyError as e:
-            raise StaticStateIncomplete(mod, "no information in the system") from e
+            raise StaticStateIncomplete(mod, "missing dunder all") from e
 
     def _get_public_names(self, mod: Union["Mod", ast.Module]) -> Collection[str]:
         """
@@ -731,9 +786,7 @@ class State(_MinimalState):
         except KeyError as e:
             raise StaticStateIncomplete(node, "no parents in the system") from e
 
-    def get_parent_instance(
-        self, node: ast.AST | Def, cls: "Type[T]|Tuple[Type[T],...]"
-    ) -> T:
+    def get_parent_instance(self, node: ast.AST | Def, cls: type[T]|Tuple[type[T],...]) -> T:
         """
         Returns the first parent of the node in the syntax tree matching the given type info.
 
@@ -767,6 +820,28 @@ class State(_MinimalState):
             return self.get_def(node)
         return self.get_def(
             self.get_parent_instance(node, ast.Module))
+    
+    def get_sibling(self, node:ast.stmt, direction:int=1) -> ast.AST | None:
+        """
+        Should only be called for statements.
+        """
+        scope = self.get_parent(node)
+        for fieldname, value in ast.iter_fields(scope):
+            if isinstance(value, (list, tuple)) and node in value:
+                break
+        else:
+            raise StaticValueError(node, f"node {node} not found in {scope}", 
+                                   filename=self.get_filename(node))
+
+        body = getattr(scope, fieldname)
+        assert isinstance(body, (list, tuple))
+
+        assign_index = body.index(node)
+        try:
+            sibling = body[assign_index + direction]
+        except IndexError:
+            return None
+        return sibling
 
     def get_filename(self, node: 'ast.AST|Def') -> Optional[str]:
         """
@@ -789,7 +864,11 @@ class State(_MinimalState):
             node = node.node
         return node not in self._unreachable
 
-    # def dump(self) -> 'list[dict[str, Any]]':
+    # def _dump(self) -> 'list[dict[str, Any]]':
+    #     """
+    #     Dummy dump function.
+    #     """
+    #     from ast2json import ast2json # type:ignore
     #     def _dump_mod(_m:Mod) -> 'dict[str, Any]':
     #         return {
     #             'is_package':_m.is_package,
@@ -797,6 +876,7 @@ class State(_MinimalState):
     #             'node':ast2json(_m.node)
     #         }
     #     return [_dump_mod(m) for m in self._modules.values()]
+    
     @overload
     def get_enclosing_scope(self, definition: Mod) -> None: # type:ignore[misc]
         ...
@@ -850,7 +930,7 @@ class State(_MinimalState):
             parent = self.get_enclosing_scope(parent)
         return scopes # type:ignore
 
-    def get_qualname(self, definition: Union[NameDef, Scope]) -> "str":
+    def get_qualname(self, definition: Union[NameDef, Scope, ast.AST]) -> "str":
         """
         Returns the qualified name of this definition.
         If the definition is an imported name, returns the qualified 
@@ -860,6 +940,11 @@ class State(_MinimalState):
         The same object could have several qualified
         named depending on where it's imported.
         """
+        if isinstance(definition, ast.AST):
+            definition = self.get_def(definition) # type: ignore
+        if not isinstance(definition, (NameDef, Scope)):
+            raise StaticTypeError(definition, expected='NameDef or Scope', 
+                                  filename=self.get_filename(definition))
         if isinstance(definition, Imp):
             return definition.target()
         name = definition.name()
@@ -1208,7 +1293,7 @@ class State(_MinimalState):
         for imp in imports_references:
             yield from self._goto_attr_references(imp, set(), filter_unreachable)
 
-    def get_defs_from_qualname(self, qualname:str) -> List[Def]:
+    def get_defs_from_qualname(self, qualname:str) -> List[NameDef]:
         r"""
         Finds the definitions having the given qualname.
 
@@ -1220,7 +1305,7 @@ class State(_MinimalState):
         >>> p.state.get_defs_from_qualname('test.Reactor.System.target')
         [<Var(name=target)>]
         """
-        def find(current:List[Def], path:Sequence[str]) -> List[Def]:
+        def find(current:List[NameDef], path:Sequence[str]) -> List[NameDef]:
             curr, *parts = path
             while curr:
                 current = list(chain.from_iterable(
@@ -1233,7 +1318,7 @@ class State(_MinimalState):
         # support getting modules by name in modules mapping
         noraise=True
         names:Tuple[str, ...] = ()
-        module: Optional[Def] = None
+        module: Optional[NameDef] = None
         qnameparts = qualname.split('.')
         while qnameparts:
             module = self.get_module('.'.join(qnameparts))
@@ -1253,6 +1338,33 @@ class State(_MinimalState):
             return find([module], names)
         else:
             raise StaticStateIncomplete(qualname, f'{qualname!r} not in the system')
+    
+    def get_type(self, node:ast.AST|Def) -> Type|None:
+        """
+        Infer the type of the given node or definition.
+
+        While *basic* type inference is provided, libstatic does 
+        not carry the complexity to support full-featured type-checking.
+
+        It can infer the type of any literal expression, when a name is encountered
+        all it's potential defintions are looked up and the inferred type is derived from a 
+        union of all the possible types. There is support for attribute annotations, 
+        functions, modules or attribute access, instance variables and methods, properties 
+        and other fundamentals.
+
+        Notably missing features includes:
+            - Type aliases detection
+            - TypedDict and a lot more of the typing features
+
+        Limited support for some of these items might be added in the future. 
+        """
+        if isinstance(node, Def):
+            node = node.node
+        r = cleanup_unresolved_typevars(
+            _TypeInference(self).get_type(node, []))
+        if r and r.unknown:
+            return None
+        return r
 
 # class SingleModuleState(State):
 #     """
@@ -1289,12 +1401,11 @@ class MutableState(State):
     data structure.
     """
     search_context = None
-
+    # UNPROCESSED = 0
+    # PROCESSING = 1
+    # PROCESSED = 2
 
     def add_typeshed_module(self, modname: str) -> "Mod|None":
-        """
-        Add a module from typeshed or from locally installed .pyi files or typed packages.
-        """
         search_context = self.search_context
         if search_context is None:
             # cache search_context
@@ -1313,13 +1424,6 @@ class MutableState(State):
     def add_module(
         self, node: ast.Module, name: str, *, is_package: bool, filename: Optional[str]=None
     ) -> "Mod":
-        """
-        Adds a module to the project.
-        All modules should be added before calling `analyze_project()`.
-        This will slightly transform the AST... see `Transform`.
-
-        :raises StaticValueError: If the module name is already in the project.
-        """
         if name in self._modules:
             raise StaticValueError(node, f"duplicate module {name!r}")
         # TODO: find an extensible way to transform the tree
@@ -1393,7 +1497,11 @@ class MutableState(State):
 
     # loading
 
-    # def load(self, data:'list[dict[str, Any]]') -> None:
+    # def _load(self, data:'list[dict[str, Any]]') -> None:
+    #     """
+    #     Dummy load function, loads data dumped by `State._dump`.
+    #     """
+    #     from json2ast import json2ast # type:ignore
     #     for mod_spec in data:
     #         assert all(k in mod_spec for k in ['node', 'modname', 'is_package'])
     #         self.add_module(json2ast(mod_spec['node']),
@@ -1453,8 +1561,13 @@ class Project:
 
         :param kw: All parameters are passed to `Options` constructor.
         """
-        self.options = Options(**kw)
-        self.state: State = MutableState(msg=self.msg)
+        self.options = options = Options(**kw)
+        self.state = MutableState(msg=self.msg)
+
+        if (options.dependencies or options.builtins):
+            from .minimal_stubs import TYPING, BUILTINS
+            self.add_module(ast.parse(BUILTINS), 'builtins', filename='builtins.pyi')
+            self.add_module(ast.parse(TYPING), 'typing', filename='typing.pyi')
 
     def analyze_project(self) -> None:
         """
@@ -1479,37 +1592,46 @@ class Project:
     ) -> "Mod":
         """
         Add a module to the project, all module should be added before calling `analyze_project`.
+        This will slightly transform the AST... see `Transform`.
 
         :param node: Parsed `ast.Module` instance, see `ast.parse`.
         :param name: The fully qualified name of the module.
         :param is_package: Whether the module is a package (the node represents ``__init__.py`` file)
         :param filename: The filename of the module or ``__init__.py`` file for packages.
+        :raises StaticValueError: If the module name is already in the project.
         """
         return cast(MutableState, self.state).add_module(
             node, name, is_package=is_package, filename=filename
         )
 
     def add_typeshed_module(self, modname: str) -> "Mod|None":
-        __doc__ = MutableState.add_typeshed_module
+        """
+        Add a module from typeshed or from locally installed .pyi files or typed packages.
+        """
         return cast(MutableState, self.state).add_typeshed_module(modname)
 
     # TODO: introduce a generic reporter object used by System.msg, Documentable.report and here.
-    def msg(self, msg: str, ctx: Optional[ast.AST] = None, thresh: int = 0) -> None:
+    def msg(self, msg: str, ctx: Optional[HasLocation] = None, thresh: int = 0) -> None:
         """
         Log a message about this ast node.
         """
         if self.options.verbosity < thresh:
             return
         context = ""
-        if ctx:
-            if isinstance(ctx, Def):
-                ctx = ctx.node
-            filename = self.state.get_filename(ctx)
-            lineno = getattr(ctx, "lineno", "?")
-            col_offset = getattr(ctx, "col_offset", None)
-            if col_offset:
-                context = f"{filename or '<unknown>'}:{lineno}:{col_offset}: "
+        if ctx is not None:
+            if not isinstance(ctx, NodeLocation):
+                if isinstance(ctx, (ast.AST, Def)):
+                    location = self.state.get_location(ctx)
+                elif isinstance(ctx, StaticException):
+                    location = ctx.location()
+                else:
+                    location = NodeLocation.make(ctx)
             else:
-                context = f"{filename or '<unknown>'}:{lineno}: "
+                location = ctx
+
+            if location.col_offset:
+                context = f"{location.filename or '<unknown>'}:{location.lineno or '?'}:{location.col_offset}: "
+            else:
+                context = f"{location.filename or '<unknown>'}:{location.lineno or '?'}: "
 
         print(f"{context}{msg}", file=self.options.outstream)
