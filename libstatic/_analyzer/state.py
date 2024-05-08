@@ -31,6 +31,7 @@ from typing import (
 import attr as attrs
 from typeshed_client import get_stub_file, get_search_context
 from typeshed_client.finder import parse_stub_file
+from beniget.beniget import ordered_set # type: ignore
 
 from .._lib.shared import node2dottedname
 from .._lib.transform import Transform
@@ -1113,7 +1114,7 @@ class State(_MinimalState):
             raise_on_ambiguity=raise_on_ambiguity,
             follow_imports=follow_imports,
         )
-        result = visitor.visit(node, [])
+        result = visitor.visit(node, ordered_set())
         if isinstance(result, ast.AST):
             raise StaticTypeError(result, expected="literal")
         return result
@@ -1156,7 +1157,7 @@ class State(_MinimalState):
             follow_imports=follow_imports,
         )
 
-        definition = visitor.visit(node, [])
+        definition = visitor.visit(node, ordered_set())
         return self.get_def(definition)
 
     def _goto_references(self, definition:NameDef, seen:Set[Def], 
@@ -1361,7 +1362,7 @@ class State(_MinimalState):
         if isinstance(node, Def):
             node = node.node
         r = cleanup_unresolved_typevars(
-            _TypeInference(self).get_type(node, []))
+            _TypeInference(self).get_type(node, ordered_set()))
         if r and r.unknown:
             return None
         return r
