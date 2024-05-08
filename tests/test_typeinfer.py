@@ -673,7 +673,7 @@ def test_supertype_of() -> None:
     assert all([isinstance(o, Type) for o in clss])
     assert all([o.is_type for o in clss]), [o.annotation for o in clss]
 
-    instances = [t(o.get_meta('definition', Cls)).args[0] for o in clss]
+    instances = [t(o.definition).args[0] for o in clss]
     assert all([isinstance(o.definition, Cls) for o in instances]), [o.annotation for o in instances]
     
     Root, A, B, C1, D = instances
@@ -692,7 +692,7 @@ def test_supertype_of() -> None:
     assert all([isinstance(o, Type) for o in clss])
     assert all([o.is_type for o in clss]), [o.annotation for o in clss]
 
-    instances = [t(o.get_meta('definition', Cls)).args[0] for o in clss]
+    instances = [t(o.definition).args[0] for o in clss]
     assert all([isinstance(o.definition, Cls) for o in instances]), [o.annotation for o in instances]
 
     Subscriptable, Iterable, Map, Seq, Iter = instances
@@ -785,11 +785,5 @@ expr20 = g(A(), B()).f().f(C()).f(A()).f(B()).f().f(C()).f(A()).f(B()).f().f(C()
     print(f'slope mean: {mean}')
     print(f'standard deviation: {stdev}')
 
-    
-
-    if sys.version_info < (3,9):
-        assert mean < 0.025
-        assert stdev < 0.015
-    else:
-        assert mean < 0.020
-        assert stdev < 0.009
+    assert mean < 0.011
+    assert stdev < 0.001

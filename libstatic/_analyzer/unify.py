@@ -124,10 +124,10 @@ class Substitutions:
         """
         return (v for v in self._uf if isinstance(v, TypeVariable))
     
-    def _reconcile_types(self, t1:Type, t2:Type) -> Type:
+    def _merge_unify(self, t1:Type, t2:Type) -> Type:
         m = self.mark()
         try:
-            nt = reconcile_unify(t1, t2, self)
+            nt = merge_unify(t1, t2, self)
         except StaticException:
             self.restore(m)
             raise
@@ -149,7 +149,7 @@ class Substitutions:
 
             if t2 and t:
                 if t2 != t:
-                    nt = self._reconcile_types(t2, t)
+                    nt = self._merge_unify(t2, t)
                 else:
                     # both types are already the same, so we have nothing to do.
                     return
@@ -163,7 +163,7 @@ class Substitutions:
         
         elif t:
             if t != value:
-                nt = self._reconcile_types(t, value)
+                nt = self._merge_unify(t, value)
             else:
                 # both types are already the same, so we have nothing to do.
                 return
@@ -255,7 +255,7 @@ def occurs_in(t:TypeVariable, types:Sequence[Type]) -> bool:
     """
     return any(occurs_in_type(t, t2) for t2 in types)
 
-def reconcile_unify(t1:Type, t2:Type, subst:Substitutions) -> Type:
+def merge_unify(t1:Type, t2:Type, subst:Substitutions) -> Type:
     """
     When two possible values for a given type variable doesn't unify, 
     we use the first common - nominal - supertype, that's not `object`, or fail. 
@@ -317,15 +317,15 @@ def better_signature(callable_type:Type) -> inspect.Signature | None:
     Get a signature from the function def information wrapped by this type instance.
     Return None if there is no function wrapped, in the case of a written 'Callable' annotation for instance.
     """
-    definition = callable_type.get_meta('definition', Def)
+    definition = callable_type.get_meta('definition')
     if not isinstance(definition, Func):
         return None
     parameters: list[inspect.Parameter] = []
     for i, arg in enumerate(callable_type.args[:-1]):
-        argdef = arg.get_meta('definition', Arg)
-        if argdef is None:
+        argdef = arg.definition
+        if not isinstance(argdef, Arg):
             # the type vars seem to replace the type here:/ with no informations anymore.
-            msg = f'missing definition of callable {definition.name()!r} argument {i}: {arg}'
+            msg = f'missing definition of callable {definition.name()!r} argument {i}: {arg} - {argdef}'
             raise StaticCodeUnsupported(callable_type, msg)
         parameters.append(argdef.to_parameter().replace(annotation=arg))
     return inspect.Signature(parameters, return_annotation=callable_type.args[-1])
@@ -341,7 +341,7 @@ def callable_struct(callable_type:Type) -> tuple[Sequence[Type], Mapping[str, Ty
     keywords: dict[str, Type] = {}
 
     for a in callable_type.args[:-1]:
-        keyword = a.get_meta('keyword', str)
+        keyword = a.get_meta('keyword')
         if keyword is not None:
             keywords[keyword] = keywords.setdefault(keyword, Type.Any).merge(a)
         else:

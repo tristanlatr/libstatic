@@ -19,12 +19,13 @@ from typing import (
     TYPE_CHECKING,
     cast,
     overload,
+    Literal as Lit, 
 )
 from inspect import Parameter
 
+from .._lib.structures import LazySeq, FrozenDict, ChainMap, LazyMap
 from .._lib.model import (Scope, Def, Mod, 
-                          Func, Cls, Arg, LazySeq, 
-                          FrozenDict, ChainMap, LazyMap, 
+                          Cls, Arg,
                           NameDef, Var)
 from .._lib.ivars import is_instance_method
 from .._lib.shared import node2dottedname, ast_node_name
@@ -42,7 +43,7 @@ from .asteval import _EvalBaseVisitor
 import attr as attrs
 from attrs import validators
 
-from beniget.beniget import BuiltinsSrc, ordered_set  # type: ignore
+from beniget.beniget import BuiltinsSrc  # type: ignore
 
 if TYPE_CHECKING:
     from .state import State
@@ -114,7 +115,7 @@ class Type(_BaseType):
         # mypy is not very smart with the converter option :/
         args: Sequence['Type'] = attrs.ib(factory=tuple, converter=tuple, kw_only=True)
 
-    location: NodeLocation = attrs.ib(factory=NodeLocation, kw_only=True, eq=False, repr=False, hash=False)
+    # location: NodeLocation = attrs.ib(factory=NodeLocation, kw_only=True, eq=False, repr=False, hash=False)
     """
     The location of the node that defined this type.
     It's set to an unknown location by default so special 
@@ -130,7 +131,7 @@ class Type(_BaseType):
     if not TYPE_CHECKING:
         meta: Mapping[str, object] = attrs.ib(factory=FrozenDict, converter=FrozenDict, kw_only=True, eq=False, hash=False)
     
-    definition: Def|None = attrs.ib(default=None, eq=False, hash=False)
+    # definition: Def|None = attrs.ib(default=None, eq=False, hash=False)
     """
     The type symbol definition, if it has one. 
     Can be None for builtins (if the builtins module is not in the system) 
@@ -167,7 +168,7 @@ class Type(_BaseType):
 
     @property
     def unknown(self) -> bool:
-        return (self.qualname == 'typing.Any' and self.get_meta('unknown', bool) is True)
+        return (self.qualname == 'typing.Any' and self.get_meta('unknown') is True)
 
     @property
     def is_union(self) -> bool:
@@ -199,7 +200,7 @@ class Type(_BaseType):
 
     @property
     def is_protocol(self) -> bool:
-        return self.get_meta('is_protocol', bool) or False
+        return bool(self.get_meta('is_protocol'))
 
     @property
     def is_overload(self) -> bool:
@@ -277,20 +278,26 @@ class Type(_BaseType):
         return self._replace(meta={**self.meta, **meta})
     
     @overload
-    def get_meta(self, key:str, typ:type[_T]) -> _T|None:...
+    def get_meta(self, key: Lit['definition']) -> Def | None:...
     @overload
-    def get_meta(self, key:str) -> object|None:...
-    def get_meta(self, key:str, typ:type[Any]=object) -> Any:
-        val = self.meta.get(key)
-        if val is None:
-            return None
-        if not isinstance(val, typ):
-            raise TypeError(f'expected {typ}, got {type(val)}')
-        return val
+    def get_meta(self, key: Lit['location']) -> NodeLocation | None:...
+    @overload
+    def get_meta(self, key: Lit['members']) -> Mapping[str, Type] | None:...
+    @overload
+    def get_meta(self, key: Lit['mro']) -> Sequence[Type] | None:...
+    @overload
+    def get_meta(self, key: Lit['unknown']) -> bool | None:...
+    @overload
+    def get_meta(self, key: Lit['is_protocol']) -> bool | None:...
+    @overload
+    def get_meta(self, key: Lit['keyword']) -> str | None:...
+    
+    def get_meta(self, key: str) -> Any:
+        return self.meta.get(key)
 
     @property
     def supertype(self) -> Type | None:
-        mro: Sequence[Type] | None = self.get_meta('mro', LazySeq)
+        mro = self.get_meta('mro')
         if mro: 
             return mro[0]
         return None
@@ -320,8 +327,8 @@ class Type(_BaseType):
         
         # Check protocol based matches.
         if self.is_protocol:
-            members: Mapping[str, Type]|None = self.get_meta('members', LazyMap)
-            other_members: Mapping[str, Type]|None = other.get_meta('members', LazyMap)
+            members = self.get_meta('members')
+            other_members = other.get_meta('members')
             if members is not None and other_members is not None:
                 for name, membertype in members.items():
                     other_membertype = other_members.get(name)
@@ -360,7 +367,7 @@ class Type(_BaseType):
             if self.is_callable:
                 def format_arg(p:Type) -> str:
                     ann = p.annotation
-                    keyword = p.get_meta('keyword', str)
+                    keyword = p.get_meta('keyword')
                     if keyword:
                         return f'{keyword}:{ann}'
                     else:
@@ -394,6 +401,14 @@ class Type(_BaseType):
             return f'{name}[{args}]'
         return name
     
+    @property
+    def definition(self) -> Def | None:
+        return self.get_meta('definition')
+
+    @property
+    def location(self) -> NodeLocation | None:
+        return self.get_meta('location')
+    
     # Special types:
     Any: ClassVar[Type]
     Union: ClassVar[Type]
@@ -421,9 +436,8 @@ def AnnotationType(state:State, qualname:str) -> Type:
         return SimpleType(qualname)
     if isinstance(typedef, Cls):
         return ClsType(state, typedef)
-    elif typedef is not None:
-        # Else it could be a type alias/typevar etc.
-        return SymbolType(state, typedef)
+    # Else it could be a type alias/typevar etc.
+    return SymbolType(state, typedef)
 
 def SimpleType(qualname:str) -> Type:
     """
@@ -441,21 +455,21 @@ def SymbolType(state:State, definition:NameDef) -> Type:
     if scopedef is not None:
         scope = state.get_qualname(scopedef)
     else:
-        # rare cases where a module is used in an annotation?
+        # Rare cases where a module name is used in an annotation?
         scope = ''
     location = state.get_location(definition)
     return Type(name=name, 
-                scope=scope, 
-                definition=definition, 
-                location=location)
+                scope=scope).add_meta(definition=definition, location=location)
 
 def ClsType(state:State, definition:Cls) -> Type:
     """
     Create a `Type` from a classdef.
     """
     return SymbolType(state, definition).add_meta(
-            is_protocol=any(state.expand_expr(n) in ('typing.Protocol', 
-                                                     'typing_extensions.Protocol')
+            # Protocol[T, S, ...] is allowed as a shorthand for Protocol, Generic[T, S, ...].
+            # So we need to handle subscript explicitly here.
+            is_protocol=any(state.expand_expr(n.value if isinstance(n, ast.Subscript) else n)
+                            in ('typing.Protocol', 'typing_extensions.Protocol')
                             for n in definition.node.bases), 
             mro=SuperTypes(state, definition),
             members=MembersTypes(state, definition),
@@ -777,7 +791,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
 
     _state: State
 
-    def get_type(self, expr: ast.AST, path: list[ast.AST]) -> Type | None:
+    def get_type(self, expr: ast.AST, path: set[object]) -> Type | None:
         try:
             return self.visit(expr, path)
         except StaticException as e:
@@ -803,7 +817,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
     def visit_Constant(
         self, node: Union[ast.Constant, ast.Str, ast.NameConstant, 
                           ast.Bytes, ast.Num],
-        path: list[ast.AST],
+        path: set[object],
     ) -> Type:
         if isinstance(node, (ast.Str, ast.Bytes)):
             value: object = node.s
@@ -822,11 +836,11 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
     visit_Num = visit_Constant
     visit_NameConstant = visit_Constant
 
-    def visit_JoinedStr(self, node: ast.JoinedStr, path: list[ast.AST]) -> Type:
+    def visit_JoinedStr(self, node: ast.JoinedStr, path: set[object]) -> Type:
         return self.builtin("str").add_meta(
             location=self._state.get_location(node))
 
-    def visit_List(self, node: ast.List | ast.Set, path: list[ast.AST]) -> Type:
+    def visit_List(self, node: ast.List | ast.Set, path: set[object]) -> Type:
         clsname = type(node).__name__.lower()
         subtype = Type.Any
         for element_node in node.elts:
@@ -842,7 +856,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
 
     visit_Set = visit_List
 
-    def visit_Tuple(self, node: ast.Tuple, path: list[ast.AST]) -> Type:
+    def visit_Tuple(self, node: ast.Tuple, path: set[object]) -> Type:
         subtypes: tuple[Type, ...] = ()
         for element_node in node.elts:
             element_type = self.get_type(element_node, path)
@@ -856,7 +870,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
         return self.builtin("tuple").add_args(args=subtypes).add_meta(
             location=self._state.get_location(node))
 
-    def visit_Dict(self, node: ast.Dict, path: list[ast.AST]) -> Type:
+    def visit_Dict(self, node: ast.Dict, path: set[object]) -> Type:
         keys_type = Type.Any
         unpack_indexes = set()
         for i, key_node in enumerate(node.keys):
@@ -891,7 +905,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
             args=(keys_type, values_type)).add_meta(
             location=self._state.get_location(node))
 
-    def visit_UnaryOp(self, node: ast.UnaryOp, path: list[ast.AST]) -> Type | None:
+    def visit_UnaryOp(self, node: ast.UnaryOp, path: set[object]) -> Type | None:
         if isinstance(node.op, ast.Not):
             return self.builtin("bool").add_meta(
                 location=self._state.get_location(node))
@@ -901,7 +915,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
             return result
         return None
 
-    def visit_BinOp(self, node: ast.BinOp, path: list[ast.AST]) -> Type | None:
+    def visit_BinOp(self, node: ast.BinOp, path: set[object]) -> Type | None:
         assert node.op
         lt = self.get_type(node.left, path)
         if lt is None:
@@ -922,7 +936,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
             return rt
         return None
 
-    def visit_BoolOp(self, node: ast.BoolOp, path: list[ast.AST]) -> Type | None:
+    def visit_BoolOp(self, node: ast.BoolOp, path: set[object]) -> Type | None:
         assert node.op
         result = Type.Any
         for subnode in node.values:
@@ -933,7 +947,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
         return result.add_meta(
             location=self._state.get_location(node))
 
-    def visit_Compare(self, node: ast.Compare, path: list[ast.AST]) -> Type | None:
+    def visit_Compare(self, node: ast.Compare, path: set[object]) -> Type | None:
         if isinstance(node.ops[0], ast.Is):
             return self.builtin("bool").add_meta(
                 location=self._state.get_location(node))
@@ -941,25 +955,25 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
         return self.builtin("bool").add_meta(
             location=self._state.get_location(node))  # , ass={Ass.NO_COMP_OVERLOAD})
 
-    def visit_ListComp(self, node: ast.ListComp, path: list[ast.AST]) -> Type | None:
+    def visit_ListComp(self, node: ast.ListComp, path: set[object]) -> Type | None:
         return self.builtin("list").add_meta(
             location=self._state.get_location(node))
 
-    def visit_SetComp(self, node: ast.SetComp, path: list[ast.AST]) -> Type | None:
+    def visit_SetComp(self, node: ast.SetComp, path: set[object]) -> Type | None:
         return self.builtin("set").add_meta(
             location=self._state.get_location(node))
 
-    def visit_DictComp(self, node: ast.DictComp, path: list[ast.AST]) -> Type | None:
+    def visit_DictComp(self, node: ast.DictComp, path: set[object]) -> Type | None:
         return self.builtin("dict").add_meta(
             location=self._state.get_location(node))
 
     def visit_GeneratorExp(
-        self, node: ast.GeneratorExp, path: list[ast.AST]
+        self, node: ast.GeneratorExp, path: set[object]
     ) -> Type | None:
         return AnnotationType(self._state, 'typing.Iterator').add_meta(
             location=self._state.get_location(node))
 
-    def visit_Call(self, node: ast.Call, path: list[ast.AST]) -> Type | None:
+    def visit_Call(self, node: ast.Call, path: set[object]) -> Type | None:
         assert node.func
         functype = self.get_type(node.func, path)
         if functype:
@@ -986,7 +1000,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
             )
         return None
 
-    def visit_Subscript(self, node: ast.Subscript, path: list[ast.AST]) -> Type | None:
+    def visit_Subscript(self, node: ast.Subscript, path: set[object]) -> Type | None:
         assert node.value
         valuetype = self.get_type(node.value, path)
         if valuetype is None:
@@ -1031,7 +1045,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
     #########################################
 
     def visit_Name_Store(
-        self, node: ast.Name | ast.Attribute, path: list[ast.AST]
+        self, node: ast.Name | ast.Attribute, path: set[object]
     ) -> Type | None:
         # doesn't support augmented assignments
         try:
@@ -1061,7 +1075,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
     visit_Attribute_Store = visit_Name_Store
 
     def visit_Name_Load(
-        self, node: ast.Name | ast.alias, path: list[ast.AST]
+        self, node: ast.Name | ast.alias, path: set[object]
     ) -> Type | None:
         try:
             name_defs = self._state.goto_defs(node)
@@ -1096,7 +1110,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
     visit_alias = visit_Name_Load
     
     def visit_Attribute_Load(
-        self, node: ast.Attribute, path: list[ast.AST]
+        self, node: ast.Attribute, path: set[object]
     ) -> Type | None:
         valuetype = self.get_type(node.value, path)
         if valuetype is None:
@@ -1108,7 +1122,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
     ###      statements                   ###
     #########################################
 
-    def visit_arg(self, node: ast.arg, path: list[ast.AST], typevars:dict[str, Type]|None=None) -> Type | None:
+    def visit_arg(self, node: ast.arg, path: set[object], typevars:dict[str, Type]|None=None) -> Type | None:
         arg_def: Arg = self._state.get_def(node)  # type:ignore
         if arg_def.node.annotation is not None:
             try:
@@ -1150,7 +1164,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
 
     def visit_FunctionDef(
         self, node: ast.FunctionDef | ast.AsyncFunctionDef, 
-        path: list[ast.AST],
+        path: set[object],
         overloads: deque[Type]|None=None,
         typevars: dict[str, Type]|None=None,
     ) -> Type:
@@ -1217,14 +1231,14 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
 
     visit_AsyncFunctionDef = visit_FunctionDef
 
-    def visit_Module(self, node: ast.Module, path: list[ast.AST]) -> Type:
+    def visit_Module(self, node: ast.Module, path: set[object]) -> Type:
         modname = self._state.get_qualname(node)
         return Type.ModuleType.add_meta(
             qualname=modname, 
             location=self._state.get_location(node), 
             definition=self._state.get_def(node),)
 
-    def visit_ClassDef(self, node: ast.ClassDef, path: list[ast.AST]) -> Type:
+    def visit_ClassDef(self, node: ast.ClassDef, path: set[object]) -> Type:
         return Type.TypeType.add_args(args=[
             ClsType(self._state, self._state.get_def(node)) ]).add_meta(
                 # for consistency, we set all 3 meta fields even if information
@@ -1241,7 +1255,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
         self, valuetype: Type, 
         attr: str, 
         ctx: ast.AST, 
-        path: list[ast.AST]
+        path: set[object]
     ) -> Type:
         """
         Get the type of an attribute access ``attr`` on the given ``valuetype``.
@@ -1380,7 +1394,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
                         break
                     except StaticException as e:
                         self._state.msg(f'incomplete {valuetype.name}: {e.location()}:{e.msg()}', 
-                                        ctx=valuetype.get_meta('location', NodeLocation))
+                                        ctx=valuetype.location)
 
         elif valuetype.is_literal:
             # unwrap_Literal_classdef
@@ -1396,7 +1410,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
                 #     raise StaticNameError(type(val).__name__, filename='<missing builtin>')
                 yield valuetype, definition
         elif valuetype.is_type or valuetype.is_module or valuetype.is_callable:
-            definition = valuetype.get_meta('definition', Def)
+            definition = valuetype.definition
             yield valuetype, definition
         else:
             # catch-all case
