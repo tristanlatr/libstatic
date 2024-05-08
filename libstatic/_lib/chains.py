@@ -6,8 +6,8 @@ from __future__ import annotations
 import ast
 from typing import Any, Dict, List, Mapping, Optional, Tuple, Sequence
 
-from beniget.standard import DefUseChains as BenigetDefUseChains
-from beniget.beniget import Def as BenigetDef
+from beniget.standard import DefUseChains as BenigetDefUseChains # type: ignore
+from beniget.beniget import Def as BenigetDef # type: ignore
 
 # TODO: This module mixes-up argument paring ans import reolving as part of the def use chains
 # Even if that might have looked as a good idea, it's not and this should be separared in several analyses
