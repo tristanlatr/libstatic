@@ -6,50 +6,16 @@ from __future__ import annotations
 import ast
 from typing import Any, Dict, List, Mapping, Optional, Tuple, Sequence
 
-import gast  # type:ignore
-from gast.ast3 import Ast3ToGAst  # type:ignore
-from beniget.beniget import ( # type:ignore
-    DefUseChains as BenigetDefUseChains,
-    Def as BenigetDef,
-)
+from beniget.standard import DefUseChains as BenigetDefUseChains
+from beniget.beniget import Def as BenigetDef
 
 from .model import Cls, Func, Var, Imp, Def, Arg, Lamb, Comp, Attr, NameDef
 from .imports import ParseImportedNames, ImportInfo
 from .exceptions import StaticCodeUnsupported
-from .shared import LocalStmtVisitor, StmtVisitor
 from .arguments import iter_arguments, ArgSpec
 
 # beniget integration here:
 
-
-class _AstToGAst(Ast3ToGAst):
-    def __init__(self) -> None:
-        self.mapping: Dict[gast.AST, ast.AST] = {}
-
-    def visit(self, node: ast.AST) -> gast.AST:
-        try:
-            newnode = super().visit(node)
-        except StaticCodeUnsupported:
-            raise
-        except Exception:
-            raise StaticCodeUnsupported(node, 'error in ast to gast')
-        
-        if not isinstance(node, ast.expr_context):
-            self.mapping[newnode] = node
-        return newnode
-
-
-def ast_to_gast(node: ast.Module) -> Tuple[gast.Module, Mapping[gast.AST, ast.AST]]:
-    """
-    This function returns a tuple which first element is the ``gast`` module and the second element is a
-    mapping from gast nodes to standard library nodes. It should be used with caution
-    since not all nodes have a corespondance. Namely, ``expr_context`` nodes and the store ``Name`` of
-    ``ExceptHandler`` are not present in the mapping.
-    """
-    # returns a tuple: (gast node, mapping from gast node to ast node)
-    _vis = _AstToGAst()
-    newnode = _vis.visit(node)
-    return newnode, _vis.mapping
 
 class DefUseChains(BenigetDefUseChains):
     """
@@ -63,7 +29,7 @@ class DefUseChains(BenigetDefUseChains):
             )
             return "{}{}:{}".format(filename,
                                             node.lineno,
-                                            node.col_offset)
+                                            getattr(node, 'col_offset', None))
         else:
             return "?"
         
@@ -83,11 +49,9 @@ Locals = Mapping[ast.AST, Mapping[str, Sequence["NameDef|None"]]]
 class BenigetConverter:
     def __init__(
         self,
-        gast2ast: Mapping[gast.AST, ast.AST],
         alias2importinfo: Mapping[ast.alias, ImportInfo],
         arg2spec: Mapping[ast.arg, ArgSpec],
     ) -> None:
-        self.gast2ast = gast2ast
         self.alias2importinfo = alias2importinfo
         self.arg2spec = arg2spec
         self.converted: Dict[BenigetDef, Optional[Def]] = {}
@@ -104,11 +68,11 @@ class BenigetConverter:
         if definition in self.converted:
             return self.converted[definition]
 
-        if not isinstance(definition.node, gast.AST):
+        if not isinstance(definition.node, ast.AST):
             # a builtin
             new_definition = self._def_factory(definition.node, islive=True)
         else:
-            ast_node = self.gast2ast.get(definition.node)
+            ast_node = definition.node
             if ast_node is None:
                 new_definition = None
             else:
@@ -178,7 +142,7 @@ class BenigetConverter:
     def _convert_locals(self, locals: Mapping[ast.AST, List["BenigetDef"]]) -> Locals:
         locals_as_dict: Dict[ast.AST, Dict[str, List["NameDef|None"]]] = {}
         for namespace, loc_list in locals.items():
-            d = locals_as_dict.setdefault(self.gast2ast[namespace], {})
+            d = locals_as_dict.setdefault(namespace, {})
             for loc in loc_list:
                 try:
                     converted_local = self.converted[loc]
@@ -213,13 +177,14 @@ def defuse_chains_and_locals(
     is_package: bool,
 ) -> Tuple[Chains, Locals, BuiltinsChains]:
     # create gast node as well as gast -> ast mapping
-    gast_node, gast2ast = ast_to_gast(node)
 
     # - compute beniget def-use chains
     defuse = DefUseChains(filename=filename)
     setattr(defuse, "future_annotations", True)
-    setattr(defuse, "is_stub", True)
-    defuse.visit(gast_node)
+    # There is somthing wrong with the stub support in beniget-ng :/ 
+    # so we hard set the stub value to False here 
+    setattr(defuse, "is_stub", False)
+    defuse.visit(node)
 
     # parse imports
     alias2importinfo = ParseImportedNames(modname, is_package=is_package).visit_Module(
@@ -230,7 +195,7 @@ def defuse_chains_and_locals(
     arg2spec = ParseArgumentsInfos().visit_Module(node)
 
     # convert result into standard library
-    converter = BenigetConverter(gast2ast, alias2importinfo, arg2spec)
+    converter = BenigetConverter(alias2importinfo, arg2spec)
     chains, locals, builtins_defuse = converter.convert(defuse)
     
     return chains, locals, builtins_defuse
