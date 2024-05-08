@@ -6,10 +6,9 @@ from typing import Any, Dict, List, Mapping, Sequence, TYPE_CHECKING
 
 from .shared import LocalStmtVisitor, StmtVisitor
 
-
 if TYPE_CHECKING:
     from .model import Def
-
+    
 def is_instance_method(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool: 
     args = node.args.args
     if (
