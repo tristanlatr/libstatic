@@ -791,7 +791,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
 
     _state: State
 
-    def get_type(self, expr: ast.AST, path: list[ast.AST]) -> Type | None:
+    def get_type(self, expr: ast.AST, path: set[object]) -> Type | None:
         try:
             return self.visit(expr, path)
         except StaticException as e:
@@ -817,7 +817,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
     def visit_Constant(
         self, node: Union[ast.Constant, ast.Str, ast.NameConstant, 
                           ast.Bytes, ast.Num],
-        path: list[ast.AST],
+        path: set[object],
     ) -> Type:
         if isinstance(node, (ast.Str, ast.Bytes)):
             value: object = node.s
@@ -836,11 +836,11 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
     visit_Num = visit_Constant
     visit_NameConstant = visit_Constant
 
-    def visit_JoinedStr(self, node: ast.JoinedStr, path: list[ast.AST]) -> Type:
+    def visit_JoinedStr(self, node: ast.JoinedStr, path: set[object]) -> Type:
         return self.builtin("str").add_meta(
             location=self._state.get_location(node))
 
-    def visit_List(self, node: ast.List | ast.Set, path: list[ast.AST]) -> Type:
+    def visit_List(self, node: ast.List | ast.Set, path: set[object]) -> Type:
         clsname = type(node).__name__.lower()
         subtype = Type.Any
         for element_node in node.elts:
@@ -856,7 +856,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
 
     visit_Set = visit_List
 
-    def visit_Tuple(self, node: ast.Tuple, path: list[ast.AST]) -> Type:
+    def visit_Tuple(self, node: ast.Tuple, path: set[object]) -> Type:
         subtypes: tuple[Type, ...] = ()
         for element_node in node.elts:
             element_type = self.get_type(element_node, path)
@@ -870,7 +870,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
         return self.builtin("tuple").add_args(args=subtypes).add_meta(
             location=self._state.get_location(node))
 
-    def visit_Dict(self, node: ast.Dict, path: list[ast.AST]) -> Type:
+    def visit_Dict(self, node: ast.Dict, path: set[object]) -> Type:
         keys_type = Type.Any
         unpack_indexes = set()
         for i, key_node in enumerate(node.keys):
@@ -905,7 +905,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
             args=(keys_type, values_type)).add_meta(
             location=self._state.get_location(node))
 
-    def visit_UnaryOp(self, node: ast.UnaryOp, path: list[ast.AST]) -> Type | None:
+    def visit_UnaryOp(self, node: ast.UnaryOp, path: set[object]) -> Type | None:
         if isinstance(node.op, ast.Not):
             return self.builtin("bool").add_meta(
                 location=self._state.get_location(node))
@@ -915,7 +915,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
             return result
         return None
 
-    def visit_BinOp(self, node: ast.BinOp, path: list[ast.AST]) -> Type | None:
+    def visit_BinOp(self, node: ast.BinOp, path: set[object]) -> Type | None:
         assert node.op
         lt = self.get_type(node.left, path)
         if lt is None:
@@ -936,7 +936,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
             return rt
         return None
 
-    def visit_BoolOp(self, node: ast.BoolOp, path: list[ast.AST]) -> Type | None:
+    def visit_BoolOp(self, node: ast.BoolOp, path: set[object]) -> Type | None:
         assert node.op
         result = Type.Any
         for subnode in node.values:
@@ -947,7 +947,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
         return result.add_meta(
             location=self._state.get_location(node))
 
-    def visit_Compare(self, node: ast.Compare, path: list[ast.AST]) -> Type | None:
+    def visit_Compare(self, node: ast.Compare, path: set[object]) -> Type | None:
         if isinstance(node.ops[0], ast.Is):
             return self.builtin("bool").add_meta(
                 location=self._state.get_location(node))
@@ -955,25 +955,25 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
         return self.builtin("bool").add_meta(
             location=self._state.get_location(node))  # , ass={Ass.NO_COMP_OVERLOAD})
 
-    def visit_ListComp(self, node: ast.ListComp, path: list[ast.AST]) -> Type | None:
+    def visit_ListComp(self, node: ast.ListComp, path: set[object]) -> Type | None:
         return self.builtin("list").add_meta(
             location=self._state.get_location(node))
 
-    def visit_SetComp(self, node: ast.SetComp, path: list[ast.AST]) -> Type | None:
+    def visit_SetComp(self, node: ast.SetComp, path: set[object]) -> Type | None:
         return self.builtin("set").add_meta(
             location=self._state.get_location(node))
 
-    def visit_DictComp(self, node: ast.DictComp, path: list[ast.AST]) -> Type | None:
+    def visit_DictComp(self, node: ast.DictComp, path: set[object]) -> Type | None:
         return self.builtin("dict").add_meta(
             location=self._state.get_location(node))
 
     def visit_GeneratorExp(
-        self, node: ast.GeneratorExp, path: list[ast.AST]
+        self, node: ast.GeneratorExp, path: set[object]
     ) -> Type | None:
         return AnnotationType(self._state, 'typing.Iterator').add_meta(
             location=self._state.get_location(node))
 
-    def visit_Call(self, node: ast.Call, path: list[ast.AST]) -> Type | None:
+    def visit_Call(self, node: ast.Call, path: set[object]) -> Type | None:
         assert node.func
         functype = self.get_type(node.func, path)
         if functype:
@@ -1000,7 +1000,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
             )
         return None
 
-    def visit_Subscript(self, node: ast.Subscript, path: list[ast.AST]) -> Type | None:
+    def visit_Subscript(self, node: ast.Subscript, path: set[object]) -> Type | None:
         assert node.value
         valuetype = self.get_type(node.value, path)
         if valuetype is None:
@@ -1045,7 +1045,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
     #########################################
 
     def visit_Name_Store(
-        self, node: ast.Name | ast.Attribute, path: list[ast.AST]
+        self, node: ast.Name | ast.Attribute, path: set[object]
     ) -> Type | None:
         # doesn't support augmented assignments
         try:
@@ -1075,7 +1075,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
     visit_Attribute_Store = visit_Name_Store
 
     def visit_Name_Load(
-        self, node: ast.Name | ast.alias, path: list[ast.AST]
+        self, node: ast.Name | ast.alias, path: set[object]
     ) -> Type | None:
         try:
             name_defs = self._state.goto_defs(node)
@@ -1110,7 +1110,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
     visit_alias = visit_Name_Load
     
     def visit_Attribute_Load(
-        self, node: ast.Attribute, path: list[ast.AST]
+        self, node: ast.Attribute, path: set[object]
     ) -> Type | None:
         valuetype = self.get_type(node.value, path)
         if valuetype is None:
@@ -1122,7 +1122,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
     ###      statements                   ###
     #########################################
 
-    def visit_arg(self, node: ast.arg, path: list[ast.AST], typevars:dict[str, Type]|None=None) -> Type | None:
+    def visit_arg(self, node: ast.arg, path: set[object], typevars:dict[str, Type]|None=None) -> Type | None:
         arg_def: Arg = self._state.get_def(node)  # type:ignore
         if arg_def.node.annotation is not None:
             try:
@@ -1164,7 +1164,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
 
     def visit_FunctionDef(
         self, node: ast.FunctionDef | ast.AsyncFunctionDef, 
-        path: list[ast.AST],
+        path: set[object],
         overloads: deque[Type]|None=None,
         typevars: dict[str, Type]|None=None,
     ) -> Type:
@@ -1231,14 +1231,14 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
 
     visit_AsyncFunctionDef = visit_FunctionDef
 
-    def visit_Module(self, node: ast.Module, path: list[ast.AST]) -> Type:
+    def visit_Module(self, node: ast.Module, path: set[object]) -> Type:
         modname = self._state.get_qualname(node)
         return Type.ModuleType.add_meta(
             qualname=modname, 
             location=self._state.get_location(node), 
             definition=self._state.get_def(node),)
 
-    def visit_ClassDef(self, node: ast.ClassDef, path: list[ast.AST]) -> Type:
+    def visit_ClassDef(self, node: ast.ClassDef, path: set[object]) -> Type:
         return Type.TypeType.add_args(args=[
             ClsType(self._state, self._state.get_def(node)) ]).add_meta(
                 # for consistency, we set all 3 meta fields even if information
@@ -1255,7 +1255,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
         self, valuetype: Type, 
         attr: str, 
         ctx: ast.AST, 
-        path: list[ast.AST]
+        path: set[object]
     ) -> Type:
         """
         Get the type of an attribute access ``attr`` on the given ``valuetype``.

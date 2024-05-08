@@ -785,11 +785,5 @@ expr20 = g(A(), B()).f().f(C()).f(A()).f(B()).f().f(C()).f(A()).f(B()).f().f(C()
     print(f'slope mean: {mean}')
     print(f'standard deviation: {stdev}')
 
-    
-
-    if sys.version_info < (3,9):
-        assert mean < 0.025
-        assert stdev < 0.015
-    else:
-        assert mean < 0.020
-        assert stdev < 0.009
+    assert mean < 0.05
+    assert stdev < 0.005

@@ -7,6 +7,7 @@ import types
 from typing import (
     Any,
     Callable,
+    Collection,
     List,
     Mapping,
     Type,
@@ -20,6 +21,8 @@ from typing import (
 if TYPE_CHECKING:
     from typing import TypeAlias
     from .state import _MinimalState
+
+from beniget.beniget import ordered_set # type: ignore
 
 from .._lib.shared import node2dottedname
 from .._lib.assignment import get_stored_value
@@ -57,7 +60,7 @@ class _EvalBaseVisitor(Generic[T]):
     def __init__(self, state: '_MinimalState') -> None:
         self._state = state
     
-    def _visit(self, node: ast.AST, path: List[ast.AST]) -> T:
+    def _visit(self, node: ast.AST, path: set[object]) -> T:
         """Visit a node."""
         method = "visit_" + node.__class__.__name__
         try:
@@ -69,7 +72,7 @@ class _EvalBaseVisitor(Generic[T]):
             return visitor(node, path) # type: ignore
     
     def _visit_ctx_dependent(
-        self, node: Union[ast.Attribute, ast.Name], path: List[ast.AST]
+        self, node: Union[ast.Attribute, ast.Name], path: set[object]
     ) -> T:
         ctx = getattr(node, "ctx", ast.Load())
         ctxname = ctx.__class__.__name__
@@ -84,7 +87,7 @@ class _EvalBaseVisitor(Generic[T]):
     
     visit_Name = visit_Attribute = _visit_ctx_dependent
 
-    def visit(self, node: Any, path: List[ast.AST]) -> T:
+    def visit(self, node: Any, path: set[object]) -> T:
         if node in path:
             raise StaticValueError(node, f"node has cyclic definition, "
                                    f'path={[str(self._state.get_location(n)) for n in path]+[str(self._state.get_location(node))]}', # type:ignore
@@ -93,8 +96,8 @@ class _EvalBaseVisitor(Generic[T]):
             raise StaticCodeUnsupported(node, "expression is too complex", 
                                         filename=self._state.get_filename(node))
         # fork path
-        path = path.copy()
-        path.append(node)
+        path = ordered_set(path)
+        path.add(node)
         return self._visit(node, path)
 
 class _ASTEval(_EvalBaseVisitor[ASTOrLiteralValue]):
@@ -112,7 +115,7 @@ class _ASTEval(_EvalBaseVisitor[ASTOrLiteralValue]):
         visit_AsyncFunctionDef = visit_Lambda = _returns
 
     def visit_Attribute_Load(
-        self, node: ast.Attribute, path: List[ast.AST]
+        self, node: ast.Attribute, path: set[object]
     ) -> ASTOrLiteralValue:
         namespace = self.visit(node.value, path)
         if isinstance(namespace, (ast.Module, ast.ClassDef)):
@@ -127,7 +130,7 @@ class _ASTEval(_EvalBaseVisitor[ASTOrLiteralValue]):
             raise StaticTypeError(namespace, expected="Module or ClassDef", 
                                   filename=self._state.get_filename(node))
 
-    def visit_Name_Load(self, node: ast.Name, path: List[ast.AST]) -> ASTOrLiteralValue:
+    def visit_Name_Load(self, node: ast.Name, path: set[object]) -> ASTOrLiteralValue:
         # TODO: integrate with reachability analysis
         # Use goto to compute the value of this symbol
         name_def = self._state.goto_def(node,
@@ -135,7 +138,7 @@ class _ASTEval(_EvalBaseVisitor[ASTOrLiteralValue]):
         return self.visit(name_def.node, path)
 
     def visit_Name_Store(
-        self, node: ast.Name, path: List[ast.AST]
+        self, node: ast.Name, path: set[object]
     ) -> ASTOrLiteralValue:
         # doesn't support augmented assignments, for loops target, etc..
         assign = self._state.get_parent_instance(
@@ -166,15 +169,15 @@ class _GotoDefinition(_ASTEval):
         if not follow_imports:
             self.visit_alias = self.visit_alias_DontFollowImports #type:ignore
 
-    def visit(self, node: Any, path: List[ast.AST]) -> ast.AST:
+    def visit(self, node: Any, path: set[object]) -> ast.AST:
         v = super().visit(node, path)
         if not isinstance(v, ast.AST):
-            raise StaticTypeError(v, expected="definition", 
-                                  filename=self._state.get_filename(path[-1]))
+            raise StaticTypeError(v, expected="ast definition", 
+                                  filename=self._state.get_filename(node))
         return v
 
     def visit_alias(
-        self: _ASTEval, node: ast.alias, path: List[ast.AST]
+        self: _ASTEval, node: ast.alias, path: set[object]
     ) -> ASTOrLiteralValue:
         name_def = self._state.goto_def(node, 
                     raise_on_ambiguity=self._raise_on_ambiguity)
@@ -182,15 +185,15 @@ class _GotoDefinition(_ASTEval):
         return self.visit(name_def.node, path)
 
     def visit_alias_DontFollowImports(
-        self, node: ast.alias, path: List[ast.AST]
+        self, node: ast.alias, path: set[object]
     ) -> ast.alias:
         return node
 
-    def visit_Name_Store(self, node: ast.Name, path: List[ast.AST]) -> ast.Name:
+    def visit_Name_Store(self, node: ast.Name, path: set[object]) -> ast.Name:
         return node
 
     def visit_Name_FollowAliases(
-        self, node: ast.Name, path: List[ast.AST]
+        self, node: ast.Name, path: set[object]
     ) -> ASTOrLiteralValue:
         # doesn't support augmented assignments
         # TODO: refactor this code
@@ -343,7 +346,7 @@ class _LiteralEval(_ASTEval):
         if follow_imports:
             self.visit_alias = self.visit_alias_FollowImports # type:ignore
 
-    def visit_alias_Default(self, node: ast.alias, path: List[ast.AST]) -> LiteralValue:
+    def visit_alias_Default(self, node: ast.alias, path: set[object]) -> LiteralValue:
         fullname = self._state.get_def(node).target()
         if fullname in self._known_values:
             return self._known_values[fullname]
@@ -351,7 +354,7 @@ class _LiteralEval(_ASTEval):
                                  filename=self._state.get_filename(node))
 
     def visit_alias_FollowImports(
-        self, node: ast.alias, path: List[ast.AST]
+        self, node: ast.alias, path: set[object]
     ) -> ASTOrLiteralValue:
         try:
             return self.visit_alias_Default(node, path)
@@ -360,7 +363,7 @@ class _LiteralEval(_ASTEval):
 
     visit_alias = visit_alias_Default
 
-    def visit_Name_Load(self, node: ast.Name, path: List[ast.AST]) -> ASTOrLiteralValue:
+    def visit_Name_Load(self, node: ast.Name, path: set[object]) -> ASTOrLiteralValue:
         # check if this name is part of the known values
         if node.id in self._known_values:
             return self._known_values[node.id]
@@ -370,7 +373,7 @@ class _LiteralEval(_ASTEval):
         return super().visit_Name_Load(node, path)
 
     def visit_Attribute_Load(
-        self, node: ast.Attribute, path: List[ast.AST]
+        self, node: ast.Attribute, path: set[object]
     ) -> ASTOrLiteralValue:
         # check if this name is part of the known values
         fullname = self._state.expand_expr(node)
@@ -378,7 +381,7 @@ class _LiteralEval(_ASTEval):
             return self._known_values[fullname]
         return super().visit_Attribute_Load(node, path)
 
-    def visit_Constant(self, node: ast.Constant, path: List[ast.AST]) -> LiteralValue:
+    def visit_Constant(self, node: ast.Constant, path: set[object]) -> LiteralValue:
         v = node.value
         if not isinstance(v, (str, numbers.Number, bool, bytes, 
                               type(None), type(...))):
@@ -387,7 +390,7 @@ class _LiteralEval(_ASTEval):
         return v
 
     def visit_List(
-        self, node: Union[ast.Tuple, ast.List, ast.Set], path: List[ast.AST]
+        self, node: Union[ast.Tuple, ast.List, ast.Set], path: set[object]
     ) -> LiteralValue:
         ctx = getattr(node, "ctx", ast.Load())
         if not isinstance(ctx, ast.Load):
@@ -424,7 +427,7 @@ class _LiteralEval(_ASTEval):
     visit_Tuple = visit_List
     visit_Set = visit_List
 
-    def visit_BinOp(self, node: ast.BinOp, path: List[ast.AST]) -> LiteralValue:
+    def visit_BinOp(self, node: ast.BinOp, path: set[object]) -> LiteralValue:
         lval = ensure_literal(self.visit(node.left, path))
         rval = ensure_literal(self.visit(node.right, path))
         try:
@@ -434,7 +437,7 @@ class _LiteralEval(_ASTEval):
                 node, f"{e.__class__.__name__} in binary operation: {e}"
             ) from e
 
-    def visit_BoolOp(self, node: ast.BoolOp, path: List[ast.AST]) -> LiteralValue:
+    def visit_BoolOp(self, node: ast.BoolOp, path: set[object]) -> LiteralValue:
         for val_node in node.values:
             val = ensure_literal(self.visit(val_node, path))
             if (isinstance(node.op, ast.Or) and val) or (
@@ -443,7 +446,7 @@ class _LiteralEval(_ASTEval):
                 return val
         return val
 
-    def visit_UnaryOp(self, node: ast.UnaryOp, path: List[ast.AST]) -> LiteralValue:
+    def visit_UnaryOp(self, node: ast.UnaryOp, path: set[object]) -> LiteralValue:
         val = ensure_literal(self.visit(node.operand, path))
         try:
             ret = op2func(node.op, type(node))(val)
@@ -453,7 +456,7 @@ class _LiteralEval(_ASTEval):
             ) from e
         return ret
 
-    def visit_Compare(self, node: ast.Compare, path: List[ast.AST]) -> LiteralValue:
+    def visit_Compare(self, node: ast.Compare, path: set[object]) -> LiteralValue:
         """comparison operators, including chained comparisons (a<b<c)"""
         lval = ensure_literal(self.visit(node.left, path))
         results: List[LiteralValue] = []
@@ -474,7 +477,7 @@ class _LiteralEval(_ASTEval):
             out = out and ret
         return out
 
-    def visit_Subscript(self, node: ast.Subscript, path: List[ast.AST]) -> LiteralValue:
+    def visit_Subscript(self, node: ast.Subscript, path: set[object]) -> LiteralValue:
         if not isinstance(getattr(node, "ctx", ast.Load()), ast.Load):
             raise StaticTypeError(node.ctx, expected="Load")
         value = ensure_literal(self.visit(node.value, path))
@@ -486,7 +489,7 @@ class _LiteralEval(_ASTEval):
         except Exception as e:
             raise StaticEvaluationError(node, str(e)) from e
 
-    def visit_Slice(self, node: ast.Slice, path: List[ast.AST]) -> slice:
+    def visit_Slice(self, node: ast.Slice, path: set[object]) -> slice:
         lower = (
             ensure_literal(self.visit(node.lower, path))
             if node.lower is not None
@@ -527,11 +530,11 @@ class _LiteralEval(_ASTEval):
 
     if sys.version_info < (3,9):
 
-        def visit_Index(self, node: ast.Index, path: List[ast.AST]) -> LiteralValue:
+        def visit_Index(self, node: ast.Index, path: set[object]) -> LiteralValue:
             return ensure_literal(self.visit(node.value, path))
     
     if sys.version_info >= (3,8):
 
-        def visit_NamedExpr(self, node: ast.NamedExpr, path: List[ast.AST]) -> LiteralValue:
+        def visit_NamedExpr(self, node: ast.NamedExpr, path: set[object]) -> LiteralValue:
             return ensure_literal(self.visit(node.value, path))
 
