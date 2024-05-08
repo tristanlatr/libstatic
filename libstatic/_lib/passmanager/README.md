@@ -13,9 +13,9 @@ Each pass delcares class attributes that represents everything we need to know a
 The pass manager is responsible to optimize analyses results so they don't have to be run unecessarly; as well as arranges for the transformations to happen in the correct order and the analyses cache to be invalidated when it needs. 
 
 Since python is a highly dynamic language and one module can affect the state of other modules, 
-the passmanager works on an entire system of packages and modules, not just a ``.py`` file at a time.
+the passmanager works on an entire system of packages and modules, not just a AST module at a time.
 
-Alongside the framework, a collection of qualititive passes and utlilities is provided to make development faster. The exact scope for the 
+Alongside the framework, a collection of qualititive passes and utlilities is provided to make development and adoption faster. The exact scope for the 
 included passes is still to be determined, and implementation for additional passes can be contributed in a second phase. 
 
 Package structure: 
@@ -26,6 +26,7 @@ twisted/python/code/
 ├─ passmanager/
 │  ├─ __init__.py
 │  ├─ events.py
+│  ├─ exceptions.py
 ├─ finder/
 │  ├─ __init__.py
 ├─ analyses/
@@ -44,13 +45,6 @@ Non-Goals
 - Introspection of modules. One could write code that generates AST for a given module by inspection (like [astroid] does). But this is not in the scope.
 - Some [old twisted ticket](https://github.com/twisted/twisted/issues/4531) has some discussions about including static analysis in ``twisted.python.modules``, I disagree with this approach since the delimitation between introspection and static analysis would become blury.
 
-Future-Goals
-------------
-
-- File based caching; this requires generating a hash of the ast in order to cache 
-  intra-modules analyses. For inter-modules analyses, it will requires a inter-modules hash. Some [similar work]() has already been done. 
-- Provide a pipeline API: Pass managers might organize passes into pipelines, but this will be left to client code for the moment.
-- Provide support for namespace packages
 
 Motivation
 ----------
@@ -65,7 +59,6 @@ Both pyright and mypy support dynamically built ``__all__`` variables as well as
 used accross a lot of code, including stub modules. Making the attempt to provide type inference based on typeshed stubs is irrelevant 
 for those without the ability to statically resolve wildcards imports.
 
-What are its benefits?  Who's asking
 How does it compare to the competition, if any?
 
 TODO
@@ -105,9 +98,6 @@ Why particular design decisions were made.
 - It is not helpful to consider analyses that runs only on functions or only classes appart from analyses that runs on any kind of nodes. Classes can be callables and an expresion might refer to a function definition. 
 An analysis that runs on modules, in constrast, is different because the passmanager will always run it on the root
 module when it's declared as a pass dependency. A move that cannot be done with confidence for other kind of nodes.
-
-- Having transformations that run only on class or function definition, on the other hand, makes much more sens. But this poses another issue, which is proper to highly dynamic languages: 
-What to do if the function affects the global scope - before and/or after the transform? 
 
 Modules are the only thing we can be relatively sure they are what the AST say they are at runtime. But even there, with the beauty of Python one can dynamically set `sys.modules['something']` to an arbitrary object. Like the [klein.resource] module which is implemented as a class instance.
 
@@ -172,6 +162,16 @@ Optimizations of the cache...
 **The module finder**
 
 TODO
+
+Future developements
+--------------------
+
+- File based caching; this requires generating a hash of the ast in order to cache 
+  intra-modules analyses. For inter-modules analyses, it will requires a inter-modules hash. Some [similar work](https://github.com/QuantStack/memestra/blob/0.2.1/memestra/caching.py) has already been done. 
+- Provide a pipeline API: Pass managers might organize passes into pipelines, but this will be left to client code for the moment.
+- Provide support for namespace packages
+- Having transformations that run only on function definitions, makes sens. Because we could make more cache optimizations as long as the function is pure and it's API is not changed, typically opmization passes: it must not affect the global scope - before and/or after the transform.
+
 
 Alternatives
 ------------
