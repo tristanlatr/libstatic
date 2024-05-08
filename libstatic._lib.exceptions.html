@@ -82,8 +82,21 @@
         
          
 
+        <div class="childrenKindTitle">Classes</div>
+        <ul>
+    
+    <li class="">
         
         
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._lib.exceptions.StaticTypeMismatch.html" class="internal-link" title="libstatic._lib.exceptions.StaticTypeMismatch"><wbr></wbr>Static<wbr></wbr>Type<wbr></wbr>Mismatch</a></code>
+            </div>
+        
+
+    </li>
+</ul>
 
         
          
@@ -91,8 +104,31 @@
         
          
 
+        <div class="childrenKindTitle">Variables</div>
+        <ul>
+    
+    <li class="">
         
-         
+        
+        
+
+        
+            <div class="itemName"><code><a href="#ErrNode" class="internal-link" title="libstatic._lib.exceptions.ErrNode"><wbr></wbr>Err<wbr></wbr>Node</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#HasLocation" class="internal-link" title="libstatic._lib.exceptions.HasLocation"><wbr></wbr>Has<wbr></wbr>Location</a></code>
+            </div>
+        
+
+    </li>
+</ul> 
 
         
          
@@ -218,6 +254,16 @@
 
         
             <div class="itemName"><code><a href="libstatic._lib.shared.html" class="internal-link" title="libstatic._lib.shared">shared</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._lib.structures.html" class="internal-link" title="libstatic._lib.structures">structures</a></code>
             </div>
         
 
@@ -353,7 +399,7 @@
         </div>
 
         <div id="splitTables">
-          <table class="children sortable" id="id45">
+          <table class="children sortable" id="id63">
   
   
   <tr class="class">
@@ -405,7 +451,12 @@
     
     <td>Exception</td>
     <td><code><a href="libstatic.StaticTypeError.html" class="internal-link" title="libstatic.StaticTypeError"><wbr></wbr>Static<wbr></wbr>Type<wbr></wbr>Error</a></code></td>
-    <td>A node in the syntax tree has an unexpected type.</td>
+    <td>A node has an unexpected type.</td>
+  </tr><tr class="exception">
+    
+    <td>Exception</td>
+    <td><code><a href="libstatic._lib.exceptions.StaticTypeMismatch.html" class="internal-link" title="libstatic._lib.exceptions.StaticTypeMismatch"><wbr></wbr>Static<wbr></wbr>Type<wbr></wbr>Mismatch</a></code></td>
+    <td>The unification of two types has failed.</td>
   </tr><tr class="exception">
     
     <td>Exception</td>
@@ -416,6 +467,16 @@
     <td>Exception</td>
     <td><code><a href="libstatic.StaticValueError.html" class="internal-link" title="libstatic.StaticValueError"><wbr></wbr>Static<wbr></wbr>Value<wbr></wbr>Error</a></code></td>
     <td>Can't make sens of analyzed syntax tree.</td>
+  </tr><tr class="typealias">
+    
+    <td>Type Alias</td>
+    <td><code><a href="#ErrNode" class="internal-link" title="libstatic._lib.exceptions.ErrNode"><wbr></wbr>Err<wbr></wbr>Node</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="typealias">
+    
+    <td>Type Alias</td>
+    <td><code><a href="#HasLocation" class="internal-link" title="libstatic._lib.exceptions.HasLocation"><wbr></wbr>Has<wbr></wbr>Location</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
   </tr>
 </table>
           
@@ -424,7 +485,61 @@
         </div>
 
         <div id="childList">
-          
+          <div class="basetypealias">
+  
+  
+  <a name="libstatic._lib.exceptions.ErrNode">
+    
+  </a>
+  <a name="ErrNode">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-defname">ErrNode</span>: <code><a href="https://docs.python.org/3/library/typing.html#typing.TypeAlias" class="intersphinx-link">TypeAlias</a></code> =
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/exceptions.py#L14">
+      
+      (source)
+    </a>
+    <a class="headerLink" href="#ErrNode" title="libstatic._lib.exceptions.ErrNode">
+      
+      
+      ¶
+    </a>
+  </div>
+  <div class="functionBody">
+    
+    <div><p class="undocumented">Undocumented</p></div>
+    <table class="valueTable"><tr class="fieldStart"><td class="fieldName">Value</td></tr><tr><td><pre class="constant-value"><code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>|Def|Type|<a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></pre></td></tr></table>
+  </div>
+</div><div class="basetypealias">
+  
+  
+  <a name="libstatic._lib.exceptions.HasLocation">
+    
+  </a>
+  <a name="HasLocation">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-defname">HasLocation</span>: <code><a href="https://docs.python.org/3/library/typing.html#typing.TypeAlias" class="intersphinx-link">TypeAlias</a></code> =
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_lib/exceptions.py#L15">
+      
+      (source)
+    </a>
+    <a class="headerLink" href="#HasLocation" title="libstatic._lib.exceptions.HasLocation">
+      
+      
+      ¶
+    </a>
+  </div>
+  <div class="functionBody">
+    
+    <div><p class="undocumented">Undocumented</p></div>
+    <table class="valueTable"><tr class="fieldStart"><td class="fieldName">Value</td></tr><tr><td><pre class="constant-value"><code><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>|Def|Type|<a href="libstatic.NodeLocation.html" class="internal-link" title="libstatic.NodeLocation">NodeLocation</a>|<a href="libstatic.StaticException.html" class="internal-link" title="libstatic.StaticException">StaticException</a></code></pre></td></tr></table>
+  </div>
+</div>
         </div>
       
       </div>
@@ -437,7 +552,7 @@
     <div class="container">
       <a href="index.html">API Documentation</a> for <a href="https://github.com/tristanlatr/libstatic" class="projecthome">libstatic</a>,
     generated by <a href="https://github.com/twisted/pydoctor/">pydoctor</a>
-      23.4.1.dev0 at 2023-08-23 00:03:04.
+      23.4.1.dev0 at 2024-05-08 18:52:50.
     </div>
     
     <script src="ajax.js" type="text/javascript"></script>

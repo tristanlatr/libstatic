@@ -409,6 +409,16 @@
         
 
         
+            <div class="itemName"><code><a href="libstatic.Type.html" class="internal-link" title="libstatic.Type"><wbr></wbr>Type</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
             <div class="itemName"><code><a href="libstatic.Var.html" class="internal-link" title="libstatic.Var"><wbr></wbr>Var</a></code>
             </div>
         
@@ -646,7 +656,7 @@
         </div>
 
         <div class="extrasDocstring">
-          <p class="class-signature"><code><span class="py-keyword">class</span> <span class="py-defname">Project</span>: <a href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L1414" class="sourceLink">(source)</a></code></p><p>Constructor: <code><a href="#__init__" class="internal-link" title="libstatic.Project.__init__">Project(**kw)</a></code></p>
+          <p class="class-signature"><code><span class="py-keyword">class</span> <span class="py-defname">Project</span>: <a href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L1522" class="sourceLink">(source)</a></code></p><p>Constructor: <code><a href="#__init__" class="internal-link" title="libstatic.Project.__init__">Project(**kw)</a></code></p>
           <p><a href="classIndex.html#libstatic.Project">View In Hierarchy</a></p>
         </div>
 
@@ -682,7 +692,7 @@
         </div>
 
         <div id="splitTables">
-          <table class="children sortable" id="id63">
+          <table class="children sortable" id="id86">
   
   
   <tr class="method">
@@ -694,12 +704,12 @@
     
     <td>Method</td>
     <td><code><a href="#add_module" class="internal-link" title="libstatic.Project.add_module">add<wbr></wbr>_module</a></code></td>
-    <td>Add a module to the project, all module should be added before calling <code><a href="libstatic.Project.html#analyze_project" class="internal-link" title="libstatic.Project.analyze_project">analyze_project</a></code>.</td>
+    <td>Add a module to the project, all module should be added before calling <code><a href="libstatic.Project.html#analyze_project" class="internal-link" title="libstatic.Project.analyze_project">analyze_project</a></code>. This will slightly transform the AST... see <code><a href="libstatic._lib.transform.Transform.html" class="internal-link" title="libstatic._lib.transform.Transform">Transform</a></code>.</td>
   </tr><tr class="method">
     
     <td>Method</td>
     <td><code><a href="#add_typeshed_module" class="internal-link" title="libstatic.Project.add_typeshed_module">add<wbr></wbr>_typeshed<wbr></wbr>_module</a></code></td>
-    <td><span class="undocumented">Undocumented</span></td>
+    <td>Add a module from typeshed or from locally installed .pyi files or typed packages.</td>
   </tr><tr class="method">
     
     <td>Method</td>
@@ -741,7 +751,7 @@
     
     
     <span class="py-keyword">def</span> <span class="py-defname">__init__</span><span class="function-signature">(self, **kw: <code><a href="https://docs.python.org/3/library/typing.html#typing.Any" class="intersphinx-link">Any</a></code>)</span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L1450">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L1558">
       
       (source)
     </a>
@@ -768,7 +778,7 @@
     
     
     <span class="py-keyword">def</span> <span class="py-defname">add_module</span><span class="function-signature">(self, node: <code><a href="https://docs.python.org/3/library/ast.html#ast.Module" class="intersphinx-link">ast.Module</a></code>, name: <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code>, *, is_package: <code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code> = <a href="https://docs.python.org/3/library/constants.html#False" class="intersphinx-link">False</a>, filename: <code><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>]</code> = <a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a>) -&gt; <code>Mod</code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L1475">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L1588">
       
       (source)
     </a>
@@ -780,7 +790,8 @@
   </div>
   <div class="docstring functionBody">
     
-    <div><p>Add a module to the project, all module should be added before calling <code><a href="#analyze_project" class="internal-link" title="libstatic.Project.analyze_project">analyze_project</a></code>.</p><table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">node:</span><code><a href="https://docs.python.org/3/library/ast.html#ast.Module" class="intersphinx-link">ast.Module</a></code></td><td class="fieldArgDesc">Parsed <code><a href="https://docs.python.org/3/library/ast.html#ast.Module" class="intersphinx-link">ast.Module</a></code> instance, see <code><a href="https://docs.python.org/3/library/ast.html#ast.parse" class="intersphinx-link">ast.parse</a></code>.</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">name:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc">The fully qualified name of the module.</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">is<wbr></wbr>_package:</span><code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code></td><td class="fieldArgDesc">Whether the module is a package (the node represents <tt class="rst-docutils literal">__init__.py</tt> file)</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">filename:</span><code><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>]</code></td><td class="fieldArgDesc">The filename of the module or <tt class="rst-docutils literal">__init__.py</tt> file for packages.</td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Returns</td></tr><tr><td class="fieldArgContainer"><code>Mod</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr></table></div>
+    <div><p>Add a module to the project, all module should be added before calling <code><a href="#analyze_project" class="internal-link" title="libstatic.Project.analyze_project">analyze_project</a></code>.
+This will slightly transform the AST... see <code><a href="libstatic._lib.transform.Transform.html" class="internal-link" title="libstatic._lib.transform.Transform">Transform</a></code>.</p><table class="fieldTable"><tr class="fieldStart"><td class="fieldName" colspan="2">Parameters</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">node:</span><code><a href="https://docs.python.org/3/library/ast.html#ast.Module" class="intersphinx-link">ast.Module</a></code></td><td class="fieldArgDesc">Parsed <code><a href="https://docs.python.org/3/library/ast.html#ast.Module" class="intersphinx-link">ast.Module</a></code> instance, see <code><a href="https://docs.python.org/3/library/ast.html#ast.parse" class="intersphinx-link">ast.parse</a></code>.</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">name:</span><code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code></td><td class="fieldArgDesc">The fully qualified name of the module.</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">is<wbr></wbr>_package:</span><code><a href="https://docs.python.org/3/library/functions.html#bool" class="intersphinx-link">bool</a></code></td><td class="fieldArgDesc">Whether the module is a package (the node represents <tt class="rst-docutils literal">__init__.py</tt> file)</td></tr><tr><td class="fieldArgContainer"><span class="fieldArg">filename:</span><code><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a>]</code></td><td class="fieldArgDesc">The filename of the module or <tt class="rst-docutils literal">__init__.py</tt> file for packages.</td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Returns</td></tr><tr><td class="fieldArgContainer"><code>Mod</code></td><td class="fieldArgDesc"><span class="undocumented">Undocumented</span></td></tr><tr class="fieldStart"><td class="fieldName" colspan="2">Raises</td></tr><tr><td class="fieldArgContainer"><code><a href="libstatic.StaticValueError.html" class="internal-link" title="libstatic.StaticValueError">StaticValueError</a></code></td><td>If the module name is already in the project.</td></tr></table></div>
   </div>
 </div><div class="basemethod">
   
@@ -795,7 +806,7 @@
     
     
     <span class="py-keyword">def</span> <span class="py-defname">add_typeshed_module</span><span class="function-signature">(self, modname: <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code>) -&gt; <code>Mod|<a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a></code></span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L1492">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L1607">
       
       (source)
     </a>
@@ -807,7 +818,7 @@
   </div>
   <div class="docstring functionBody">
     
-    <div><p class="undocumented">Undocumented</p></div>
+    <div><p>Add a module from typeshed or from locally installed .pyi files or typed packages.</p></div>
   </div>
 </div><div class="basemethod">
   
@@ -822,7 +833,7 @@
     
     
     <span class="py-keyword">def</span> <span class="py-defname">analyze_project</span><span class="function-signature">(self)</span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L1459">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L1572">
       
       (source)
     </a>
@@ -850,8 +861,8 @@
   <div class="functionHeader">
     
     
-    <span class="py-keyword">def</span> <span class="py-defname">msg</span><span class="function-signature">(self, msg: <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code>, ctx: <code><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr><a href="https://docs.python.org/3/library/ast.html#ast.AST" class="intersphinx-link">ast.AST</a>]</code> = <a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a>, thresh: <code><a href="https://docs.python.org/3/library/functions.html#int" class="intersphinx-link">int</a></code> = 0)</span>:
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L1497">
+    <span class="py-keyword">def</span> <span class="py-defname">msg</span><span class="function-signature">(self, msg: <code><a href="https://docs.python.org/3/library/stdtypes.html#str" class="intersphinx-link">str</a></code>, ctx: <code><a href="https://docs.python.org/3/library/typing.html#typing.Optional" class="intersphinx-link">Optional</a>[<wbr></wbr><a href="libstatic._lib.exceptions.html#HasLocation" class="internal-link" title="libstatic._lib.exceptions.HasLocation">HasLocation</a>]</code> = <a href="https://docs.python.org/3/library/constants.html#None" class="intersphinx-link">None</a>, thresh: <code><a href="https://docs.python.org/3/library/functions.html#int" class="intersphinx-link">int</a></code> = 0)</span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L1614">
       
       (source)
     </a>
@@ -877,7 +888,7 @@
   <div class="functionHeader">
     
     <span class="py-defname">options</span> =
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L1456">
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L1564">
       
       (source)
     </a>
@@ -903,8 +914,8 @@
   </a>
   <div class="functionHeader">
     
-    <span class="py-defname">state</span>: <code><a href="libstatic.State.html" class="internal-link" title="libstatic.State">State</a></code> =
-    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L1457">
+    <span class="py-defname">state</span> =
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/state.py#L1565">
       
       (source)
     </a>
@@ -932,7 +943,7 @@
     <div class="container">
       <a href="index.html">API Documentation</a> for <a href="https://github.com/tristanlatr/libstatic" class="projecthome">libstatic</a>,
     generated by <a href="https://github.com/twisted/pydoctor/">pydoctor</a>
-      23.4.1.dev0 at 2023-08-23 00:03:04.
+      23.4.1.dev0 at 2024-05-08 18:52:50.
     </div>
     
     <script src="ajax.js" type="text/javascript"></script>

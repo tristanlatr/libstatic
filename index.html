@@ -79,13 +79,13 @@
       <div>
          
           <div class="childrenKindTitle">Contents</div>
-          <ul><li><p class="rst-first"><a class="rst-reference internal" href="#rst-goals-and-non-goals" id="rst-toc-entry-1">Goals and non-goals</a></p>
+          <ul><li><p class="rst-first"><a class="rst-reference rst-internal" href="#rst-goals-and-non-goals" id="rst-toc-entry-1">Goals and non-goals</a></p>
 <ul class="rst-simple">
-<li><a class="rst-reference internal" href="#rst-trade-offs" id="rst-toc-entry-2">Trade-offs</a></li>
+<li><a class="rst-reference rst-internal" href="#rst-trade-offs" id="rst-toc-entry-2">Trade-offs</a></li>
 </ul>
 </li>
-<li><a class="rst-reference internal" href="#rst-the-model" id="rst-toc-entry-3">The model</a></li>
-<li><a class="rst-reference internal" href="#rst-how-to-use-the-library" id="rst-toc-entry-4">How to use the library</a></li>
+<li><a class="rst-reference rst-internal" href="#rst-the-model" id="rst-toc-entry-3">The model</a></li>
+<li><a class="rst-reference rst-internal" href="#rst-how-to-use-the-library" id="rst-toc-entry-4">How to use the library</a></li>
 </ul>
         
 
@@ -305,6 +305,16 @@
 
         
             <div class="itemName"><code><a href="libstatic.TopologicalProcessor.html" class="internal-link" title="libstatic.TopologicalProcessor"><wbr></wbr>Topological<wbr></wbr>Processor</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic.Type.html" class="internal-link" title="libstatic.Type"><wbr></wbr>Type</a></code>
             </div>
         
 
@@ -556,7 +566,7 @@
         </div>
 
         <div class="moduleDocstring">
-          <div><p>Simple static analysis library for Python, based on <a class="rst-reference external" href="https://github.com/serge-sans-paille/beniget" target="_top">beniget</a>.</p>
+          <div><p>Simple static analysis library for Python, based on <a class="rst-reference rst-external" href="https://github.com/serge-sans-paille/beniget" target="_top">beniget</a>.</p>
 <div class="rst-section" id="rst-goals-and-non-goals">
 <h2 class="heading">Goals and non-goals</h2>
 <p>The main goal of this project is to provide a simple, standard library compatible framework to statically analyse a
@@ -572,9 +582,9 @@ execution paths will be filtered out but impossibe paths might still be consider
 <li>No pointer or shape analysis: Aliasing that happens in non-trivial ways will not be detected.</li>
 <li>No soundness guarantees: ignores the effects of <code><a href="https://docs.python.org/3/library/functions.html#eval" class="intersphinx-link">eval</a></code>-like, <code><a href="https://docs.python.org/3/library/functions.html#setattr" class="intersphinx-link">setattr</a></code>, etc. functions on the program state.
 It doesn’t make worst-case sound assumptions, but rather "reasonable" ones.</li>
+<li>Incomplete type system: While <em>basic</em> type inference is provided,
+libstatic does not carry the complexity to support full-featured type-checking.</li>
 </ul>
-<!-- - Incomplete type system: While *basic* type inference is provided, -->
-<!-- libstatic does not carry the complexity to support full-featured type-checking. -->
 </div>
 </div>
 <div class="rst-section" id="rst-the-model">
@@ -583,12 +593,11 @@ It doesn’t make worst-case sound assumptions, but rather "reasonable" ones.</l
 We call these data structures Def-Use chains and Use-Def chains.
 This model is extended in order to include imported names, including the ones from wildcard imports.</p>
 <p>All ast nodes categorized as a use or a definition have a coresponding <code><a href="libstatic.Def.html" class="internal-link" title="libstatic.Def">Def</a></code> instance. Definitions are represented
-using one of the specialized <code><a href="libstatic.Def.html" class="internal-link" title="libstatic.Def">Def</a></code> subclass: <code><a href="libstatic.Mod.html" class="internal-link" title="libstatic.Mod">Mod</a></code>, <code><a href="libstatic.Cls.html" class="internal-link" title="libstatic.Cls">Cls</a></code>, <code><a href="libstatic.Func.html" class="internal-link" title="libstatic.Func">Func</a></code>, <code><a href="libstatic.Var.html" class="internal-link" title="libstatic.Var">Var</a></code>, <a class="rst-reference external" href="classIndex.html#libstatic.Def" target="_top">etc</a>... The direct users of a definition
+using one of the specialized <code><a href="libstatic.Def.html" class="internal-link" title="libstatic.Def">Def</a></code> subclass: <code><a href="libstatic.Mod.html" class="internal-link" title="libstatic.Mod">Mod</a></code>, <code><a href="libstatic.Cls.html" class="internal-link" title="libstatic.Cls">Cls</a></code>, <code><a href="libstatic.Func.html" class="internal-link" title="libstatic.Func">Func</a></code>, <code><a href="libstatic.Var.html" class="internal-link" title="libstatic.Var">Var</a></code>, <a class="rst-reference rst-external" href="classIndex.html#libstatic.Def" target="_top">etc</a>... The direct users of a definition
 are accessible with <code><a href="libstatic.Def.html#users" class="internal-link" title="libstatic.Def.users">Def.users()</a></code>, which returns a collection of <code><a href="libstatic.Def.html" class="internal-link" title="libstatic.Def">Def</a></code> (generally wrapping a <code><a href="https://docs.python.org/3/library/ast.html#ast.Name" class="intersphinx-link">ast.Name</a></code> or <code><a href="https://docs.python.org/3/library/ast.html#ast.alias" class="intersphinx-link">ast.alias</a></code>).</p>
 <p>Additionnaly, reachability analysis helps with cutting down the number of potential definitions
-for a given user, giving more precise results. From there, we can go to the genuine definition of an
-imported symbol, given the fact that we run python 3.11 for instance.
-Or the opposite, finding all references of a given symbol, accross all modules in the project.</p>
+for a given user, giving more precise results. From there, we can trace the genuine definition
+of any symbol if it's in the system. As well find all references of a given symbol, accross all modules in the project.</p>
 <p>The Def-Use chains and Use-Def chains, and other analyses results are made available througth the <code><a href="libstatic.State.html" class="internal-link" title="libstatic.State">State</a></code>.</p>
 </div>
 <div class="rst-section" id="rst-how-to-use-the-library">
@@ -606,7 +615,7 @@ The API is designed to work with current code using the standard <code><a href="
 For performance reasons, it does not analyze the use of the builtins or any other dependent modules by default.
 Use <tt class="rst-docutils literal">Project(builtins=True)</tt> to analyze builtins or <tt class="rst-docutils literal">Project(dependencies=True)</tt> to recusively find and
 load any dependent modules (including builtins), see <code><a href="libstatic.Options.html" class="internal-link" title="libstatic.Options">Options</a></code> for other arguments.</p>
-<p>The <code><a href="libstatic.State.html" class="internal-link" title="libstatic.State">State</a></code> instance acts like a <a class="rst-reference external" href="https://en.wikipedia.org/wiki/Facade_pattern" target="_top">façade</a> and present accessors
+<p>The <code><a href="libstatic.State.html" class="internal-link" title="libstatic.State">State</a></code> instance acts like a <a class="rst-reference rst-external" href="https://en.wikipedia.org/wiki/Facade_pattern" target="_top">façade</a> and present accessors
 for several kind of analyses.</p>
 </div>
 </div>
@@ -625,7 +634,7 @@ for several kind of analyses.</p>
     
     <td>Package</td>
     <td><code><a href="libstatic._lib.html" class="internal-link" title="libstatic._lib">_lib</a></code></td>
-    <td><span class="undocumented">No package docstring; 4/12 modules documented</span></td>
+    <td><span class="undocumented">No package docstring; 5/13 modules documented</span></td>
   </tr><tr class="module private">
     
     <td>Module</td>
@@ -663,6 +672,11 @@ for several kind of analyses.</p>
     <td>Class</td>
     <td><code><a href="libstatic.Comp.html" class="internal-link" title="libstatic.Comp"><wbr></wbr>Comp</a></code></td>
     <td>Model the definition of a generator or comprehension.</td>
+  </tr><tr class="class">
+    
+    <td>Class</td>
+    <td><code><a href="libstatic.Def.html" class="internal-link" title="libstatic.Def"><wbr></wbr>Def</a></code></td>
+    <td>Model a use or a definition, either named or unnamed, and its users.</td>
   </tr><tr class="class">
     
     <td>Class</td>
@@ -736,6 +750,16 @@ for several kind of analyses.</p>
   </tr><tr class="class">
     
     <td>Class</td>
+    <td><code><a href="libstatic.Type.html" class="internal-link" title="libstatic.Type"><wbr></wbr>Type</a></code></td>
+    <td>The type of a Python expression.</td>
+  </tr><tr class="class">
+    
+    <td>Class</td>
+    <td><code><a href="libstatic.Type.html" class="internal-link" title="libstatic.Type"><wbr></wbr>Type</a></code></td>
+    <td>The type of a Python expression.</td>
+  </tr><tr class="class">
+    
+    <td>Class</td>
     <td><code><a href="libstatic.Var.html" class="internal-link" title="libstatic.Var"><wbr></wbr>Var</a></code></td>
     <td>Model a variable definition.</td>
   </tr><tr class="exception">
@@ -782,7 +806,7 @@ for several kind of analyses.</p>
     
     <td>Exception</td>
     <td><code><a href="libstatic.StaticTypeError.html" class="internal-link" title="libstatic.StaticTypeError"><wbr></wbr>Static<wbr></wbr>Type<wbr></wbr>Error</a></code></td>
-    <td>A node in the syntax tree has an unexpected type.</td>
+    <td>A node has an unexpected type.</td>
   </tr><tr class="exception">
     
     <td>Exception</td>
@@ -849,7 +873,7 @@ for several kind of analyses.</p>
     <div class="container">
       <a href="index.html">API Documentation</a> for <a href="https://github.com/tristanlatr/libstatic" class="projecthome">libstatic</a>,
     generated by <a href="https://github.com/twisted/pydoctor/">pydoctor</a>
-      23.4.1.dev0 at 2023-08-23 00:03:04.
+      23.4.1.dev0 at 2024-05-08 18:52:50.
     </div>
     
     <script src="ajax.js" type="text/javascript"></script>

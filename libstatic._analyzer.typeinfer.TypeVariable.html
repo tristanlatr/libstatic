@@ -1,0 +1,1192 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+          "DTD/xhtml1-strict.dtd">
+<html>
+  
+
+  <head>
+    
+    <title>libstatic._analyzer.typeinfer.TypeVariable</title>
+    <meta name="generator" content="pydoctor 23.4.1.dev0"> 
+        
+    </meta>
+    <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1 maximum-scale=1" />
+    <link rel="stylesheet" type="text/css" href="apidocs.css" />
+    <link rel="stylesheet" type="text/css" href="readthedocstheme.css" />
+    <link rel="stylesheet" type="text/css" href="extra.css" />
+</head>
+
+  <body>
+
+    
+
+    <nav class="navbar navbar-default mainnavbar">
+      
+  
+  <div class="container-fluid">
+
+
+    <div class="navbar-header">
+      
+      <div class="navlinks">
+        <span class="navbar-brand">
+          <a href="https://github.com/tristanlatr/libstatic" class="projecthome">libstatic</a> <a href="index.html">API Documentation</a>
+        </span>
+
+        <a href="moduleIndex.html">
+          Modules
+        </a>
+
+        <a href="classIndex.html">
+          Classes
+        </a>
+
+        <a href="nameIndex.html">
+          Names
+        </a>
+
+        <div id="search-box-container">
+          <div class="input-group">
+            <input id="search-box" type="search" name="search-query" placeholder="Search..." aria-label="Search" minlength="2" class="form-control" autocomplete="off" />
+            
+            <span class="input-group-btn">
+              <a style="display: none;" class="btn btn-default" id="search-clear-button" title="Clear" onclick="clearSearch()"><img src="fonts/x-circle.svg" alt="Clear" /></a>
+              <a class="btn btn-default" id="search-help-button" title="Help" onclick="toggleSearchHelpText()"><img src="fonts/info.svg" alt="Help" /></a>
+            </span>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+    
+        <!-- Side navigation -->
+      <div class="sidebarcontainer">
+        <nav class="sidebar">
+  
+
+  <div>
+
+      <div class="thingTitle">
+        <span>Class</span>
+        <code class="thisobject"><a href="libstatic._analyzer.typeinfer.TypeVariable.html" class="internal-link" title="This class"><wbr></wbr>Type<wbr></wbr>Variable</a></code> 
+      </div>
+      
+      <div>
+        
+
+        
+         
+
+        
+        
+
+        <div class="childrenKindTitle">Methods</div>
+        <ul>
+    
+    <li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#__new__" class="internal-link" title="libstatic._analyzer.typeinfer.TypeVariable.__new__">__new__</a></code>
+            </div>
+        
+
+    </li><li class="private">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#_reset" class="internal-link" title="libstatic._analyzer.typeinfer.TypeVariable._reset">_reset</a></code>
+            </div>
+        
+
+    </li>
+</ul> 
+
+        <div class="childrenKindTitle">Inherited Methods</div>
+        <ul>
+    
+    <li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#__hash__" class="internal-link" title="libstatic._analyzer.typeinfer.Type.__hash__">__hash__</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#__str__" class="internal-link" title="libstatic._analyzer.typeinfer.Type.__str__">__str__</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#add_args" class="internal-link" title="libstatic._analyzer.typeinfer.Type.add_args">add<wbr></wbr>_args</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#add_meta" class="internal-link" title="libstatic._analyzer.typeinfer.Type.add_meta">add<wbr></wbr>_meta</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#get_meta" class="internal-link" title="libstatic._analyzer.typeinfer.Type.get_meta">get<wbr></wbr>_meta</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#merge" class="internal-link" title="libstatic._analyzer.typeinfer.Type.merge">merge</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#supertype_of" class="internal-link" title="libstatic._analyzer.typeinfer.Type.supertype_of">supertype<wbr></wbr>_of</a></code>
+            </div>
+        
+
+    </li><li class="private">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#_replace" class="internal-link" title="libstatic._analyzer.typeinfer.Type._replace">_replace</a></code>
+            </div>
+        
+
+    </li>
+</ul> 
+
+        <div class="childrenKindTitle">Attributes</div>
+        <ul>
+    
+    <li class="private">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="#_id" class="internal-link" title="libstatic._analyzer.typeinfer.TypeVariable._id">_id</a></code>
+            </div>
+        
+
+    </li>
+</ul> 
+
+        <div class="childrenKindTitle">Inherited Attributes</div>
+        <ul>
+    
+    <li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#Any" class="internal-link" title="libstatic._analyzer.typeinfer.Type.Any"><wbr></wbr>Any</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#Callable" class="internal-link" title="libstatic._analyzer.typeinfer.Type.Callable"><wbr></wbr>Callable</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#Literal" class="internal-link" title="libstatic._analyzer.typeinfer.Type.Literal"><wbr></wbr>Literal</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#ModuleType" class="internal-link" title="libstatic._analyzer.typeinfer.Type.ModuleType"><wbr></wbr>Module<wbr></wbr>Type</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#Optional" class="internal-link" title="libstatic._analyzer.typeinfer.Type.Optional"><wbr></wbr>Optional</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#overload" class="internal-link" title="libstatic._analyzer.typeinfer.Type.overload">overload</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#TypeType" class="internal-link" title="libstatic._analyzer.typeinfer.Type.TypeType"><wbr></wbr>Type<wbr></wbr>Type</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#Union" class="internal-link" title="libstatic._analyzer.typeinfer.Type.Union"><wbr></wbr>Union</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#__dict__" class="internal-link" title="libstatic._analyzer.typeinfer.Type.__dict__">__dict__</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#args" class="internal-link" title="libstatic._analyzer.typeinfer.Type.args">args</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#meta" class="internal-link" title="libstatic._analyzer.typeinfer.Type.meta">meta</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#name" class="internal-link" title="libstatic._analyzer.typeinfer.Type.name">name</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#scope" class="internal-link" title="libstatic._analyzer.typeinfer.Type.scope">scope</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#annotation" class="internal-link" title="libstatic._analyzer.typeinfer.Type.annotation">annotation</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#definition" class="internal-link" title="libstatic._analyzer.typeinfer.Type.definition">definition</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#is_callable" class="internal-link" title="libstatic._analyzer.typeinfer.Type.is_callable">is<wbr></wbr>_callable</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#is_literal" class="internal-link" title="libstatic._analyzer.typeinfer.Type.is_literal">is<wbr></wbr>_literal</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#is_module" class="internal-link" title="libstatic._analyzer.typeinfer.Type.is_module">is<wbr></wbr>_module</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#is_none" class="internal-link" title="libstatic._analyzer.typeinfer.Type.is_none">is<wbr></wbr>_none</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#is_optional" class="internal-link" title="libstatic._analyzer.typeinfer.Type.is_optional">is<wbr></wbr>_optional</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#is_overload" class="internal-link" title="libstatic._analyzer.typeinfer.Type.is_overload">is<wbr></wbr>_overload</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#is_protocol" class="internal-link" title="libstatic._analyzer.typeinfer.Type.is_protocol">is<wbr></wbr>_protocol</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#is_type" class="internal-link" title="libstatic._analyzer.typeinfer.Type.is_type">is<wbr></wbr>_type</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#is_typevar" class="internal-link" title="libstatic._analyzer.typeinfer.Type.is_typevar">is<wbr></wbr>_typevar</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#is_union" class="internal-link" title="libstatic._analyzer.typeinfer.Type.is_union">is<wbr></wbr>_union</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#location" class="internal-link" title="libstatic._analyzer.typeinfer.Type.location">location</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#long_annotation" class="internal-link" title="libstatic._analyzer.typeinfer.Type.long_annotation">long<wbr></wbr>_annotation</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#qualname" class="internal-link" title="libstatic._analyzer.typeinfer.Type.qualname">qualname</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#supertype" class="internal-link" title="libstatic._analyzer.typeinfer.Type.supertype">supertype</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html#unknown" class="internal-link" title="libstatic._analyzer.typeinfer.Type.unknown">unknown</a></code>
+            </div>
+        
+
+    </li>
+</ul> 
+        
+      </div>
+  </div><div>
+
+      <div class="thingTitle">
+        <span>Module</span>
+        <code><a href="libstatic._analyzer.typeinfer.html" class="internal-link" title="The parent of this class">typeinfer</a></code> 
+      </div>
+      
+      <div>
+        
+
+        
+         
+
+        <div class="childrenKindTitle">Classes</div>
+        <ul>
+    
+    <li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type"><wbr></wbr>Type</a></code>
+            </div>
+        
+
+    </li><li class=" thisobject">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.TypeVariable.html" class="internal-link" title="libstatic._analyzer.typeinfer.TypeVariable"><wbr></wbr>Type<wbr></wbr>Variable</a></code>
+            </div>
+        
+
+    </li><li class="private">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer._AnnotationStringParser.html" class="internal-link" title="libstatic._analyzer.typeinfer._AnnotationStringParser">_<wbr></wbr>Annotation<wbr></wbr>String<wbr></wbr>Parser</a></code>
+            </div>
+        
+
+    </li><li class="private">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer._AnnotationToType.html" class="internal-link" title="libstatic._analyzer.typeinfer._AnnotationToType">_<wbr></wbr>Annotation<wbr></wbr>To<wbr></wbr>Type</a></code>
+            </div>
+        
+
+    </li><li class="private">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer._TypeInference.html" class="internal-link" title="libstatic._analyzer.typeinfer._TypeInference">_<wbr></wbr>Type<wbr></wbr>Inference</a></code>
+            </div>
+        
+
+    </li><li class="private">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer._TypeVariableMeta.html" class="internal-link" title="libstatic._analyzer.typeinfer._TypeVariableMeta">_<wbr></wbr>Type<wbr></wbr>Variable<wbr></wbr>Meta</a></code>
+            </div>
+        
+
+    </li>
+</ul>
+
+        <div class="childrenKindTitle">Functions</div>
+        <ul>
+    
+    <li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.html#AnnotationType" class="internal-link" title="libstatic._analyzer.typeinfer.AnnotationType"><wbr></wbr>Annotation<wbr></wbr>Type</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.html#BuiltinType" class="internal-link" title="libstatic._analyzer.typeinfer.BuiltinType"><wbr></wbr>Builtin<wbr></wbr>Type</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.html#cleanup_unresolved_typevars" class="internal-link" title="libstatic._analyzer.typeinfer.cleanup_unresolved_typevars">cleanup<wbr></wbr>_unresolved<wbr></wbr>_typevars</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.html#ClsType" class="internal-link" title="libstatic._analyzer.typeinfer.ClsType"><wbr></wbr>Cls<wbr></wbr>Type</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.html#find_typedef" class="internal-link" title="libstatic._analyzer.typeinfer.find_typedef">find<wbr></wbr>_typedef</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.html#MembersTypes" class="internal-link" title="libstatic._analyzer.typeinfer.MembersTypes"><wbr></wbr>Members<wbr></wbr>Types</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.html#SimpleType" class="internal-link" title="libstatic._analyzer.typeinfer.SimpleType"><wbr></wbr>Simple<wbr></wbr>Type</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.html#SuperTypes" class="internal-link" title="libstatic._analyzer.typeinfer.SuperTypes"><wbr></wbr>Super<wbr></wbr>Types</a></code>
+            </div>
+        
+
+    </li><li class="">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.html#SymbolType" class="internal-link" title="libstatic._analyzer.typeinfer.SymbolType"><wbr></wbr>Symbol<wbr></wbr>Type</a></code>
+            </div>
+        
+
+    </li><li class="private">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.html#_merge_types" class="internal-link" title="libstatic._analyzer.typeinfer._merge_types">_merge<wbr></wbr>_types</a></code>
+            </div>
+        
+
+    </li><li class="private">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.html#_raise" class="internal-link" title="libstatic._analyzer.typeinfer._raise">_raise</a></code>
+            </div>
+        
+
+    </li><li class="private">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.html#_union" class="internal-link" title="libstatic._analyzer.typeinfer._union">_union</a></code>
+            </div>
+        
+
+    </li>
+</ul> 
+
+        
+         
+
+        <div class="childrenKindTitle">Variables</div>
+        <ul>
+    
+    <li class="private">
+        
+        
+        
+
+        
+            <div class="itemName"><code><a href="libstatic._analyzer.typeinfer.html#_T" class="internal-link" title="libstatic._analyzer.typeinfer._T">_T</a></code>
+            </div>
+        
+
+    </li>
+</ul> 
+
+        
+         
+        
+      </div>
+  </div>
+
+</nav>
+        <!-- No sidebar toggle for read the docs theme, the sidebar is always
+          visible when the screen is width enough.
+        -->
+      </div>
+
+    </nav>
+    
+    <div class="container-fluid">
+
+      <div id="main" class="">
+        
+
+        
+
+        <div id="search-results-container" style="display: none;">
+        
+          <div id="search-buttons">
+            <span class="label label-default" id="search-docstrings-button">
+            <label class="checkbox-inline">
+              <input type="checkbox" id="toggle-search-in-docstrings-checkbox" value="false" onclick="toggleSearchInDocstrings()">
+                search in docstrings
+              </input>
+            </label>
+            </span>
+            
+          </div>
+          
+          <noscript>
+              <h1>Cannot search: JavaScript is not supported/enabled in your browser.</h1>
+          </noscript>
+  
+          <div class="hint" id="search-help-box">
+            <p class="rst-last">
+        
+              Search bar offers the following options:
+              <ul>   
+                  <li>
+                    <strong>Term presence.</strong> The below example searches for documents that 
+                      must contain “foo”, might contain “bar” and must not contain “baz”: <code>+foo bar -baz</code>
+                  </li> 
+  
+                  <li>
+                    <strong>Wildcards.</strong> The below example searches for documents with words beginning with “foo”: <code>foo*</code>
+                  </li> 
+  
+                  <li>
+                    <strong>Search in specific fields.</strong> The following search matches all objects 
+                    in "twisted.mail" that matches “search”: <code>+qname:twisted.mail.* +search</code>
+  
+                    <p>
+                      Possible fields: 'name', 'qname' (fully qualified name), 'docstring', and 'kind'.
+                      Last two fields are only applicable if "search in docstrings" is enabled.
+                    </p>
+                  </li>
+  
+                  <li>
+                    <strong>Fuzzy matches.</strong> The following search matches all documents 
+                    that have a word within 1 edit distance of “foo”: <code>foo~1</code>
+                  </li>
+              </ul>
+  
+            </p>
+          </div>
+  
+          <div id="search-status"> </div>
+  
+          <div class="warning" id="search-warn-box" style="display: none;">
+            <p class="rst-last"><span id="search-warn"></span></p>
+          </div>
+  
+          <table id="search-results">
+            <!-- Filled dynamically by JS -->
+          </table>
+          
+          <div style="margin-top: 8px;">
+            <p>Results provided by <a href="https://lunrjs.com">Lunr.js</a></p>
+          </div>
+        </div>
+
+        <div class="page-header">
+          <h1 class="class"><code><code><a href="index.html" class="internal-link">libstatic</a></code><wbr></wbr>.<code><a href="libstatic._analyzer.html" class="internal-link" title="libstatic._analyzer">_analyzer</a></code><wbr></wbr>.<code><a href="libstatic._analyzer.typeinfer.html" class="internal-link" title="libstatic._analyzer.typeinfer">typeinfer</a></code><wbr></wbr>.<code><a href="libstatic._analyzer.typeinfer.TypeVariable.html" class="internal-link" title="libstatic._analyzer.typeinfer.TypeVariable">TypeVariable</a></code></code></h1>
+          <div id="showPrivate">
+            <button class="btn btn-link" onclick="togglePrivate()">Toggle Private API</button>
+          </div>
+        </div>
+
+        <div class="categoryHeader">
+          class documentation
+        </div>
+
+        <div class="extrasDocstring">
+          <p class="class-signature"><code><span class="py-keyword">class</span> <span class="py-defname">TypeVariable</span>(<a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a>): <a href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/typeinfer.py#L1429" class="sourceLink">(source)</a></code></p>
+          <p><a href="classIndex.html#libstatic._analyzer.typeinfer.TypeVariable">View In Hierarchy</a></p>
+        </div>
+
+        <div class="moduleDocstring">
+          <div><p><pre class="py-doctest">
+<span class="py-prompt">&gt;&gt;&gt; </span>tv = TypeVariable()
+<span class="py-prompt">&gt;&gt;&gt; </span><span class="py-keyword">assert</span> <span class="py-builtin">isinstance</span>(tv, TypeVariable)
+<span class="py-prompt">&gt;&gt;&gt; </span><span class="py-builtin">repr</span>(tv)
+<span class="py-output">"Type(name='@TypeVar...', scope='', args=(), meta=...)"</span>
+<span class="py-prompt">&gt;&gt;&gt; </span><span class="py-keyword">assert</span> tv != TypeVariable()
+<span class="py-prompt">&gt;&gt;&gt; </span><span class="py-keyword">assert</span> Type(<span class="py-string">'@TypeVar43'</span>)==Type(<span class="py-string">'@TypeVar43'</span>)
+<span class="py-prompt">&gt;&gt;&gt; </span><span class="py-keyword">assert</span> <span class="py-builtin">hash</span>(Type(<span class="py-string">'@TypeVar43'</span>))==<span class="py-builtin">hash</span>(Type(<span class="py-string">'@TypeVar43'</span>))</pre></p></div>
+        </div>
+
+        <div id="splitTables">
+          <table class="children sortable" id="id38">
+  
+  
+  <tr class="method">
+    
+    <td>Method</td>
+    <td><code><a href="#__new__" class="internal-link" title="libstatic._analyzer.typeinfer.TypeVariable.__new__">__new__</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="classmethod private">
+    
+    <td>Class Method</td>
+    <td><code><a href="#_reset" class="internal-link" title="libstatic._analyzer.typeinfer.TypeVariable._reset">_reset</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="classvariable private">
+    
+    <td>Class Variable</td>
+    <td><code><a href="#_id" class="internal-link" title="libstatic._analyzer.typeinfer.TypeVariable._id">_id</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr>
+</table>
+          
+            <p class="inheritedFrom">
+              Inherited from <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a></code>:
+            </p>
+            <table class="children sortable" id="id39">
+  
+  
+  <tr class="basemethod">
+    
+    <td>Method</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#__hash__" class="internal-link" title="libstatic._analyzer.typeinfer.Type.__hash__">__hash__</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="basemethod">
+    
+    <td>Method</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#__str__" class="internal-link" title="libstatic._analyzer.typeinfer.Type.__str__">__str__</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="basemethod">
+    
+    <td>Method</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#add_args" class="internal-link" title="libstatic._analyzer.typeinfer.Type.add_args">add<wbr></wbr>_args</a></code></td>
+    <td>Get a copy of the Type with the given args added in the list of args.</td>
+  </tr><tr class="basemethod">
+    
+    <td>Method</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#add_meta" class="internal-link" title="libstatic._analyzer.typeinfer.Type.add_meta">add<wbr></wbr>_meta</a></code></td>
+    <td>Get a copy of the Type with the given meta informations updated.</td>
+  </tr><tr class="basemethod">
+    
+    <td>Method</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#get_meta" class="internal-link" title="libstatic._analyzer.typeinfer.Type.get_meta">get<wbr></wbr>_meta</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="basemethod">
+    
+    <td>Method</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#merge" class="internal-link" title="libstatic._analyzer.typeinfer.Type.merge">merge</a></code></td>
+    <td>Get a union of the two given types.</td>
+  </tr><tr class="basemethod">
+    
+    <td>Method</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#supertype_of" class="internal-link" title="libstatic._analyzer.typeinfer.Type.supertype_of">supertype<wbr></wbr>_of</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="baseclassvariable">
+    
+    <td>Class Variable</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#Any" class="internal-link" title="libstatic._analyzer.typeinfer.Type.Any"><wbr></wbr>Any</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="baseclassvariable">
+    
+    <td>Class Variable</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#Callable" class="internal-link" title="libstatic._analyzer.typeinfer.Type.Callable"><wbr></wbr>Callable</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="baseclassvariable">
+    
+    <td>Class Variable</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#Literal" class="internal-link" title="libstatic._analyzer.typeinfer.Type.Literal"><wbr></wbr>Literal</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="baseclassvariable">
+    
+    <td>Class Variable</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#ModuleType" class="internal-link" title="libstatic._analyzer.typeinfer.Type.ModuleType"><wbr></wbr>Module<wbr></wbr>Type</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="baseclassvariable">
+    
+    <td>Class Variable</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#Optional" class="internal-link" title="libstatic._analyzer.typeinfer.Type.Optional"><wbr></wbr>Optional</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="baseclassvariable">
+    
+    <td>Class Variable</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#overload" class="internal-link" title="libstatic._analyzer.typeinfer.Type.overload">overload</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="baseclassvariable">
+    
+    <td>Class Variable</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#TypeType" class="internal-link" title="libstatic._analyzer.typeinfer.Type.TypeType"><wbr></wbr>Type<wbr></wbr>Type</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="baseclassvariable">
+    
+    <td>Class Variable</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#Union" class="internal-link" title="libstatic._analyzer.typeinfer.Type.Union"><wbr></wbr>Union</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="baseinstancevariable">
+    
+    <td>Instance Variable</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#__dict__" class="internal-link" title="libstatic._analyzer.typeinfer.Type.__dict__">__dict__</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="baseinstancevariable">
+    
+    <td>Instance Variable</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#args" class="internal-link" title="libstatic._analyzer.typeinfer.Type.args">args</a></code></td>
+    <td>The location of the node that defined this type. It's set to an unknown location by default so special types can be created dynamically.</td>
+  </tr><tr class="baseinstancevariable">
+    
+    <td>Instance Variable</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#meta" class="internal-link" title="libstatic._analyzer.typeinfer.Type.meta">meta</a></code></td>
+    <td>The type symbol definition, if it has one. Can be None for builtins (if the builtins module is not in the system) and other special cases like Callable or Unions.</td>
+  </tr><tr class="baseinstancevariable">
+    
+    <td>Instance Variable</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#name" class="internal-link" title="libstatic._analyzer.typeinfer.Type.name">name</a></code></td>
+    <td>The name of the type.</td>
+  </tr><tr class="baseinstancevariable">
+    
+    <td>Instance Variable</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#scope" class="internal-link" title="libstatic._analyzer.typeinfer.Type.scope">scope</a></code></td>
+    <td>The scope where the type is defined. This is often a module, but it migth be a class or a function in some cases.</td>
+  </tr><tr class="baseproperty">
+    
+    <td>Property</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#annotation" class="internal-link" title="libstatic._analyzer.typeinfer.Type.annotation">annotation</a></code></td>
+    <td>Represent the type as a string suitable for type annotations.</td>
+  </tr><tr class="baseproperty">
+    
+    <td>Property</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#definition" class="internal-link" title="libstatic._analyzer.typeinfer.Type.definition">definition</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="baseproperty">
+    
+    <td>Property</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#is_callable" class="internal-link" title="libstatic._analyzer.typeinfer.Type.is_callable">is<wbr></wbr>_callable</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="baseproperty">
+    
+    <td>Property</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#is_literal" class="internal-link" title="libstatic._analyzer.typeinfer.Type.is_literal">is<wbr></wbr>_literal</a></code></td>
+    <td>A literal type means it's literal values can be recovered with:</td>
+  </tr><tr class="baseproperty">
+    
+    <td>Property</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#is_module" class="internal-link" title="libstatic._analyzer.typeinfer.Type.is_module">is<wbr></wbr>_module</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="baseproperty">
+    
+    <td>Property</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#is_none" class="internal-link" title="libstatic._analyzer.typeinfer.Type.is_none">is<wbr></wbr>_none</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="baseproperty">
+    
+    <td>Property</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#is_optional" class="internal-link" title="libstatic._analyzer.typeinfer.Type.is_optional">is<wbr></wbr>_optional</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="baseproperty">
+    
+    <td>Property</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#is_overload" class="internal-link" title="libstatic._analyzer.typeinfer.Type.is_overload">is<wbr></wbr>_overload</a></code></td>
+    <td><span class="undocumented">No summary</span></td>
+  </tr><tr class="baseproperty">
+    
+    <td>Property</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#is_protocol" class="internal-link" title="libstatic._analyzer.typeinfer.Type.is_protocol">is<wbr></wbr>_protocol</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="baseproperty">
+    
+    <td>Property</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#is_type" class="internal-link" title="libstatic._analyzer.typeinfer.Type.is_type">is<wbr></wbr>_type</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="baseproperty">
+    
+    <td>Property</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#is_typevar" class="internal-link" title="libstatic._analyzer.typeinfer.Type.is_typevar">is<wbr></wbr>_typevar</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="baseproperty">
+    
+    <td>Property</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#is_union" class="internal-link" title="libstatic._analyzer.typeinfer.Type.is_union">is<wbr></wbr>_union</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="baseproperty">
+    
+    <td>Property</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#location" class="internal-link" title="libstatic._analyzer.typeinfer.Type.location">location</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="baseproperty">
+    
+    <td>Property</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#long_annotation" class="internal-link" title="libstatic._analyzer.typeinfer.Type.long_annotation">long<wbr></wbr>_annotation</a></code></td>
+    <td>Like <code><a href="libstatic._analyzer.typeinfer.Type.html#annotation" class="internal-link" title="libstatic._analyzer.typeinfer.Type.annotation">annotation</a></code> but returns the type with qualified names.</td>
+  </tr><tr class="baseproperty">
+    
+    <td>Property</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#qualname" class="internal-link" title="libstatic._analyzer.typeinfer.Type.qualname">qualname</a></code></td>
+    <td>The full name of the type.</td>
+  </tr><tr class="baseproperty">
+    
+    <td>Property</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#supertype" class="internal-link" title="libstatic._analyzer.typeinfer.Type.supertype">supertype</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="baseproperty">
+    
+    <td>Property</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#unknown" class="internal-link" title="libstatic._analyzer.typeinfer.Type.unknown">unknown</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr><tr class="basemethod private">
+    
+    <td>Method</td>
+    <td><code><a href="libstatic._analyzer.typeinfer.Type.html#_replace" class="internal-link" title="libstatic._analyzer.typeinfer.Type._replace">_replace</a></code></td>
+    <td><span class="undocumented">Undocumented</span></td>
+  </tr>
+</table>
+            
+
+            
+        </div>
+
+        <div id="childList">
+          <div class="basemethod">
+  
+  
+  <a name="libstatic._analyzer.typeinfer.TypeVariable.__new__">
+    
+  </a>
+  <a name="__new__">
+    
+  </a>
+  <div class="functionHeader">
+    
+    
+    <span class="py-keyword">def</span> <span class="py-defname">__new__</span><span class="function-signature">(cls) -&gt; <code><a href="libstatic._analyzer.typeinfer.Type.html" class="internal-link" title="libstatic._analyzer.typeinfer.Type">Type</a></code></span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/typeinfer.py#L1440">
+      
+      (source)
+    </a>
+    <a class="headerLink" href="#__new__" title="libstatic._analyzer.typeinfer.TypeVariable.__new__">
+      
+      
+      ¶
+    </a>
+  </div>
+  <div class="docstring functionBody">
+    
+    <div><p class="undocumented">Undocumented</p></div>
+  </div>
+</div><div class="baseclassmethod private">
+  
+  
+  <a name="libstatic._analyzer.typeinfer.TypeVariable._reset">
+    
+  </a>
+  <a name="_reset">
+    
+  </a>
+  <div class="functionHeader">
+    
+    @<a href="https://docs.python.org/3/library/functions.html#classmethod" class="intersphinx-link">classmethod</a><br />
+    <span class="py-keyword">def</span> <span class="py-defname">_reset</span><span class="function-signature">(cls)</span>:
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/typeinfer.py#L1443">
+      
+      (source)
+    </a>
+    <a class="headerLink" href="#_reset" title="libstatic._analyzer.typeinfer.TypeVariable._reset">
+      
+      
+      ¶
+    </a>
+  </div>
+  <div class="docstring functionBody">
+    
+    <div><p class="undocumented">Undocumented</p></div>
+  </div>
+</div><div class="baseclassvariable private">
+  
+  
+  <a name="libstatic._analyzer.typeinfer.TypeVariable._id">
+    
+  </a>
+  <a name="_id">
+    
+  </a>
+  <div class="functionHeader">
+    
+    <span class="py-defname">_id</span>: <code><a href="https://docs.python.org/3/library/functions.html#int" class="intersphinx-link">int</a></code> =
+    <a class="sourceLink" href="https://github.com/tristanlatr/libstatic/tree/main/libstatic/_analyzer/typeinfer.py#L1439">
+      
+      (source)
+    </a>
+    <a class="headerLink" href="#_id" title="libstatic._analyzer.typeinfer.TypeVariable._id">
+      
+      
+      ¶
+    </a>
+  </div>
+  <div class="functionBody">
+    
+    <div><p class="undocumented">Undocumented</p></div>
+    
+  </div>
+</div>
+        </div>
+      
+      </div>
+    </div>
+
+    <footer class="navbar navbar-default">
+    <hr />
+    
+    
+    <div class="container">
+      <a href="index.html">API Documentation</a> for <a href="https://github.com/tristanlatr/libstatic" class="projecthome">libstatic</a>,
+    generated by <a href="https://github.com/twisted/pydoctor/">pydoctor</a>
+      23.4.1.dev0 at 2024-05-08 18:52:50.
+    </div>
+    
+    <script src="ajax.js" type="text/javascript"></script>
+    <script src="searchlib.js" type="text/javascript"></script>
+    <script src="search.js" type="text/javascript"></script>
+  
+  </footer>
+  
+    <script src="pydoctor.js" type="text/javascript"></script>
+
+  </body>
+</html>
