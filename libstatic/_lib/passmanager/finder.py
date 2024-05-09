@@ -27,9 +27,11 @@ class Finder:
         """
         Find a module by name based on the current search context.
         """
+        raise NotImplementedError()
 
     def modules_by_path(self, path: Path) -> Iterator[Module]:
         """
         If the path points to a directory it will yield recursively
         all modules under the directory. Pass a file and it will alway yield one Module entry.
         """
+        raise NotImplementedError()

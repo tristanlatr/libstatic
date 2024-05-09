@@ -150,8 +150,14 @@ To track this, each pass can declare the set of dependencies in the ``Pass.depen
 - A pass that requires access to other modules is called an inter-modules pass. This property is transitive. To get access to other modules one need to 
 list ``passmanager.modules`` analysis in it's dependencies. Modules will then be accessible throught ``self.modules``. 
 
+**The Transformation declaration interface**
+
 It is possible to list analyses that are preserved when a transformation is run.  
 To track this, declare the set of valid analysis in the  ``Transformation.preserves_analysis`` sequence. 
+
+**The Analysis declaration interface**
+
+- ``Analysis.do_not_cache``: Class attribute indicates to the pass manager not to cache the results of this analysis.
 
 **Analysis invalidation**
 

@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import Any, Callable, TYPE_CHECKING
+from typing import Any, Callable, TypeVar, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from . import _AnalysisResult, Analysis, Module, Transformation, ILibrarySupport
+    from . import Analysis, Module, Transformation
+    from ._astcompat import ILibrarySupport
+    from ._caching import AnalysisResult
 
 
 class Event:
@@ -13,8 +15,8 @@ class Event:
     Base event to use with EventDispatcher.
     """
 
-
-EventListener = Callable[[Event], None]
+TEvent = TypeVar('TEvent', bound=Event)
+EventListener = Callable[[TEvent], None]
 
 
 class EventDispatcher:
@@ -23,7 +25,7 @@ class EventDispatcher:
     """
 
     def __init__(self) -> None:
-        self._events: dict[type[Event], list[EventListener]] = {}
+        self._events: dict[type[Event], list[EventListener[Event]]] = {}
 
     def hasListener(self, event_type: type[Event], listener: EventListener) -> bool:
         """
@@ -47,7 +49,7 @@ class EventDispatcher:
                 listener(event)
 
     def addEventListener(
-        self, event_type: type[Event], listener: EventListener
+        self, event_type: type[TEvent], listener: EventListener[TEvent]
     ) -> None:
         """
         Add an event listener for an event type
@@ -55,11 +57,11 @@ class EventDispatcher:
         # Add listener to the event type
         if not self.hasListener(event_type, listener):
             listeners = self._events.get(event_type, [])
-            listeners.append(listener)
+            listeners.append(listener) # type: ignore
             self._events[event_type] = listeners
 
     def removeEventListener(
-        self, event_type: type[Event], listener: EventListener
+        self, event_type: type[TEvent], listener: EventListener[TEvent]
     ) -> None:
         """
         Remove event listener.
@@ -74,7 +76,7 @@ class EventDispatcher:
 
             else:
                 # Update listeners chain
-                listeners.remove(listener)
+                listeners.remove(listener) # type: ignore
 
                 self._events[event_type] = listeners
 
@@ -199,7 +201,7 @@ class AnalysisEnded(Event):
     The node the analyis has ran on.
     """
     
-    result: _AnalysisResult
+    result: AnalysisResult
     """
     The result of the analysis. 
     """
