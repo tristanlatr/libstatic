@@ -191,10 +191,13 @@ class _PassDependencyDescriptor:
         self.callback = callback
 
 
-class Context(object):
+class PassContext(object):
 
     """
-    Class that does the book-keeping of the chains of passes runs.
+    Class that does the book-keeping of the chains of passes runs and provide
+    accessors for the current node and the current modules (both might represent the same).
+
+    It is accessible by in the L{Pass.ctx} instance attribute.
     """
     
     def __init__(self, modules: ModuleCollection) -> None:
@@ -232,11 +235,23 @@ class Context(object):
 # this object does not exist at runtime it only helps
 # for th typing.
 class IPassManager(Protocol): 
+    """
+    This interface defines how to run passes.
+
+    @note: This is the passmanager you have access to from inside a L{Pass}, 
+        it is stored in the L{Pass.passmanager} instance attribute.
+    """
     def apply(self, transformation: PassLike, node: AnyNode) -> tuple[bool, AnyNode]:...
     def gather(self, analysis: PassLike, node: AnyNode) -> Any:...
 
 
 class IMutablePassManager(IPassManager, Protocol):
+    """
+    This interface defines how to mutate and access modules in the pass manager system.
+
+    @note: This is the passmanager you get by calling L{PassManager()}.
+    """
+
     def add_module(self, mod: Module) -> None: ...
     def remove_module(self, mod: Module) -> None: ...
     @property
@@ -271,12 +286,19 @@ class Pass(Generic[RunsOnT, ReturnsT], metaclass=_PassMeta):
     and potentially overriden in transformations.
     """
 
-    passmanager: IPassManager
-    ctx: Context
-
     if TYPE_CHECKING:
         # This is only for typing purposes, it could not work this way...
-        def __init__(self, *args: object, **kwargs: object) -> None: ...
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            self.passmanager: IPassManager
+            """
+            Ref to the pass manager. 
+            """
+            
+            self.ctx: PassContext
+            """
+            Ref to the pass context. 
+            """
+
         def __call__(self) -> Self: ...
 
     @classmethod
@@ -409,7 +431,7 @@ class Pass(Generic[RunsOnT, ReturnsT], metaclass=_PassMeta):
 
     def prepare(self, node: RunsOnT):
         """
-        Gather analysis result required by this analysis.
+        Bind analysis result required by this analysis and apply transformations.
         """
         self._verifyDependencies()
         self._verifyRequiredParamaters()
@@ -444,7 +466,7 @@ class Pass(Generic[RunsOnT, ReturnsT], metaclass=_PassMeta):
                     f"dependencies should be a Transformation or an Analysis, not {analysis}"
                 )
 
-    def _attach(self, pm: IPassManager, ctx: Context):
+    def _attach(self, pm: IPassManager, ctx: PassContext):
         # Since a pass will only be instantiated with no arguments,
         # we need this extra method to set the pass instance variables
         self.ctx = ctx
@@ -928,7 +950,7 @@ class PassManager:
         
         self._passmanagers = pms = _PassManagerCollection(self)
         self._caches = _Caches(pms)
-        self._ctx = Context(self.modules)
+        self._ctx = PassContext(self.modules)
 
     def add_module(self, mod: Module) -> None:
         """

@@ -15,7 +15,7 @@ from libstatic._lib.scopetree import Builder as ScopeTreeBuilder, Scope
 from libstatic._lib import passmanager
 
 from beniget.standard import DefUseChains, UseDefChains # type: ignore
-import beniget
+import beniget # type: ignore
 
 class ancestors(ModuleAnalysis[Mapping[ast.AST, list[ast.AST]]], ast.NodeVisitor):
     r'''
