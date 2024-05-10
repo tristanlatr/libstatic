@@ -56,11 +56,11 @@ class IVarsVisitor(LocalStmtVisitor):
             except StopIteration:
                 continue
             else:
-                self.ivars.setdefault(attr.name(), []).append(attr)
+                self.ivars.setdefault(attr.node.attr, []).append(attr)
 
     visit_AsyncFunctionDef = visit_FunctionDef
 
-def _compute_ivars(chains: Mapping[ast.AST, Def], cls: ast.ClassDef) -> Mapping[str, Sequence[Def]]:
+def _compute_ivars(chains: Mapping[ast.AST, Def], cls: ast.ClassDef) -> dict[str, list[Def]]:
     visitor = IVarsVisitor(chains)
     visitor.generic_visit(cls)
     return visitor.ivars
