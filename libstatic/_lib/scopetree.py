@@ -22,10 +22,11 @@ from __future__ import annotations
 
 import ast
 import contextlib
+import io
 import os
 import sys
 import types
-from typing import Iterator
+from typing import Iterable, Iterator
 
 class Scope:
     scope_name: str
@@ -294,8 +295,8 @@ class Builder:
                 self.build(args)  # Annotations and defaults
                 self.build(returns)
                 with self.push(node, FunctionScope(name, self._current)):
-                    for a in args.posonlyargs + args.args + args.kwonlyargs:
-                        self.store(a.arg)
+                    for al in args.posonlyargs + args.args + args.kwonlyargs:
+                        self.store(al.arg)
                     self.build(body)
                 self.store(name)
             case ast.ClassDef(
@@ -320,8 +321,8 @@ class Builder:
                 self.scopes = {node: self._current}
                 self.build(body)
             case ast.AST():
-                for key, value in node.__dict__.items():
-                    if not key.startswith("_"):
+                for _k, value in node.__dict__.items():
+                    if not _k.startswith("_"):
                         self.build(value)
             case _:
                 assert False, repr(node)
@@ -335,9 +336,6 @@ def depth(s: Scope) -> int:
     return n
 
 
-tab = "  "
-
-
 def expand_globs(filenames: list[str]) -> Iterator[str]:
     for filename in filenames:
         if "*" in filename and sys.platform == "win32":
@@ -347,6 +345,23 @@ def expand_globs(filenames: list[str]) -> Iterator[str]:
         else:
             yield filename
 
+
+tab = "  "
+
+def dump(scopes: Iterable[Scope]) -> str:
+    b = io.StringIO()
+    for scope in scopes:
+        indent = tab * depth(scope)
+        print(f"{indent}{scope}: L={sorted(scope.locals)}", end="", file=b)
+        if scope.nonlocals:
+            print(f"; NL={sorted(scope.nonlocals)}", end="", file=b)
+        if scope.globals:
+            print(f"; G={sorted(scope.globals)}", end="", file=b)
+        uses = {}
+        for name in sorted(scope.uses):
+            uses[name] = scope.lookup(name)
+        print(f"; U={uses}", file=b)
+    return b.getvalue()
 
 def main():
     dump = False
@@ -366,18 +381,7 @@ def main():
             print(ast.dump(root, indent=2))
         b = Builder()
         b.build(root)
-        for scope in b.scopes:
-            indent = tab * depth(scope)
-            print(f"{indent}{scope}: L={sorted(scope.locals)}", end="")
-            if scope.nonlocals:
-                print(f"; NL={sorted(scope.nonlocals)}", end="")
-            if scope.globals:
-                print(f"; G={sorted(scope.globals)}", end="")
-            uses = {}
-            for name in sorted(scope.uses):
-                uses[name] = scope.lookup(name)
-            print(f"; U={uses}")
-
+        print(dump(b.scopes.values()))
 
 if __name__ == "__main__":
     main()
