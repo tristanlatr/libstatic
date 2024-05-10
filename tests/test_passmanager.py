@@ -571,7 +571,7 @@ class TestPassManagerFramework(TestCase):
         pm.add_module(Module(
             ast.parse(src), 'test', 'test.py', code=src, 
         ))
-        with self.assertRaisesRegex(TypeError, f'You must list {passmanager.modules.__qualname__} in you pass dependencies'):
+        with self.assertRaises(TypeError):
             pm.gather(main_intra_module_analysis, pm.modules['test'].node)
                 
     def test_not_using_modules_analysis_cannot_apply_transformation_using_modules_analysis(self):

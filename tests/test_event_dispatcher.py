@@ -7,7 +7,7 @@ from io import StringIO
 
 from unittest import TestCase
 
-from libstatic._lib.passmanager import EventDispatcher, Event
+from libstatic._lib.passmanager.events import EventDispatcher, Event
 
 @dataclass
 class Ask(Event):

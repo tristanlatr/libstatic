@@ -136,6 +136,9 @@ RunsOnT = TypeVar("RunsOnT")
 
 if TYPE_CHECKING:
     class PassLike(Protocol, type): # type: ignore[misc]
+        """
+        In practice, only L{Analysis} and L{Transformation} subclasses are valid implementations of this interface.
+        """
         def __call__(self) -> Pass:...
         def _isInterModuleAnalysis(self) -> bool:...
 
@@ -743,7 +746,7 @@ class ModulePassManager:
 
         with self.__pm._ctx.pushPass(analysis, node):
             a = analysis()
-            a._attach(_VerifyCallsPassManager(a, self), self.__pm._ctx)
+            a._attach(_RestrictedPassManager(analysis, self), self.__pm._ctx)
             ret = a.run(node)
         
         return ret
@@ -761,7 +764,7 @@ class ModulePassManager:
         
         with self.__pm._ctx.pushPass(transformation, node):
             a = transformation()
-            a._attach(_VerifyCallsPassManager(a, self), self.__pm._ctx)
+            a._attach(_RestrictedPassManager(transformation, self), self.__pm._ctx)
             ret = a.apply(node)
         
         return ret
@@ -822,34 +825,56 @@ class ModulePassManager:
             )
         return self.__pm.modules
 
-class _VerifyCallsPassManager:
+class _RestrictedPassManager:
     """
-    A proxy to the pass manager that makes sure an intra-module analyses does never depend on inter-module analysis.
+    A proxy to the L{PassManager} instance that makes sure it is used correctly depending on the pass it's attached to.
+    
+    - Restrict intra-module passes L{gather} and L{apply} so they can't dynamically depend on inter-modules passes.
+    - Disallow access to L{PassManager.modules} since it should always be accessed with L{passmanager.modules} analysis.
+    - Disallow access to L{PassManager.add_modules} and L{PassManager.remove_module} in the context of an analysis.
+
     """
-    def __init__(self, passs: PassLike, mpm: IPassManager) -> None:
-        self.__mpm = mpm
+    def __init__(self, passs: PassLike, pm: IPassManager) -> None:
+        self.__pm = pm
         
+        # 1
         if not passs._isInterModuleAnalysis():
 
             def gather(analysis_: PassLike, node: AnyNode) -> Any:
                 if analysis_._isInterModuleAnalysis():
-                    raise TypeError(f'You must list {modules.__qualname__} in you pass dependencies to gather this pass: {analysis_}')    
-                return mpm.gather(analysis_, node)        
+                    raise TypeError(f'You must list {modules.__qualname__} in your pass dependencies to gather this pass: {analysis_}')    
+                return pm.gather(analysis_, node)        
             
             def apply(transformation_: PassLike, node: AnyNode):
                 if transformation_._isInterModuleAnalysis():
-                    raise TypeError(f'You must list {modules.__qualname__} in you pass dependencies to apply this pass: {transformation_}')  
-                return mpm.apply(transformation_, node)        
+                    raise TypeError(f'{modules.__qualname__} must be in your pass dependencies to apply this pass: {transformation_}')  
+                return pm.apply(transformation_, node)        
 
             self.apply = apply
             self.gather = gather
+        
+        # 3
+        if issubclass(passs, Analysis):
+            def add_module(_):
+                raise RuntimeError('cannot add a module from within an analysis')
+            def remove_module(_):
+                raise RuntimeError('cannot remove a module from within an analysis')
+            
+            self.add_module = add_module
+            self.remove_module = remove_module
+        
+    # 2
+    @property
+    def modules(self):
+        raise RuntimeError(f'You must access the modules with the {modules.__qualname__} dependencies')
     
+    # Forward all attribute to self.__pm if it's not defined in this class.
     def __getattribute__(self, name: str) -> Any:
         try:
             return super().__getattribute__(name)
         except AttributeError as e:
             try:
-                return getattr(self.__mpm, name)
+                return getattr(self.__pm, name)
             except AttributeError:
                 raise e
 
