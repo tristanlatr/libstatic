@@ -457,12 +457,12 @@ class TestPassManagerFramework(TestCase):
         ))
         pm.gather(class_count, pm.modules['test'].node)
         pm.gather(node_list, pm.modules['test'].node)
-        assert pm._passmanagers[pm.modules['test']].cache.get(class_count, pm.modules['test'].node)
-        assert pm._passmanagers[pm.modules['test']].cache.get(node_list, pm.modules['test'].node)
+        assert pm.cache.get(class_count, pm.modules['test'].node)
+        assert pm.cache.get(node_list, pm.modules['test'].node)
         
         pm.apply(transform_trues_into_ones, pm.modules['test'].node)
-        assert pm._passmanagers[pm.modules['test']].cache.get(class_count, pm.modules['test'].node)
-        assert not pm._passmanagers[pm.modules['test']].cache.get(node_list, pm.modules['test'].node)
+        assert pm.cache.get(class_count, pm.modules['test'].node)
+        assert not pm.cache.get(node_list, pm.modules['test'].node)
     
     
     def test_cache_cleared_when_module_removed(self):
@@ -474,13 +474,12 @@ class TestPassManagerFramework(TestCase):
 
         pm.gather(node_list, mod1.node)
         pm.gather(requires_modules, mod1.node)
-        mod1cache = pm._passmanagers[mod1].cache
-        assert mod1cache.get(requires_modules, mod1.node)
+        assert pm.cache.get(requires_modules, mod1.node)
 
         pm.remove_module(mod2)
 
-        assert mod1cache.get(node_list, mod1.node)
-        assert mod1cache.get(requires_modules, mod1.node) is None
+        assert pm.cache.get(node_list, mod1.node)
+        assert pm.cache.get(requires_modules, mod1.node) is None
     
     def test_cache_cleared_when_module_added(self):
         pm = PassManager()
@@ -491,13 +490,13 @@ class TestPassManagerFramework(TestCase):
 
         pm.gather(node_list, mod1.node)
         pm.gather(requires_modules, mod1.node)
-        mod1cache = pm._passmanagers[mod1].cache
-        assert mod1cache.get(requires_modules, mod1.node)
+        cache = pm.cache
+        assert cache.get(requires_modules, mod1.node)
 
         pm.add_module(Module(ast.parse('import test'), 'test3'))
 
-        assert mod1cache.get(node_list, mod1.node)
-        assert mod1cache.get(requires_modules, mod1.node) is None
+        assert cache.get(node_list, mod1.node)
+        assert cache.get(requires_modules, mod1.node) is None
     
 
     def test_preserved_analysis_inter_modules(self):
@@ -693,16 +692,16 @@ class TestPassManagerFramework(TestCase):
         pm = PassManager()
         pm.add_module(Module(node, 'test'))
         assert pm.gather(test_analysis(expected_number_of_functions=4), node)
-        assert list(pm._caches.allAnalyses()) == [function_arguments, test_analysis(expected_number_of_functions=4),]
+        assert list(pm.cache.analyses()) == [function_arguments, test_analysis(expected_number_of_functions=4),]
 
         pm.apply(remove_all_init_methods, node)
-        assert list(pm._caches.allAnalyses()) == []
+        assert list(pm.cache.analyses()) == []
         
         assert pm.gather(test_analysis(expected_number_of_functions=3), node)
-        assert list(pm._caches.allAnalyses()) == [function_arguments, test_analysis(expected_number_of_functions=3),]
+        assert list(pm.cache.analyses()) == [function_arguments, test_analysis(expected_number_of_functions=3),]
         
         pm.apply(remove_all_init_methods, node) # it did not updated
-        assert list(pm._caches.allAnalyses()) == [function_arguments, test_analysis(expected_number_of_functions=3),]
+        assert list(pm.cache.analyses()) == [function_arguments, test_analysis(expected_number_of_functions=3),]
 
         v = pm.gather(function_arguments.proxy(), node)
         v

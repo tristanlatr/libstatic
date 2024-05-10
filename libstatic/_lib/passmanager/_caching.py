@@ -8,6 +8,8 @@ from typing import Hashable, TYPE_CHECKING, Iterator
 if TYPE_CHECKING:
     from typing import NoReturn
     from ._passmanager import Analysis
+    from ._modules import ModuleCollection, Module, AnyNode
+    from .events import EventDispatcher, ModuleAddedEvent, ModuleRemovedEvent
 
 
 class AnalysisResult:
@@ -84,8 +86,64 @@ class AnalysisCache:
         if analysis in self.__data:
             del self.__data[analysis]
 
-    def analysisTypes(self) -> Iterator[type[Analysis]]:
+    def analyses(self) -> Iterator[type[Analysis]]:
         """
         Get an iterator on all analyses types in this cache.
         """
         yield from self.__data
+
+class AnalyisCacheProxy:
+   
+    def __init__(self, modules: ModuleCollection, dispatcher: EventDispatcher) -> None:
+        super().__init__()
+        self.__modules = modules
+        # register the event listeners
+        dispatcher.addEventListener(ModuleAddedEvent, self._onModuleAddedEvent)
+        dispatcher.addEventListener(ModuleRemovedEvent, self._onModuleRemovedEvent)
+
+        self.__data: dict[Module, AnalysisCache] = {}
+    
+    def get(self, analysis: type[Analysis], node: Hashable) -> AnalysisResult | None:
+        module = self.__modules[node]
+        cache = self.__data[module]
+        return cache.get(analysis, node)
+    
+    def set(self, analysis: type[Analysis], node: Hashable, result: AnalysisResult) -> None:
+        module = self.__modules[node]
+        cache = self.__data[module]
+        cache.set(analysis, node, result)
+    
+    def clear(self, analysis: type[Analysis], mod: AnyNode | None) -> None:
+        if mod is None:
+            for cache in self.__data.values():
+                cache.clear(analysis)
+        else:
+            module = self.__modules[mod]
+            cache = self.__data[module]
+            cache.clear(analysis)
+
+    def modulesAnalyses(self) -> Iterator[tuple[Module, type[Analysis]]]:
+        """
+        For each analyses in each module's cache, yield C{(Module, type[Analysis])}.
+        """
+        for mod, cache in self.__data.items():
+            for analysis in tuple(cache.analyses()): # tuple() avoids RuntimeError: dictionary changed size during iteration
+                yield mod, analysis
+    
+    def analyses(self) -> Iterator[type[Analysis]]:
+        """
+        Iter on all analyses types.
+        """
+        r = set()
+        for _, a in self.modulesAnalyses():
+            if a in r:
+                continue
+            r.add(a)
+            yield a
+    
+    def _onModuleAddedEvent(self, event: ModuleAddedEvent) -> None:
+        self.__data[event.mod] = AnalysisCache()
+
+    def _onModuleRemovedEvent(self, event: ModuleRemovedEvent) -> None:
+        del self.__data[event.mod] # this **should** free the memory from all analyses in the cache for this module.
+

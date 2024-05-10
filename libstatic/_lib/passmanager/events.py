@@ -6,7 +6,7 @@ from typing import Any, Callable, TypeVar, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from . import Analysis, Module, Transformation
-    from ._astcompat import ILibrarySupport
+    from ._astcompat import ISupport
     from ._caching import AnalysisResult
 
 
@@ -82,9 +82,14 @@ class EventDispatcher:
 
 
 @dataclasses.dataclass(frozen=True)
-class ModuleChangedEvent(Event):
+class ModuleTransformedEvent(Event):
     """
     When a module is transformed.
+    """
+
+    transformation: Transformation
+    """
+    The transformation instance.
     """
 
     mod: Module
@@ -157,9 +162,9 @@ class TransformEnded(Event):
     After a transformation has been run.
     """
     
-    transformation: type[Transformation]
+    transformation: Transformation
     """
-    The transformstion type.
+    The transformstion instance.
     """
     
     node: Any
@@ -212,4 +217,4 @@ class SupportLibraryEvent(Event):
     When a library is supported.
     """
 
-    lib: ILibrarySupport
+    lib: ISupport

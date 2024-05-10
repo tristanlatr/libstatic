@@ -12,7 +12,7 @@ from typing import (
 import dataclasses
 
 from .events import (EventDispatcher, ModuleAddedEvent, 
-                     ModuleChangedEvent, ModuleRemovedEvent)
+                     ModuleTransformedEvent, ModuleRemovedEvent)
 
 if TYPE_CHECKING:
     from ._astcompat import ASTCompat
@@ -80,25 +80,25 @@ class _Node2RootMapping(Mapping[AnyNode, ModuleNode]):
 
     Part of L{ModuleCollection}. 
     """
-    def __init__(self, dispatcher: EventDispatcher, astsupport: ASTCompat) -> None:
+    def __init__(self, dispatcher: EventDispatcher, ast: ASTCompat) -> None:
         super().__init__()
         # register the event listeners
         dispatcher.addEventListener(ModuleAddedEvent, self._onModuleAddedEvent)
-        dispatcher.addEventListener(ModuleChangedEvent, self._onModuleChangedEvent)
+        dispatcher.addEventListener(ModuleTransformedEvent, self._onModuleTransformedEvent)
         dispatcher.addEventListener(ModuleRemovedEvent, self._onModuleRemovedEvent)
 
         # We might be using weak keys and values dictionnary here.
         self.__data: dict[AnyNode, ModuleNode] = {}
-        self._ast = astsupport
+        self._ast = ast
 
-    def _onModuleAddedEvent(self, event: ModuleAddedEvent | ModuleChangedEvent) -> None:
+    def _onModuleAddedEvent(self, event: ModuleAddedEvent | ModuleTransformedEvent) -> None:
         newmod = event.mod.node
         # O(n), every time :/
         for node in self._ast.walk(newmod):
             self.__data[node] = newmod
 
     def _onModuleRemovedEvent(
-        self, event: ModuleRemovedEvent | ModuleChangedEvent
+        self, event: ModuleRemovedEvent | ModuleTransformedEvent
     ) -> None:
         # O(n), every time :/
         node = event.mod.node
@@ -109,7 +109,7 @@ class _Node2RootMapping(Mapping[AnyNode, ModuleNode]):
         for n in to_remove:
             del self.__data[n]
 
-    def _onModuleChangedEvent(self, event: ModuleChangedEvent) -> None:
+    def _onModuleTransformedEvent(self, event: ModuleTransformedEvent) -> None:
         # TODO (optimizations): 2xO(n), every time: Thid could be improved by introducing 'uptdates_regions' Transformation
         # attribute that will contain a sequence of all nodes added in the tree, we also would need a sequnce
         # aof nodes removed from the tree. 
@@ -139,10 +139,10 @@ class ModuleCollection(Mapping[str | ModuleNode | AnyNode, Module]):
     both by module name or by module ast node (alternatively by any node contained in a known module).
     """
 
-    def __init__(self, dispatcher: EventDispatcher, astsupport: ASTCompat):
+    def __init__(self, dispatcher: EventDispatcher, ast):
         self.__name2module: dict[str, Module] = {}
         self.__node2module: dict[ModuleNode, Module] = {}
-        self.__roots = _Node2RootMapping(dispatcher, astsupport)
+        self.__roots = _Node2RootMapping(dispatcher, ast)
 
         dispatcher.addEventListener(ModuleAddedEvent, self._onModuleAddedEvent)
         dispatcher.addEventListener(ModuleRemovedEvent, self._onModuleRemovedEvent)
