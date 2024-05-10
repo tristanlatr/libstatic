@@ -3,7 +3,7 @@ Collection of analyses.
 """
 from __future__ import annotations
 
-from typing import Mapping
+from typing import Mapping, TYPE_CHECKING
 
 import ast
 
@@ -14,7 +14,7 @@ from libstatic._lib.passmanager import (Module, NodeAnalysis, ClassAnalysis, Mod
 from libstatic._lib.scopetree import Builder as ScopeTreeBuilder, Scope
 from libstatic._lib import passmanager
 
-from beniget.standard import DefUseChains, UseDefChains
+from beniget.standard import DefUseChains, UseDefChains # type: ignore
 import beniget
 
 class ancestors(ModuleAnalysis[Mapping[ast.AST, list[ast.AST]]], ast.NodeVisitor):
@@ -49,17 +49,20 @@ class ancestors(ModuleAnalysis[Mapping[ast.AST, list[ast.AST]]], ast.NodeVisitor
     Constant   ['Module', 'Assign']
     '''
 
+    current: tuple[ast.AST, ...] | tuple[()]
+
     def generic_visit(self, node):
         self.result[node] = current = self.current
         self.current += node,
-        super().generic_visit(node)
+        for n in ast.iter_child_nodes(node):
+            self.generic_visit(n)
         self.current = current
 
     visit = generic_visit
 
-    def doPass(self, node: ast.Module) -> dict[ast.AST, Module]:
-        self.result = dict()
-        self.current = tuple()
+    def doPass(self, node: ast.Module) -> dict[ast.AST, list[ast.AST]]:
+        self.result: dict[ast.AST, list[ast.AST]] = {}
+        self.current = ()
         self.visit(node)
         return self.result
 
@@ -69,6 +72,14 @@ class expand_expr(NodeAnalysis[str|None]):
 class node_ancestor(NodeAnalysis[ast.AST]):
     """
     First node ancestor of class C{klass}. 
+
+    >>> from pprint import pprint
+    >>> mod = ast.parse('v = lambda x: x+1; w = 2')
+    >>> pm = passmanager.PassManager()
+    >>> pm.add_module(passmanager.Module(mod, 'test'))
+    >>> const = mod.body[-1].value
+    >>> pm.gather(node_ancestor(klass=ast.Assign), const).__class__.__name__
+    'Assign'
 
     @param klass: type or tuple of types.
     """
@@ -101,10 +112,10 @@ class node_enclosing_scope(NodeAnalysis[ast.AST|None]):
     >>> pm = passmanager.PassManager()
     >>> pm.add_module(passmanager.Module(mod, 'test'))
     >>> lb = pm.gather(node_enclosing_scope, mod.body[0].value.body)
-    >>> print(lb.__class__.__name__)
-    Lambda
-    >>> print(pm.gather(node_enclosing_scope, lb).__class__.__name__)
-    Module
+    >>> lb.__class__.__name__
+    'Lambda'
+    >>> pm.gather(node_enclosing_scope, lb).__class__.__name__
+    'Module'
     """
     dependencies = (node_ancestor(klass=(
             ast.SetComp,
@@ -124,6 +135,27 @@ class node_enclosing_scope(NodeAnalysis[ast.AST|None]):
         return self.node_ancestor
 
 class scope_tree(ModuleAnalysis[dict[ast.AST, Scope]]):
+    """
+    Collect scope information as well as which scope uses which name. 
+
+    >>> src = '''
+    ... class C:
+    ...     def foo(self, a = blah):
+    ...         global x
+    ...         x = a
+    ... '''
+    >>> mod = ast.parse(src)
+    >>> pm = passmanager.PassManager()
+    >>> pm.add_module(passmanager.Module(mod, 'test'))
+    >>> scopes = pm.gather(scope_tree, mod)
+    >>> from .. import scopetree
+    >>> print(scopetree.dump(scopes.values()))
+    GlobalScope('<globals>'): L=['C']; U={}
+      ClassScope('C'): L=['foo']; U={'blah': None}
+        FunctionScope('foo'): L=['a', 'self']; G=['x']; U={'a': FunctionScope('foo')}
+    <BLANKLINE>
+
+    """
     def doPass(self, node: ast.Module) -> dict[ast.AST, Scope]:
         builder = ScopeTreeBuilder()
         builder.build(node)
@@ -157,7 +189,7 @@ class _Beniget(passmanager.ModuleAnalysis):
     Until U{https://github.com/serge-sans-paille/beniget/pull/93} is merges we can't use upstream version.
     """
     def doPass(self, node:ast.Module):
-        mod: passmanager.Module = self.passmanager.module
+        mod: passmanager.Module = self.ctx.module
         modname = mod.modname
         if mod.is_package:
             modname += '.__init__'
@@ -214,6 +246,18 @@ class locals_map(passmanager.NodeAnalysis[dict[str, list[beniget.Def]]]):
         return locals_dict
 
 class ivars_map(passmanager.ClassAnalysis):
+    """
+    >>> src = '''
+    ... class c:
+    ...     def __init__(self, x, a):
+    ...         self.x = a
+    ...         self._a = x
+    ... '''
+    >>> pm = passmanager.PassManager()
+    >>> pm.add_module(passmanager.Module(ast.parse(src), 'test'))
+    >>> pm.gather(ivars_map, pm.modules['test'].node.body[0])
+    {'x': [<ast.Attribute ...> -> ()], '_a': [<ast.Attribute ...> -> ()]}
+    """
     dependencies = (def_use_chains, )
     optionalParameters = {'include_inherited': False}
     
@@ -228,15 +272,36 @@ class ivars_map(passmanager.ClassAnalysis):
         return _compute_ivars(self.def_use_chains, node)
 
 class get_submodule(ModuleAnalysis[Module | None]):
+    """
+    >>> pm = passmanager.PassManager()
+    >>> pm.add_module(passmanager.Module(ast.parse('pass'), 'test', is_package=True))
+    >>> pm.add_module(passmanager.Module(ast.parse('pass'), 'test.framework', is_package=True))
+    >>> pm.add_module(passmanager.Module(ast.parse('pass'), 'test.framework._impl'))
+    >>> pm.add_module(passmanager.Module(ast.parse('pass'), 'test.framework.stuff', is_package=True))
+    >>> pm.gather(get_submodule(name='stuff'), pm.modules['test.framework'].node)
+    Module(node=<ast.Module object at ...>, modname='test.framework.stuff', filename=None, is_package=True, is_stub=False, code=None)
+    """
     dependencies = (passmanager.modules, )
     requiredParameters = ('name',)
 
     def doPass(self, node: ast.Module) -> Module | None:
-        modname = self.passmanager.module.modname
+        modname = self.ctx.module.modname
         submodule_name = f'{modname}.{self.name}'
         return self.modules.get(submodule_name)
 
 class get_ivar(ClassAnalysis[list[ast.AST]]):
+    """
+    >>> src = '''
+    ... class c:
+    ...     def __init__(self, x, a):
+    ...         self.x = a
+    ...         self._a = x
+    ... '''
+    >>> pm = passmanager.PassManager()
+    >>> pm.add_module(passmanager.Module(ast.parse(src), 'test'))
+    >>> pm.gather(get_ivar(name='x'), pm.modules['test'].node.body[0])
+    [<ast.Attribute ...> -> ()]
+    """
     requiredParameters = ('name',)
     optionalParameters = {'include_inherited': False}
 
@@ -245,7 +310,7 @@ class get_ivar(ClassAnalysis[list[ast.AST]]):
         cls.dependencies = (ivars_map(include_inherited=cls.include_inherited), )
         super().prepareClass()
 
-    def doPass(self, node: ast.ClassDef) -> list[ast.AST]:
+    def doPass(self, node: ast.ClassDef) -> list[beniget.Def]:
         return self.ivars_map[self.name]
 
 class get_local(NodeAnalysis[list[ast.AST]]):
@@ -263,7 +328,7 @@ class get_local(NodeAnalysis[list[ast.AST]]):
             raise TypeError(f'expected module or class, got {node}')
 
     def doPass(self, node: ast.AST) -> list[ast.AST]:
-        ...
+        return [] # TODO
 
 class get_attribute(NodeAnalysis[list[ast.AST]]):
     """
@@ -301,28 +366,28 @@ class get_attribute(NodeAnalysis[list[ast.AST]]):
                                         killed=True)
         else:
             values = []
-        if not values and isinstance(node, ast.Module) and self.passmanager.module.is_package:
+        if not values and isinstance(node, ast.Module) and self.ctx.module.is_package:
             # a sub-package
-            sub = self.passmanager.gather(get_submodule(name=self.name))
+            sub = self.passmanager.gather(get_submodule(name=self.name), node)
             if sub is not None:
                 return [sub.node]
         if values:
             return values
 
         raise exceptions.StaticAttributeError(node, attr=self.name, 
-                                   filename=self.passmanager.module.filename)
+                                   filename=self.ctx.module.filename)
 
 class parsed_imports(ModuleAnalysis[Mapping[ast.alias, ImportInfo]]):
     """
     Maps each ast.alias in the module to their ImportInfo counterpart.
     """
     def doPass(self, node: ast.Module) -> Mapping[ast.alias, ImportInfo]:
-        return ParseImportedNames(self.passmanager.module.modname, 
-                                  is_package=self.passmanager.module.is_package).visit_Module(node)
+        return ParseImportedNames(self.ctx.module.modname, 
+                                  is_package=self.ctx.module.is_package).visit_Module(node)
 
 class definitions_of_imports(ModuleAnalysis[Mapping[ast.alias, list[ast.AST]]]):
     dependencies = (parsed_imports, passmanager.modules)
 
     def doPass(self, node: ast.Module) -> Mapping[ast.alias, list[ast.AST]]:
-
-        self.modules
+        assert self.modules
+        return {}
