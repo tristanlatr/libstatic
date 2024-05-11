@@ -142,9 +142,9 @@ class _PassMeta(type):
         passname = self.__qualname__
         args = []
         for p in self.requiredParameters:
-            args.append( f'{p}={getattr(self, p, '<?>')}' )
+            args.append( f'{p}={getattr(self, p, "<?>")}' )
         for p in self.optionalParameters:
-            args.append( f'{p}={getattr(self, p, '<?>')}' )
+            args.append( f'{p}={getattr(self, p, "<?>")}' )
         if args:
             passname += f'({", ".join(args)})'
         return f'<class {passname!r}>'
