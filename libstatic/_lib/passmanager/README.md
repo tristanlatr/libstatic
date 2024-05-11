@@ -15,7 +15,7 @@ Each pass delcares class attributes that represents everything we need to know a
 The pass manager is responsible to optimize analyses results so they don't have to be run unecessarly; as well as arranges for the transformations to happen in the correct order and the analyses cache to be invalidated when it needs. 
 
 Since python is a highly dynamic language and one module can affect the state of other modules, 
-the passmanager works on an entire system of packages and modules, not just a module at a time. 
+the pass manager works on an entire system of packages and modules, not just a module at a time. 
 Passes that do not require awareness of the other modules in the system are called _intra-module passes_, on the other hand, passes that 
 requires access are called _inter-modules passes_. 
 
@@ -29,10 +29,9 @@ twisted/python/code/
 ├─ __init__.py
 ├─ passmanager/
 │  ├─ __init__.py
-│  ├─ events.py
 │  ├─ exceptions.py
 │  ├─ finder.py
-│  ├─ passmanager implementaion modules...
+│  ├─ pass manager implementaion modules...
 ├─ utils.py
 ├─ analyses/
 │  ├─ __init__.py
@@ -76,7 +75,7 @@ Rationale
 Why particular design decisions were made.
 
 - Why a pass manager? 
-  The passmanager design allows developpers to write transformations depending on arbitrary analyses.
+  The pass manager design allows developpers to write transformations depending on arbitrary analyses.
   This feature can be very useful to normalize the AST before passing it to your main visitor. E.g. to
   apply the [undataclass](https://www.pythonmorsels.com/undataclass/) transformation in order to seemlessly 
   support dataclasses by your app since the implicit methods will become explicit; Or expand wildcard imports, which are a major pain for most static analysis tools.
@@ -98,12 +97,12 @@ Why particular design decisions were made.
 - A transformation can mark an analysis as preserved and manually update the resulting datastructure so it doesn't have to be re-run. 
   This implies that a transformation result can never be cached since it might update other analysis datastructures. 
   
-- The passmanager implementation is not coupled to any particular tree type, meaning you can use the passmanager with trees generated
-  by the [parso](https://parso.readthedocs.io/en/latest/index.html) library; given the fact that the passmanager is provided with the compatible strategy. Nevertheless, implementation of included 
+- The pass manager implementation is not coupled to any particular tree type, meaning you can use the it with trees generated
+  by the [parso](https://parso.readthedocs.io/en/latest/index.html) library; given the fact that the pass manager is provided with the compatible strategy. Nevertheless, implementation of included 
   passes and examples will always use the standard library.
 
 - It is not helpful to consider analyses that runs only on functions or only classes appart from analyses that runs on any kind of nodes. Classes can be callables and an expression might refer to a function definition. 
-An analysis that runs on modules, in constrast, is different because the passmanager will always run it on the root
+An analysis that runs on modules, in constrast, is different because the pass manager will always run it on the root
 module when it's declared as a pass dependency. A move that cannot be done with confidence for other kind of nodes.
 
 Modules are the only thing we can be relatively sure they are what the AST says they are. But even there, with the beauty of Python, one can dynamically set `sys.modules['something']` to an arbitrary object. Like the [klein.resource](https://github.com/twisted/klein/blob/23.12.0/src/klein/resource.py) module which is implemented as an instance.
@@ -137,10 +136,10 @@ Modules can be created manually or with the finder (discussed below).
 
 * ``PassManager.addModule(module)`` is used to add a module to the system, and is required before running a pass on that module. Two modules cannot have the same name nor the same ast node identity.
 * ``PassManager.removeModule(module)`` is used to discard a module from the system. Potentially to be replaced for one that better fits.
-* ``PassManager.gather(analysis, node)`` is used to gather (!) the result of an analysis on an AST node.
-* ``PassManager.apply(transformation, node)`` is used to apply (sic) a transformation on an AST node.
-* ``PassManager.modules`` is a mapping to access the collection of added ``Module``s. Modules can be retreived by module qualified name or by node.
-* ``PassManager.support(ast)`` is used to switch the passmanager AST support kind. Valid values includes ``gast`` or ``ast``. 
+* ``PassManager.gather(analysis, node) -> object`` is used to gather (!) the result of an analysis on an AST node.
+* ``PassManager.apply(transformation, node) -> tuple[bool, node]`` is used to apply (sic) a transformation on an AST node. Returns whether the pass udpated the content and the modified node.
+* ``PassManager.modules`` is a mapping to access the collection of added ``Module``s. Modules can be retreived by module qualified name or by node (any node in the module). The  pass manager needs to maintain a map of all nodes in the system to their root module, this is required for the cache to know which module entry to use when given arbitrary nodes. See the transformation optimizations to reduce the cost of this operation.
+* ``PassManager.support(ast)`` is used to switch the pass manager AST support kind. Valid values includes ``gast`` or ``ast``. 
 
 **The Pass interface**
 
@@ -149,6 +148,16 @@ There are two kinds of passes: transformation and analysis.
 * ``ModuleAnalysis`` and ``NodeAnalysis`` are to be
     subclassed by any pass that collects information about the AST.
 * ``Transformation`` is to be sub-classed by any pass that updates the AST.
+
+Pass class hiearchy:
+
+```
+Pass
+├─ Analysis
+├─ ├─ ModuleAnalysis
+├─ ├─ NodeAnalysis
+├─ Transformation
+```
 
 Specifying interactions between passes
 
@@ -173,15 +182,15 @@ To create your parameterized analysis simply call your analysis class with keywo
 
 Running a pass: The ``PassManager`` is the only object that should instanciate passes, through the ``gather()`` or ``apply()`` methods. These methods creates the pass instance, set up the variables and run the pass. 
 
-- ``Pass.passmanager``: Reference to the passmanager.
+- ``Pass.passmanager``: Instance variable, ref to the pass manager.
 - ``Pass.ctx``: Instance variable tracking the pass context: ``self.ctx.module`` is the current ``Module`` and ``self.ctx.current`` is the ast node the current pass is running on.
 - ``Pass.doPass(ndoe) -> object``: Abstract method that needs to be implemented by all concrete Pass types: this is where the core of the pass logic goes.
-- ``Pass.run(ndoe) -> object``: Method to run the pass on the given node. This methods calls ``Pass.prepare()`` then ``Pass.doPass``. Override this method to provide pre or post processing  to the pass.
+- ``Pass.run(ndoe) -> object``: Method to run the pass on the given node. This methods calls ``Pass.prepare()`` then ``Pass.doPass``. Override this method to provide pre or post processing to the pass.
 
 **The Transformation interface**
 
 - ``Transformation.update``: Instance attribute indicating whether the transformation did something.
-- ``Transformation.preservesAnalyses``: Instance attribute listing analyses that are preserved after the transformation updates the content.  
+- ``Transformation.preservesAnalyses``: Instance attribute listing analyses that are preserved after the transformation updates the content. If a preserved analysis takes parameters, the "like" pattern should be created instead of simply listing the class name (i.e. if the transform preserves the parametized analysis ``instance_variables`` for any value of its parameter ``inherited``, one must write ``instance_variables.like(inherited=lambda v:True)``, where ``v`` is the value of the parameter)  
 - ``Transformation.addedNodes``: Instance attribute listing the new nodes added to the tree, optionaly filled. These are used to optimize post transformation tree visiting. 
 - ``Transformation.removedNodes``: Instance attribute listing the new nodes added to the tree, optionaly filled. 
 
@@ -189,15 +198,52 @@ Running a pass: The ``PassManager`` is the only object that should instanciate p
 
 - ``Analysis.doNotCache``: Class attribute indicates to the pass manager not to cache the results of this analysis.
 - ``Analysis.isComplete``: Instance attribute indicates to the pass manager to never clear the results when a new module is added to the system.
+- ``Analysis.like(**kw)``: Create a like pattern to indicate several parameter values in the context of ``preservesAnalyses``.
 
 **Analysis invalidation**
 
 The analyses invalidated by the current transformation are cleaned up from the cache eagerly. This might not be the smartest thing to do. We might consider marking the results as stale and only clear and update it when a new value is requested. 
 
+**Pass factories**
+
+Some passes are not worth declaring a new ``Pass`` subclase, when a pass has no dependencies for instance; 
+
+Here are some factories to convert various forms of objects into a ``Pass`` type:
+
+- ``Analysis.fromNodeVisitor(visitor)``: Converts a node visitor into an analysis. 
+  The pass must not have any requirements. The class must expose a ``visit()`` method and the result be stored in ``self.result`` instance variable. 
+- ``Analysis.fromSimpleCallable(callable: Callable[[Node], object])``: Converts a one-argument callable into an analysis. The pass must not have any requirements.
+- ``Analysis.fromCallable(callable: Callable[[PassManager, Node], object], isInterModules=False)``: Converts a two-argument callable where the first argument is the pass manager and the second the node. The analysis can use ``gather`` method to request requirements. If the parameter ``isInterModules`` is true, the analysis will be allowed to depend on other inter-modules analyses and request the ``passmanger.modules`` analysis.
+- ``Transformation.fromNodeTransformer(transformer)``: Converts a node transformer into a transformation. 
+  The pass must not have any requirements. The class must expose a ``visit()`` method and whether the transformation changed the content stored in ``self.update`` instance variable. 
+
+Declaring a ``Pass`` subclass is required if:
+
+- the pass uses parameters or,
+- the pass uses optimizations like ``Analysis.isComplete`` or ``Transformation.preservesAnalyses``.
+
+**Pass instrumentation**
+
+The pass manager uses an event dispatcher with the following event definition; some of them are designed only to be 
+used by client code, some are used by default. To add a custom event lister, use ``PassManger.dispatcher.addEventListener``. 
+
+```
+Event
+├─ ModuleTransformedEvent
+├─ ClearAnalysisEvent
+├─ ModuleAddedEvent
+├─ ModuleRemovedEvent
+├─ RunningTransform
+├─ TransformEnded
+├─ RunningAnalysis
+├─ AnalysisEnded
+├─ SupportLibraryEvent
+```
+
 **The module finder**
 
-The finder is in charge of finding python modules and creating L{Module} instances for them based on a given search context.
-It can load modules by fully qualified name or create all modules under a given path. 
+The finder is in charge of finding python modules and creating ``Module`` instances for them based on a given search context.
+It can load modules by fully qualified name or load all modules under a given path. 
 
 Future developements
 --------------------
@@ -217,12 +263,13 @@ Alternatives
 - ``astroid``: While a great library, it does not offer the flexibility we thrive for - it includes a couples of APIs the main
   one being ``NodeNG.infer()`` that returns a generator for potential values. I've tried to use it but could not make it evaluate
   the values of ``__all__`` variables without patching astroid internals (which is not really inline with the GNU Lesser General Public License v2.1). Also it does not work with the standard library AST.
-
+- ``pytype``: There is an included library in pytype: [traces](https://google.github.io/pytype/developers/tools.html#traces), but pytype analyzer is not known to be fast and working with opcode traces adds a layer of complexity. 
+- ``mypy``: Some [code](https://github.com/pyastrx/pyastrx/blob/v0.5.2/pyastrx/inference/mypy.py) in the ``pyastrx`` project shows that we can use ``mypy`` to extract type inference results and later matches these to node instances. But this approach does not offer enough flexibility and it is rather "hacky". 
 
 Reference Implementation
 ------------------------
 
-The implementation is currently at a pre-alpha stage and misses a lot of unit tests but here is where you can look at the code:
+The implementation is currently in development and misses a lot of unit tests but here is where you can look at the code:
 
 https://github.com/tristanlatr/libstatic/tree/passmanager/libstatic/_lib/passmanager
 
@@ -240,11 +287,12 @@ Rejected Ideas
 Dependencies
 ------------
 
-- The passmanager infrastructure itself does not have any external dependencies.  
+- The pass manager infrastructure itself does not have any external dependencies.  
 
 - The finder module uses ``typeshed_client``.
 
-- The def-use chains analysis is provided by [beniget](https://github.com/serge-sans-paille/beniget), so many interesting analyses will require it.
+- The def-use chains analysis is provided by [beniget](https://github.com/serge-sans-paille/beniget), so many interesting analyses will require it;
+  Including the evaluation of ``__all__`` variables, type inference and others.
 
 Usages
 ------
