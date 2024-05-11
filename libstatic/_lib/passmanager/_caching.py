@@ -135,6 +135,8 @@ class AnalyisCacheProxy:
         """
         Iter on all analyses types.
         """
+        # TODO: Maybe having a separate cache for inter modules analyses would improve performance cost induced by
+        # iterating over all analyses
         r = set()
         for _, a in self.modulesAnalyses():
             if a in r:

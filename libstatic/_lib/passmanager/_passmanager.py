@@ -1,51 +1,27 @@
 
-# 1 - Only true analysis results should be in there # DONE
-# adapters do not belong in the cache since they can be re-created on the fly # DONE
+# Implementation notes: 
+# -> Only true analysis results should be in the cache, proxies do not belong in the cache since they can be re-created on the fly
+# -> There is no such things as a analysis that runs on all modules 
+#       This will be called client objects/façade and we don't care about them here.
+# -> If an analysis raises an exception during processing, this execption should be saved in the cache so it's re-raised
+#       whenever the same analysis is requested again.
 
-# 2 - The data should only be cached at one place:
-# ScopeToModuleAnalysisResult should not store the data but always delegate to gather: # DONE
-# this way we don't have to register the mapping proxy as listener to the invalidated analysis event
-# since it's not storing any data.
-
-#  -> There is no such things as a analysis that runs on all modules # DONE
-#       This will be called client objects/façade and we don't care about them here:
-#       these objects are composed by the PassManager and redirect
-#       all requests.
-
-# - PassManager should rely on lower level ModulePassManager that handles everything # DONE
-# at the single module level, offering an pythran-like interface.
-#
-# Questions: Should we have two caches, one for intra-modules analyses one for inter-modules analyses ?
-# One PassManager is then composed by several ModulePassManagers that actually run all the analyses.
-# How to cache transformation results ? -> no need at the moment since the analyses results can be
-# cached and the transform time will be very quick anyway
-#
+# Future ideas:
 # Pass instrumentation: Adding callbacks before and after passes:
-# Use this as an extensions system:
+# Use this as an extensions system hooked into the dispatcher.
 # - First application is to gather statistics about analyses run times
-# - Other applications includes generating a tree hash before and after each transform
+# - Other applications includes generating a tree hash before and after each transform and check it the flag update is well set.
 
-# about caching analysis results in files
+# About caching analysis results in files
 # - all modules should have hash keys generated and updated on transformations:
 #       1/ local hash (module ast + modulename + is_package, ...): that is only valid for intra-module analysis
 #       2/ inter-modules hash: that is a combinaison of the module hash and all it's dependencies'inter-module hashes.
 
-# If an analysis raises an exception during processing, this execption should be saved in the cache so it's re-raised # DONE
-# whenever the same analysis is requested again.
-
-# When a module is added or removed all transitively using modules analysis should be cleared from the cache. # DONE
-
-# TODO: Implement complete inter-modulea analysis that would stay in the cache when a module is added. 
-
+# TODO: Implement isComplete analysis feature that would stay in the cache when a module is added. 
 # TODO: Implment transform added / remove nodes in order to optimize visiting time for root module mapping
-
-# TODO: Create an adaptor class that turns a callable '(passmanager, node) -> result' into an analysis.
-# TODO: Create an adaptor class that turns a callable '(passmanager, node) -> (newnode, update, preservesAnalyses, added_nodes, removed_nodes)' into a transformation
-
+# TODO: Create an adaptors
 # TODO: Integrate with a simple logging framework.
-
 # TODO: Think of where to use weakrefs. 
-
 # TODO: Work for having function and classes transformations
 # that will invalidate only the required function analyses.
 # Seulement les transformations de modules peuvent changer l'interface
@@ -74,11 +50,8 @@ from typing import (
     Callable,
     Collection,
     Hashable,
-    Iterable,
     Iterator,
-    Mapping,
     Self,
-    TypeAlias,
     TypeVar,
     Generic,
     Sequence,
@@ -286,8 +259,8 @@ class Pass(Generic[RunsOnT, ReturnsT], metaclass=_PassMeta):
 
     update = False
     """
-    Since there is nothing that technically avoids calling L{apply} on an analysis, this flag must be set to L{False} here
-    and potentially overriden in transformations.
+    Since there is nothing that technically avoids calling L{apply} on an analysis, 
+    this flag must be set to L{False} here and potentially overriden in transformations.
     """
 
     if TYPE_CHECKING:
@@ -394,7 +367,8 @@ class Pass(Generic[RunsOnT, ReturnsT], metaclass=_PassMeta):
         seen = ordered_set()
         def _yieldDeps(c: type[Pass]):
             yield from (d for d in c.dependencies if d not in seen)
-            yield from (d for d in chain.from_iterable(_yieldDeps(dep) for dep in c.dependencies) if d not in seen)
+            yield from (d for d in chain.from_iterable(
+                _yieldDeps(dep) for dep in c.dependencies) if d not in seen)
         seen.update(_yieldDeps(cls))
         return tuple(seen) 
     
