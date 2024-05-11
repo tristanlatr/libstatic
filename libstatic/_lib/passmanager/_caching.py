@@ -9,7 +9,8 @@ if TYPE_CHECKING:
     from typing import NoReturn
     from ._passmanager import Analysis
     from ._modules import ModuleCollection, Module, AnyNode
-    from .events import EventDispatcher, ModuleAddedEvent, ModuleRemovedEvent
+
+from .events import EventDispatcher, ModuleAddedEvent, ModuleRemovedEvent
 
 
 class AnalysisResult:
@@ -65,7 +66,7 @@ class AnalysisCache:
         """
         Store the analysis result in the cache.
         """
-        if analysis.do_not_cache: raise RuntimeError()
+        if analysis.doNotCache: raise RuntimeError()
         self.__data[analysis][node] = result
 
     def get(self, analysis: type[Analysis], node: Hashable) -> AnalysisResult | None:

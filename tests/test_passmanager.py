@@ -125,7 +125,7 @@ class simple_goto_def(NodeAnalysis[ast.AST | None]):
 
 class transform_trues_into_ones(Transformation, ast.NodeTransformer):
     "True -> 1"
-    preserves_analysis = (class_count, )
+    preservesAnalyses = (class_count, )
 
     def visit_Constant(self, node):
         if node.value is True:
@@ -502,12 +502,12 @@ class TestPassManagerFramework(TestCase):
     def test_preserved_analysis_inter_modules(self):
         pass
         # TODO: an analysis that depends on other modules should be 
-        # cleared from the cache if it's not listed on the preserves_analysis attribute.
+        # cleared from the cache if it's not listed on the preservesAnalyses attribute.
     
     def test_preserved_analysis_abstract(self):
         pass
         # TODO: an analysis that misses required parameters can be listed in both dependencies and
-        # preserves_analysis lists. When it's listed in preserves_analysis all subclasses with any
+        # preservesAnalyses lists. When it's listed in preservesAnalyses all subclasses with any
         # required parameters and all same optional parameters are also preserved.
 
     def test_analysis_with_parameters_get_invalidated_like_others(self):
@@ -531,7 +531,7 @@ class TestPassManagerFramework(TestCase):
         #    A solution would be to add new class method such that we can create a "ensemble of analyses" like
         #    analysis_name.like(keyword=lambda v: bool(v), other_unimportant=lambda v:True)
         #    or shorter: analysis_name.like(keyword=True, other_unimportant=None) # all keywords must be given when creating a ensemble.
-        #    this would be used in the Transformation.preserves_analysis attribute to indicate the transform preserves
+        #    this would be used in the Transformation.preservesAnalyses attribute to indicate the transform preserves
         #    a varieties of derivation of the given analysis.
     
     def test_pass_instrumentation_run_times(self):
@@ -630,7 +630,7 @@ class TestPassManagerFramework(TestCase):
 
     def test_transformation_with_analysis_dependencies(self):
         # after the transformation have been executed, if the dependent analysis is not
-        # in the preserves_analysis collection, it it revomed from the cache
+        # in the preservesAnalyses collection, it it revomed from the cache
         ...
     
     def test_transformation_with_unsuported_cyclic_dependencies(self):

@@ -40,7 +40,7 @@
 # TODO: Implment transform added / remove nodes in order to optimize visiting time for root module mapping
 
 # TODO: Create an adaptor class that turns a callable '(passmanager, node) -> result' into an analysis.
-# TODO: Create an adaptor class that turns a callable '(passmanager, node) -> (newnode, update, preserves_analysis, added_nodes, removed_nodes)' into a transformation
+# TODO: Create an adaptor class that turns a callable '(passmanager, node) -> (newnode, update, preservesAnalyses, added_nodes, removed_nodes)' into a transformation
 
 # TODO: Integrate with a simple logging framework.
 
@@ -508,7 +508,7 @@ class Analysis(Pass[RunsOnT, ReturnsT]):
     but should not call C{self.passmanager.apply} and must not manually update the tree.
     """
 
-    do_not_cache = False
+    doNotCache = False
     """
     This indicates the pass manager that this analysis should never be cached. 
     """
@@ -529,11 +529,11 @@ class Analysis(Pass[RunsOnT, ReturnsT]):
                     result = super().run(node)
                 except Exception as e:
                     analysis_result = AnalysisResult.Error(e)
-                    if not typ.do_not_cache:
+                    if not typ.doNotCache:
                         self.passmanager.cache.set(typ, node, analysis_result)
                     raise
                 analysis_result = AnalysisResult.Success(result)
-                if not typ.do_not_cache:
+                if not typ.doNotCache:
                     # only set values in the cache for non-proxy analyses.
                     self.passmanager.cache.set(
                         typ, node, analysis_result
@@ -568,7 +568,7 @@ class Transformation(Pass[ModuleNode, ModuleNode]):
     the current module including global varibles functions and classes.
     """
 
-    preserves_analysis = ()
+    preservesAnalyses = ()
     """
     One of the jobs of the PassManager is to optimize how and when analyses are run. 
     In particular, it attempts to avoid recomputing data unless it needs to. 
@@ -670,7 +670,7 @@ class _analysis_proxy(Analysis[object, GetProxy[RunsOnT, ChildAnalysisReturnsT]]
     the underlying analysis on the given node.
     """
     
-    do_not_cache = True
+    doNotCache = True
 
     requiredParameters = ("analysis",)
 
@@ -696,7 +696,7 @@ class modules(Analysis[object, ModuleCollection]):
     Use this to access other modules in the system.
     """
 
-    do_not_cache = True
+    doNotCache = True
     passmanager: PassManager
 
     def run(self, _: object) -> Any:
@@ -788,7 +788,7 @@ def _onModuleTransformedEvent(self: PassManager, event: ModuleTransformedEvent):
         if (
             # if the analysis is explicitely presedved by this transform,
             # do not invalidate.
-            (analysis not in transformation.preserves_analysis)
+            (analysis not in transformation.preservesAnalyses)
             and (
                 # if it's not explicately preserved and the transform affects the module
                 # invalidate.             or if the analysis requires other modules
