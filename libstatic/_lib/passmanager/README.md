@@ -297,8 +297,7 @@ Dependencies
 Usages
 ------
 
-- Support ``pydoctor`` in itßs code analysis.
-- Replace ``pythran``'s passmanager. 
+- Support ``pydoctor`` in its code analysis.
 
 Thanks
 ------
