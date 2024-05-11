@@ -33,7 +33,7 @@ class ISupport(Protocol):
 
 class ASTCompat:
     """
-    Wrapper to support multiple concrete types of nodes based on registered strategies.
+    Wrapper to support a set of node types based on the registered strategy.
     """
     
     def __init__(self, dispatcher: EventDispatcher):
