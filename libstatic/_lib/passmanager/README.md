@@ -269,7 +269,9 @@ Alternatives
 Reference Implementation
 ------------------------
 
-The implementation is currently in development and misses a lot of unit tests but here is where you can look at the code:
+The implementation is currently in development and misses a lot of optimization features and unit tests. 
+
+But here is where you can look at the code:
 
 https://github.com/tristanlatr/libstatic/tree/passmanager/libstatic/_lib/passmanager
 
