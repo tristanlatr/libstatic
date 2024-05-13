@@ -32,6 +32,8 @@
 # une transformation de fonction.
 # Compatibilité avec NodeTransformer + NodeVisitor pour les analyses.
 # Comment determiner si la pass update l'ast: calculer un hash avant et apres.
+# TODO: Implement Analysis.like() + add tests
+# TODO: Add tests for the Pass.ctx 
 
 # Ressources:
 # LLVM PassManager documentation: https://llvm.org/doxygen/classllvm_1_1PassManager.html
@@ -48,10 +50,13 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    ClassVar,
     Collection,
     Hashable,
+    Iterable,
     Iterator,
     Self,
+    TypeAlias,
     TypeVar,
     Generic,
     Sequence,
@@ -97,22 +102,16 @@ def _newsubclass(cls: type, **class_dict: Hashable) -> type:
     return newcls
 
 
-
-
 T = TypeVar("T")
 RunsOnT = TypeVar("RunsOnT") 
 # We should use bound=Hashable but mypy complains too much to that
 
 if TYPE_CHECKING:
-    class PassLike(Protocol, type): # type: ignore[misc]
-        """
-        In practice, only L{Analysis} and L{Transformation} subclasses are valid implementations of this interface.
-        """
-        def __call__(self) -> Pass:...
-        def _isInterModuleAnalysis(self) -> bool:...
+    PassLike: TypeAlias = 'type[Transformation] | type[Analysis]'
+else:
+    PassLike = object
 
 ReturnsT = TypeVar("ReturnsT")
-ChildAnalysisReturnsT = TypeVar("ChildAnalysisReturnsT")
 
 
 class _PassMeta(type):
@@ -135,7 +134,7 @@ class _PassMeta(type):
 
         # otherwise create a derived type that binds the class attributes.
         # This is how we create analysis with several options.
-        return cls._newTypeWithOptions(**kwargs)
+        return cls.bind(**kwargs)
 
     # Custom repr so we can showcase the parameter values.
     def __str__(self: type[Pass]) -> str: # type: ignore
@@ -163,7 +162,7 @@ class _PassDependencyDescriptor:
         self.callback = callback
 
 
-class PassContext(object):
+class PassContext:
 
     """
     Class that does the book-keeping of the chains of passes runs and provide
@@ -189,7 +188,7 @@ class PassContext(object):
         return self._modules[self.current]
 
     @contextmanager
-    def pushPass(self, passs: PassLike, node: AnyNode) -> Iterator[None]:
+    def pushPass(self, passs: type[Pass], node: AnyNode) -> Iterator[None]:
         key = (passs, node)
         if key in self._stack:
             # TODO: Use a exception subclass in order to potentially catch and
@@ -213,8 +212,8 @@ class IPassManager(Protocol):
     @note: This is the passmanager you have access to from inside a L{Pass}, 
         it is stored in the L{Pass.passmanager} instance attribute.
     """
-    def apply(self, transformation: PassLike, node: AnyNode) -> tuple[bool, AnyNode]:...
-    def gather(self, analysis: PassLike, node: AnyNode) -> Any:...
+    def apply(self, transformation: type[Pass], node: AnyNode) -> tuple[bool, AnyNode]:...
+    def gather(self, analysis: type[Pass], node: AnyNode) -> Any:...
 
     @property
     def dispatcher(self) -> EventDispatcher:...
@@ -235,12 +234,77 @@ class IMutablePassManager(IPassManager, Protocol):
     def modules(self) -> ModuleCollection:...
 
 
+def _verifyNoJunkParameters(callableName: str, passs: type[Pass], **kwargs:Hashable):
+        # verify no junk arguments are slipping throught.
+        validNames = ordered_set(chain(passs.requiredParameters, passs.optionalParameters),)
+        try:
+            junk = next(p for p in kwargs if p not in validNames)
+        except StopIteration:
+            pass
+        else:
+            raise TypeError(f"{callableName} does not recognize keyword {junk!r}")
+
+
+def _verifyParametersOlderValues(passs: type[Pass]):
+    # if any of the arguments are not set to their default values (or if a required argument is already set),
+    # it means we're facing a case of doudle calling the class: this is not supported and we raise an error.
+    # it's supported because it might creates two different classes that do exactly the same thing :/
+    _nothing = object()
+    if any(
+        getattr(passs, promlematic := a, _nothing) is not _nothing
+        for a in passs.requiredParameters
+    ) or any(
+        getattr(passs, promlematic := a, _d) is not _d
+        for a, _d in passs.optionalParameters.items()
+    ):
+        hint = ""
+        if passs.__qualname__ != passs.__bases__[0].__qualname__:
+            hint = " (hint: analysis subclassing is not supported)"
+
+        raise TypeError(
+            f"Specifying parameter {promlematic!r} this way is not supported{hint}, "
+            f"you must list all parameters into a single call to class {passs.__bases__[0].__qualname__}"
+        )
+
+
+def _verifyDepNameClash(passs:type[Pass]):
+    # verify nothing conflicts with the dependencies names
+    _nothing = object()
+    try:
+        clash = next(
+            p
+            for p in (d.__name__ for d in passs.dependencies)
+            if getattr(passs, p, _nothing) is not _nothing
+        )
+    except StopIteration:
+        pass
+    else:
+        raise TypeError(
+            f"{passs.__qualname__}: invalid class declaration, name {clash!r} is already taken by a dependency"
+        )
+
+
+def _verifyRequiredParamaters(passs: Pass):
+    # verify required arguments exists
+    _nothing = object()
+    try:
+        missing = next(
+            p
+            for p in passs.requiredParameters
+            if getattr(passs, p, _nothing) is _nothing
+        )
+    except StopIteration:
+        pass
+    else:
+        raise TypeError(f"{passs.__class__.__qualname__}() is missing keyword {missing!r}")
+
+
 class Pass(Generic[RunsOnT, ReturnsT], metaclass=_PassMeta):
     """
     The base class for L{Analysis} and L{Transformation}.
     """
     
-    dependencies: Sequence[type[Analysis] | type[Transformation]] = ()
+    dependencies: tuple[type[Pass], ...] | tuple[()] = () # Sequence[type[Analysis] | type[Transformation]] = ()
     """
     Statically declared dependencies: If your pass requires a previous pass list it here. 
     All L{Transformation}s will be applied eagerly while L{Analysis} result will be wrapped in a descriptor
@@ -264,8 +328,8 @@ class Pass(Generic[RunsOnT, ReturnsT], metaclass=_PassMeta):
     """
 
     if TYPE_CHECKING:
-        # This is only for typing purposes, it could not work this way...
-        def __init__(self, *args: object, **kwargs: object) -> None:
+        def __init__(self) -> None:
+            # set in _attach()
             self.passmanager: IPassManager
             """
             Ref to the pass manager. 
@@ -279,42 +343,12 @@ class Pass(Generic[RunsOnT, ReturnsT], metaclass=_PassMeta):
         def __call__(self) -> Self: ...
 
     @classmethod
-    def _verifyNoJunkParameters(cls, **kwargs:Hashable):
-        # verify no junk arguments are slipping throught.
-        validNames = ordered_set((*cls.requiredParameters, *cls.optionalParameters))
-        try:
-            junk = next(p for p in kwargs if p not in validNames)
-        except StopIteration:
-            pass
-        else:
-            raise TypeError(f"{cls.__qualname__}() does not recognize keyword {junk!r}")
-
-    @classmethod
-    def _verifyParametersOlderValues(cls):
-        # if any of the arguments are not set to their default values (or if a required argument is already set),
-        # it means we're facing a case of doudle calling the class: this is not supported and we raise an error.
-        # it's supported because it might creates two different classes that do exactly the same thing :/
-        _nothing = object()
-        if any(
-            getattr(cls, promlematic := a, _nothing) is not _nothing
-            for a in cls.requiredParameters
-        ) or any(
-            getattr(cls, promlematic := a, _d) is not _d
-            for a, _d in cls.optionalParameters.items()
-        ):
-            hint = ""
-            if cls.__qualname__ != cls.__bases__[0].__qualname__:
-                hint = " (hint: analysis subclassing is not supported)"
-
-            raise TypeError(
-                f"Specifying parameter {promlematic!r} this way is not supported{hint}, "
-                f"you must list all parameters into a single call to class {cls.__bases__[0].__qualname__}"
-            )
-
-    @classmethod
-    def _newTypeWithOptions(cls, **kwargs:Hashable):
-        cls._verifyNoJunkParameters(**kwargs)
-        cls._verifyParametersOlderValues()
+    def bind(cls, **kwargs:Hashable) -> type[Self]:
+        """
+        Derive this pass to create a new pass with provided parameters.
+        """
+        _verifyNoJunkParameters(cls.__qualname__, cls, **kwargs)
+        _verifyParametersOlderValues(cls)
         
         # Remove the arguments that are already set to their values.
         kwargs = {k: v for k, v in kwargs.items() if getattr(cls, k, object()) != v}
@@ -342,24 +376,7 @@ class Pass(Generic[RunsOnT, ReturnsT], metaclass=_PassMeta):
 
         This is called from the __init_subclass__ hook.
         """
-        cls._verifyDepNameClash()
-
-    @classmethod
-    def _verifyDepNameClash(cls):
-        # verify nothing conflicts with the dependencies names
-        _nothing = object()
-        try:
-            clash = next(
-                p
-                for p in (d.__name__ for d in cls.dependencies)
-                if getattr(cls, p, _nothing) is not _nothing
-            )
-        except StopIteration:
-            pass
-        else:
-            raise TypeError(
-                f"{cls.__qualname__}: invalid class declaration, name {clash!r} is already taken by a dependency"
-            )
+        _verifyDepNameClash(cls)
 
     @classmethod
     @lru_cache(maxsize=None)
@@ -370,15 +387,14 @@ class Pass(Generic[RunsOnT, ReturnsT], metaclass=_PassMeta):
             yield from (d for d in chain.from_iterable(
                 _yieldDeps(dep) for dep in c.dependencies) if d not in seen)
         seen.update(_yieldDeps(cls))
-        return tuple(seen) 
+        return seen
     
     @classmethod
-    @lru_cache(maxsize=None)
-    def _isInterModuleAnalysis(cls) -> bool:
+    def isInterModules(cls) -> bool:
         """
         Whether this analysis uses the L{modules}.
         """
-        return any(d is modules for d in cls._getAllDependencies())
+        return modules in cls._getAllDependencies()
 
     def __getattribute__(self, name):
         # re-implement part of the descriptor protocol such that it
@@ -388,31 +404,11 @@ class Pass(Generic[RunsOnT, ReturnsT], metaclass=_PassMeta):
             return attr.callback()
         return attr
 
-    def _verifyDependencies(self):
-        pass
-        # Any kinf of analsis can depend on any other at the moment.
-
-    @classmethod
-    def _verifyRequiredParamaters(cls):
-        # verify required arguments exists
-        _nothing = object()
-        try:
-            missing = next(
-                p
-                for p in cls.requiredParameters
-                if getattr(cls, p, _nothing) is _nothing
-            )
-        except StopIteration:
-            pass
-        else:
-            raise TypeError(f"{cls.__qualname__}() is missing keyword {missing!r}")
-
     def prepare(self, node: RunsOnT):
         """
         Bind analysis result required by this analysis and apply transformations.
         """
-        self._verifyDependencies()
-        self._verifyRequiredParamaters()
+        _verifyRequiredParamaters(self)
         
         # Apply all transformations eagerly, since we use a descriptor for all analyses
         # we need to transitively iterate dependent transforms and apply then now.
@@ -460,12 +456,12 @@ class Pass(Generic[RunsOnT, ReturnsT], metaclass=_PassMeta):
         self.prepare(node)
         return self.doPass(node)
 
-    def apply(self, node: RunsOnT) -> tuple[bool, ReturnsT]:
+    def _apply(self, node: RunsOnT) -> tuple[bool, ReturnsT]:
         """
         Apply transformation and return if an update happened.
         If self is an analysis, print results.
         """
-        raise NotImplementedError(self.apply)
+        raise NotImplementedError(self._apply)
 
     def doPass(self, node: RunsOnT) -> ReturnsT:
         """
@@ -496,7 +492,7 @@ class Analysis(Pass[RunsOnT, ReturnsT]):
             analysis_result = self.passmanager.cache.get(typ, node)
             if analysis_result is not None:  # the result is cached
                 # will rase an error if the initial analysis raised
-                result = cast(ReturnsT, analysis_result.result)
+                result = analysis_result.result # type: ignore
             else:
                 try:
                     # this will call prepare().
@@ -517,21 +513,74 @@ class Analysis(Pass[RunsOnT, ReturnsT]):
             self.passmanager.dispatcher.dispatchEvent(
                 AnalysisEnded(typ, node, analysis_result)
             )
-        return result
+        return result # type: ignore
 
-    def apply(self, node: RunsOnT) -> tuple[bool, RunsOnT]: # type: ignore[override]
+    def _apply(self, node: RunsOnT) -> tuple[bool, RunsOnT]: # type: ignore[override]
         print(self.run(node))
         return False, node
     
     @classmethod
-    def proxy(cls) -> _analysis_proxy[RunsOnT, ReturnsT]:
+    def proxy(cls) -> type[NodeAnalysis[GetProxy]]:
         """
         Derive this analysis to return a simple proxy that provide a C{get} method which trigers
-        the original analysis on the given node. 
+        the original analysis on the given node. Designed to be used when declaring L{Pass.dependencies}.
         
         This can be used to avoid calling repetitively C{self.passmanager.gather(analysis, ...)}.
+
+        Proxy analysis are never cached, so they dont; need to be accounted for in  L{Transformation.prservesAnalysis}.
         """
-        return _analysis_proxy(analysis=cls)
+        return _AnalysisProxy.bind(analysis=cls)
+
+    @classmethod
+    def like(cls, **kwargs: Callable[[object], bool]) -> LikeAnalysisPattern:
+        """
+        Create a pattern representing several possible derivations of the analysis to be matched against a concrete analysis. 
+        Designed to be used when declaring L{Transformation.prservesAnalysis}.
+
+        When creating a "like" pattern, all optional parameters must be given. 
+        Required parameters, onther other hand, don't need to be specified and will match any value unless 
+        the parameter is explicit given. 
+
+        >>> class has_optional_parameters(NodeAnalysis):
+        ...     # We can create an infinity of subclasses of this type since mult can be any ints
+        ...     optionalParameters = dict(filterkilled=True, mult=1)
+        >>> class my_transform(Transformation):
+        ...     # This will only preserves  versions of the analysis with filterkilled=False and mult>0
+        ...     preservesAnalyses = (has_optional_parameters.like(filterkilled=lambda v:not v, 
+        ...                                                   mult=lambda v: v>0), )
+
+        @param kwargs: The analysis parameters names to the match function. A match function is a one-argument
+            callable that returne whether the value for the parameter matches.
+        """
+        return LikeAnalysisPattern(cls, **kwargs)
+
+class LikeAnalysisPattern:
+    """
+    I represent several derivations of the same analaysis.
+    """
+    
+    def __init__(self, analysis: type[Analysis], 
+                 **kwargs: Callable[[object], bool]) -> None:
+        
+        # Verify if all the optional parameters are given... 
+        callableName = f'{analysis.__qualname__}.like'
+        _verifyNoJunkParameters(callableName, analysis, **kwargs)
+        if not all(problematic:=i in kwargs for i in analysis.optionalParameters):
+            raise TypeError(f'{callableName}() is missing keyword {problematic!r}')
+        self.__match = kwargs
+    
+    def matches(self, other: object | type) -> bool:
+        if not isinstance(other, type) or not issubclass(other, Analysis):
+            return False
+        for k, cb in self.__match.items():
+            v = getattr(other, k)
+            if not cb(v): 
+                break
+        else: 
+            return True
+        return False
+
+    __eq__ = matches
 
 
 class Transformation(Pass[ModuleNode, ModuleNode]):
@@ -542,7 +591,7 @@ class Transformation(Pass[ModuleNode, ModuleNode]):
     the current module including global varibles functions and classes.
     """
 
-    preservesAnalyses = ()
+    preservesAnalyses: Collection[type[Analysis] | LikeAnalysisPattern] = ()
     """
     One of the jobs of the PassManager is to optimize how and when analyses are run. 
     In particular, it attempts to avoid recomputing data unless it needs to. 
@@ -585,7 +634,7 @@ class Transformation(Pass[ModuleNode, ModuleNode]):
 
         return n
 
-    def apply(self, node: ModuleNode) -> tuple[bool, ModuleNode]:
+    def _apply(self, node: ModuleNode) -> tuple[bool, ModuleNode]:
         new_node = self.run(node)
         return self.update, new_node
 
@@ -638,7 +687,7 @@ class GetProxy(Generic[RunsOnT, ReturnsT]):
             raise
 
 
-class _analysis_proxy(Analysis[object, GetProxy[RunsOnT, ChildAnalysisReturnsT]], Generic[RunsOnT, ChildAnalysisReturnsT]):
+class _AnalysisProxy(NodeAnalysis[GetProxy]):
     """
     An analysis that returns a simple proxy that provide a C{get} method which trigers
     the underlying analysis on the given node.
@@ -690,19 +739,19 @@ class _RestrictedPassManager:
     - Disallow access to L{PassManager.add_modules} and L{PassManager.remove_module} in the context of an analysis.
 
     """
-    def __init__(self, passs: PassLike, pm: IPassManager) -> None:
+    def __init__(self, passs: type[Pass], pm: IPassManager) -> None:
         self.__pm = pm
         
         # 1
-        if not passs._isInterModuleAnalysis():
+        if not passs.isInterModules():
 
-            def gather(analysis_: PassLike, node: AnyNode) -> Any:
-                if analysis_._isInterModuleAnalysis():
+            def gather(analysis_: type[Pass], node: AnyNode) -> Any:
+                if analysis_.isInterModules():
                     raise TypeError(f'You must list {modules.__qualname__} in your pass dependencies to gather this pass: {analysis_}')    
                 return pm.gather(analysis_, node)        
             
-            def apply(transformation_: PassLike, node: AnyNode):
-                if transformation_._isInterModuleAnalysis():
+            def apply(transformation_: type[Pass], node: AnyNode):
+                if transformation_.isInterModules():
                     raise TypeError(f'{modules.__qualname__} must be in your pass dependencies to apply this pass: {transformation_}')  
                 return pm.apply(transformation_, node)        
 
@@ -741,7 +790,7 @@ def _onModuleAddedOrRemovedEvent(self: PassManager, event: ModuleRemovedEvent | 
     # TODO: This could use some fine tuning so mark the results as preserved.
     """
     for a in self.cache.analyses():
-        if a._isInterModuleAnalysis():
+        if a.isInterModules():
             self.dispatcher.dispatchEvent(
                 ClearAnalysisEvent(a, event.mod.node)
             )
@@ -766,7 +815,7 @@ def _onModuleTransformedEvent(self: PassManager, event: ModuleTransformedEvent):
             and (
                 # if it's not explicately preserved and the transform affects the module
                 # invalidate.             or if the analysis requires other modules
-                (m.node is mod.node) or (analysis._isInterModuleAnalysis())
+                (m.node is mod.node) or (analysis.isInterModules())
             )
         ):
             invalidated_analyses.add(analysis)
@@ -785,7 +834,7 @@ def _onClearAnalysisEvent(pm: PassManager, event: ClearAnalysisEvent):
     analysis = event.analysis
     node: ModuleNode = event.node
 
-    if analysis._isInterModuleAnalysis():
+    if analysis.isInterModules():
         pm.cache.clear(analysis, None)
     else:
         pm.cache.clear(analysis, node)
@@ -794,7 +843,7 @@ def _onClearAnalysisEvent(pm: PassManager, event: ClearAnalysisEvent):
 def _initAstSupport(pm: PassManager):
     """Supports the standard library by defaut"""
     import ast
-    pm.support(ast)
+    pm.support(ast) # type: ignore
 
 
 class PassManager:
@@ -836,7 +885,7 @@ class PassManager:
         """
         self.dispatcher.dispatchEvent(ModuleRemovedEvent(mod))
 
-    def gather(self, analysis: PassLike, node: AnyNode) -> Any:
+    def gather(self, analysis: type[Pass], node: AnyNode) -> Any:
         """
         High-level function to call an L{Analysis} on any node in the system.
         """
@@ -851,7 +900,7 @@ class PassManager:
         
         return ret
 
-    def apply(self, transformation: PassLike, node: ModuleNode) -> tuple[bool, AnyNode]:
+    def apply(self, transformation: type[Pass], node: ModuleNode) -> tuple[bool, AnyNode]:
         """
         High-level function to call a L{Transformation} on a C{node}.
         If the transformation is an analysis, the result of the analysis
@@ -864,7 +913,7 @@ class PassManager:
         with self._ctx.pushPass(transformation, node):
             a = transformation()
             a._attach(_RestrictedPassManager(transformation, self), self._ctx)
-            ret = a.apply(node)
+            ret = a._apply(node)
         
         return ret
 
