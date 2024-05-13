@@ -117,7 +117,7 @@ class node_enclosing_scope(NodeAnalysis[ast.AST|None]):
     >>> pm.gather(node_enclosing_scope, lb).__class__.__name__
     'Module'
     """
-    dependencies = (node_ancestor(klass=(
+    dependencies = (node_ancestor.bind(klass=(
             ast.SetComp,
             ast.DictComp,
             ast.ListComp,
@@ -182,22 +182,20 @@ class literal_eval(NodeAnalysis[object]):
 class unreachable_nodes(ModuleAnalysis[set[ast.AST]]):
     ...
 
-class _Beniget(passmanager.ModuleAnalysis):
+class _Beniget(passmanager.ModuleAnalysis[DefUseChains]):
     """
     A wrapper for U{https://github.com/pyforks/beniget-ng}
 
     Until U{https://github.com/serge-sans-paille/beniget/pull/93} is merges we can't use upstream version.
     """
-    def doPass(self, node:ast.Module):
+    def doPass(self, node:ast.Module) -> DefUseChains:
         mod: passmanager.Module = self.ctx.module
         modname = mod.modname
         if mod.is_package:
             modname += '.__init__'
         visitor = DefUseChains(mod.filename, modname, is_stub=mod.is_stub)
         visitor.visit(node)        
-        return {'chains':visitor.chains, 
-                'locals':visitor.locals,
-                'builtins': visitor._builtins}
+        return visitor
 
 class def_use_chains(passmanager.ModuleAnalysis):
     """
@@ -205,8 +203,8 @@ class def_use_chains(passmanager.ModuleAnalysis):
     which maps all uses of definitions.
     """
     dependencies = (_Beniget, )
-    def doPass(self, node: ast.Module) -> dict[ast.AST, beniget.Def]:
-        return self._Beniget['chains']
+    def doPass(self, _: ast.Module) -> dict[ast.AST, beniget.Def]:
+        return self._Beniget.chains
 
 class use_def_chains(passmanager.ModuleAnalysis):
     """
@@ -226,7 +224,15 @@ class method_resoltion_order(passmanager.ClassAnalysis):
 
 class locals_map(passmanager.NodeAnalysis[dict[str, list[beniget.Def]]]):
     """
-    
+    >>> src = '''
+    ... v = 9
+    ... def f(a, b) -> object:...
+    ... class C(object):...
+    ... '''
+    >>> pm = passmanager.PassManager()
+    >>> pm.add_module(passmanager.Module(ast.parse(src), 'test'))
+    >>> pm.gather(locals_map, pm.modules['test'].node)
+    {'v': [<ast.Name object at ...> -> ()], 'f': [<ast.FunctionDef object at ...> -> ()], 'C': [<ast.ClassDef object at ...> -> ()]}
     """
     dependencies = (_Beniget, )
     optionalParameters = {'include_inherited': False}
@@ -239,7 +245,7 @@ class locals_map(passmanager.NodeAnalysis[dict[str, list[beniget.Def]]]):
         super().prepareClass()
 
     def doPass(self, node: ast.AST) -> dict[str, list[beniget.Def]]:
-        locals_list = self._Beniget['locals'][node]
+        locals_list = self._Beniget.locals[node]
         locals_dict: dict[str, list[beniget.Def]] = {}
         for d in locals_list:
             locals_dict.setdefault(d.name(), []).append(d)
@@ -307,7 +313,7 @@ class get_ivar(ClassAnalysis[list[ast.AST]]):
 
     @classmethod
     def prepareClass(cls): # dynamic dependenciess
-        cls.dependencies = (ivars_map(include_inherited=cls.include_inherited), )
+        cls.dependencies = (ivars_map.bind(include_inherited=cls.include_inherited), )
         super().prepareClass()
 
     def doPass(self, node: ast.ClassDef) -> list[beniget.Def]:
@@ -319,7 +325,7 @@ class get_local(NodeAnalysis[list[ast.AST]]):
 
     @classmethod
     def prepareClass(cls): # dynamic dependencies
-        cls.dependencies += (locals_map(include_inherited=cls.include_inherited), )
+        cls.dependencies += (locals_map.bind(include_inherited=cls.include_inherited), )
         super().prepareClass()
     
     def prepare(self, node: ast.AST):
@@ -343,10 +349,12 @@ class get_attribute(NodeAnalysis[list[ast.AST]]):
     @classmethod
     def prepareClass(cls):
         cls.dependencies += (get_submodule, )
+        if cls.filter_unreachable:
+            cls.dependencies += (unreachable_nodes, )
         if not cls.ignore_locals:
-            cls.dependencies += (get_local(include_inherited=cls.include_inherited), )
+            cls.dependencies += (get_local.bind(include_inherited=cls.include_inherited), )
         if cls.include_ivars:
-            cls.dependencies += (get_ivar(include_inherited=cls.include_inherited), )
+            cls.dependencies += (get_ivar.bind(include_inherited=cls.include_inherited), )
         return super().prepareClass()
 
     def prepare(self, node: ast.AST):
@@ -358,17 +366,21 @@ class get_attribute(NodeAnalysis[list[ast.AST]]):
         values: list[beniget.Def] = []
         if not self.ignore_locals:
             if self.include_ivars and isinstance(node, ast.ClassDef):
-                values = self.passmanager.gather(get_ivar(name=self.name, include_inherited=self.include_inherited), node)
+                values = self.passmanager.gather(get_ivar.bind(name=self.name, include_inherited=self.include_inherited), node)
             if not values:
-                values = self.passmanager.gather(get_local(name=self.name, include_inherited=self.include_inherited), node)
-            values = _softfilter_defs(values, # type:ignore
-                                        unreachable=self.filter_unreachable, 
-                                        killed=True)
+                values = self.passmanager.gather(get_local.bind(name=self.name, include_inherited=self.include_inherited), node)
+            
+            # "soft" filter killed and unreachable definitions
+            values = list(filter(lambda v: v.islive, ov:=values)) or ov
+            if self.filter_unreachable:
+                values = list(filter(lambda v: v.node not in self.unreachable_nodes, ov:=values)) or ov
+
         else:
             values = []
+        
         if not values and isinstance(node, ast.Module) and self.ctx.module.is_package:
             # a sub-package
-            sub = self.passmanager.gather(get_submodule(name=self.name), node)
+            sub = self.passmanager.gather(get_submodule.bind(name=self.name), node)
             if sub is not None:
                 return [sub.node]
         if values:
