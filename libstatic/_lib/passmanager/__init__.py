@@ -221,9 +221,9 @@ from __future__ import annotations
 from ._passmanager import PassManager, Pass, Analysis, ModuleAnalysis, NodeAnalysis, Transformation
 from ._passmanager import ClassAnalysis, FunctionAnalysis
 from ._modules import Module, ModuleCollection
-from ._passmanager import modules, GetProxy, PassContext
+from ._passmanager import ancestors, modules, GetProxy, PassContext
 
 __all__ = ('PassManager', 'Pass', 'Analysis', 'ModuleAnalysis', 'NodeAnalysis', 'Transformation',
            'ClassAnalysis', 'FunctionAnalysis',
            'Module', 'ModuleCollection', 
-           'modules', 'GetProxy', 'PassContext')
+           'ancestors', 'modules', 'GetProxy', 'PassContext')

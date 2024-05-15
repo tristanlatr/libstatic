@@ -17,54 +17,9 @@ from libstatic._lib import passmanager
 from beniget.standard import DefUseChains, UseDefChains # type: ignore
 import beniget # type: ignore
 
-class ancestors(ModuleAnalysis[Mapping[ast.AST, list[ast.AST]]], ast.NodeVisitor):
-    r'''
-    Associate each node with the list of its ancestors
 
-    Based on the tree view of the AST: each node has the Module as parent.
-    The result of this analysis is a dictionary with nodes as key,
-    and list of nodes as values.
-
-    >>> from pprint import pprint
-    >>> mod = ast.parse('v = lambda x: x+1; w = 2')
-    >>> pm = passmanager.PassManager()
-    >>> pm.add_module(passmanager.Module(mod, 'test'))
-    >>> items = (f'{n.__class__.__name__}   {[p.__class__.__name__ for p in ps]}' 
-    ...     for n,ps in pm.gather(ancestors, mod).items())
-    >>> print('\n'.join(items))
-    Module   []
-    Assign   ['Module']
-    Name   ['Module', 'Assign']
-    Store   ['Module', 'Assign', 'Name']
-    Lambda   ['Module', 'Assign']
-    arguments   ['Module', 'Assign', 'Lambda']
-    arg   ['Module', 'Assign', 'Lambda', 'arguments']
-    BinOp   ['Module', 'Assign', 'Lambda']
-    Name   ['Module', 'Assign', 'Lambda', 'BinOp']
-    Load   ['Module', 'Assign', 'Lambda', 'BinOp', 'Name']
-    Add   ['Module', 'Assign', 'Lambda', 'BinOp']
-    Constant   ['Module', 'Assign', 'Lambda', 'BinOp']
-    Assign   ['Module']
-    Name   ['Module', 'Assign']
-    Constant   ['Module', 'Assign']
-    '''
-
-    current: tuple[ast.AST, ...] | tuple[()]
-
-    def generic_visit(self, node):
-        self.result[node] = current = self.current
-        self.current += node,
-        for n in ast.iter_child_nodes(node):
-            self.generic_visit(n)
-        self.current = current
-
-    visit = generic_visit
-
-    def doPass(self, node: ast.Module) -> dict[ast.AST, list[ast.AST]]:
-        self.result: dict[ast.AST, list[ast.AST]] = {}
-        self.current = ()
-        self.visit(node)
-        return self.result
+ancestors = passmanager.ancestors
+modules = passmanager.modules
 
 class expand_expr(NodeAnalysis[str|None]):
     ...

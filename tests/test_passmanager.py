@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 import sys
 from textwrap import dedent
+import time
 from typing import Any, Mapping
 
 from unittest import TestCase
@@ -12,11 +13,15 @@ import ast, inspect
 # implementation details
 from libstatic._lib.arguments import ArgSpec, iter_arguments # Yields all arguments of the given ast.arguments node as ArgSpec instances.
 from libstatic._lib.assignment import get_stored_value # Given an ast.Name instance with Store context and it's parent assignment statement, figure out the right hand side expression that is stored in the symbol.
+from libstatic._lib.exceptions import NodeLocation
+from libstatic._lib.shared import LocalStmtVisitor
 
 # main framework module we're testing
 from libstatic._lib.passmanager import (PassManager, Module, NodeAnalysis, FunctionAnalysis, 
                                         ClassAnalysis, ModuleAnalysis, Transformation)
 from libstatic._lib import passmanager, analyses
+from libstatic._lib.passmanager import events
+from libstatic._lib.passmanager._astcompat import ASTCompat
 
 # test analysis
 
@@ -32,8 +37,6 @@ class node_list(NodeAnalysis[list[ast.AST]], ast.NodeVisitor):
         self.visit(node)
         return self.result
 
-# assert node_list(v=1) is node_list(v=1)
-# assert node_list(v=1).v == 1
 
 class class_bases(ClassAnalysis[list[str]]):
     "The bases of a class as strings"
@@ -53,15 +56,13 @@ class function_accepts_any_keywords(FunctionAnalysis[bool]):
     def doPass(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
         return any(a.kind == inspect.Parameter.VAR_KEYWORD for a in self.function_arguments)
 
-class class_count(ModuleAnalysis[int], ast.NodeVisitor):
+class class_count(NodeAnalysis[int], LocalStmtVisitor):
     """
-    Counts the number of classes in the module
+    Counts the number of classes in the locals of the given node.
     """
     
     def visit_ClassDef(self, node):
         self.result += 1
-        for n in node.body:
-            self.visit(n)
     
     def doPass(self, node: ast.Module) -> int:
         self.result = 0
@@ -131,6 +132,20 @@ class transform_trues_into_ones(Transformation, ast.NodeTransformer):
         if node.value is True:
             self.update = True
             return ast.Constant(value=1)
+        else:
+            return node
+    
+    def doPass(self, node: ast.AST) -> ast.AST:
+        return self.visit(node)
+
+class transform_trues_into_ones_opti(Transformation, ast.NodeTransformer):
+    "True -> 1"
+    preservesAnalyses = (class_count, )
+
+    def visit_Constant(self, node):
+        if node.value is True:
+            self.recReplaceNode(node, newNode:=ast.Constant(value=1))
+            return newNode
         else:
             return node
     
@@ -243,7 +258,7 @@ class TestManagerKeepsTracksOfRootModules(TestCase):
     This test case ensures that the PassManager.modules attribute is mutated
     when a transformation is applied.
     """
-    
+
     def test_root_module(self):
         src = 'v = True'
         pm = PassManager()
@@ -257,6 +272,14 @@ class TestManagerKeepsTracksOfRootModules(TestCase):
         assert updates
         
         assert pm.modules[node.body[0].value].modname == 'test'
+        
+        # since we use weakkeymapping the key will stay in the mapping until all references
+        # are removed.
+        assert True_node in pm.modules.ancestors
+        assert True_node in pm.modules
+
+        # But if we completely remove the module, then it will be marked as an error
+        pm.remove_module(pm.modules['test'])
         with self.assertRaises(KeyError):
             pm.modules[True_node]
 
@@ -335,8 +358,8 @@ class TestPassManagerFramework(TestCase):
         class other_ananlysis(NodeAnalysis):
             dependencies = (list_modules_keys, )
         
-        assert list_modules_keys._isInterModuleAnalysis()
-        assert other_ananlysis._isInterModuleAnalysis()
+        assert list_modules_keys.isInterModules()
+        assert other_ananlysis.isInterModules()
 
         assert pm.gather(list_modules_keys, node1) == ['test', 'test2']
         assert pm.gather(list_modules_keys, node2) == ['test', 'test2']
@@ -346,8 +369,8 @@ class TestPassManagerFramework(TestCase):
         project = has_dynamic_dependencies(project_wide=True)
 
         assert normal.dependencies != project.dependencies
-        assert not normal._isInterModuleAnalysis()
-        assert project._isInterModuleAnalysis()
+        assert not normal.isInterModules()
+        assert project.isInterModules()
 
     def test_simple_module_analysis(self):
         src = ('class A(object): ...\n'
@@ -464,6 +487,30 @@ class TestPassManagerFramework(TestCase):
         assert pm.cache.get(class_count, pm.modules['test'].node)
         assert not pm.cache.get(node_list, pm.modules['test'].node)
     
+    def test_transformation_rec_updates(self):
+        """
+        Test the Transformation.recAddNode and Transformation.recRemoveNode methods
+        """
+        src = 'v = True'
+        pm = PassManager()
+        pm.add_module(Module(
+            ast.parse(src), 'test', 'test.py', code=src, 
+        ))
+        updates, node = pm.apply(transform_trues_into_ones_opti, pm.modules['test'].node)
+        assert updates
+        assert ast.unparse(node) == 'v = 1'
+
+        # check it's not marked as updatesd when it's not.
+        src = 'v = False'
+        pm = PassManager()
+        pm.add_module(Module(
+            ast.parse(src), 'test', 'test.py', code=src, 
+        ))
+        updates, node = pm.apply(transform_trues_into_ones_opti, pm.modules['test'].node)
+        assert not updates
+        assert ast.unparse(node) == 'v = False'
+
+        # TODO: Test that this is way faster.
     
     def test_cache_cleared_when_module_removed(self):
         pm = PassManager()
@@ -515,16 +562,68 @@ class TestPassManagerFramework(TestCase):
         # TODO: simple case where a transform invalidates a parameterized analysis
         # also when the transform preverses some of the derived parameterized analysis, but not all of them.
     
+    def test_Pass_like_classmethod(self):
+        class has_optional_parameters(NodeAnalysis):
+            # We can create an infinity of subclasses of this type since mult can be any ints
+            optionalParameters = dict(filterkilled=True, mult=1)
+        
+        # Test the __eq__ function
+        pattern_mult_eq_1 = has_optional_parameters.like(
+            filterkilled=lambda v: True, mult=lambda v:v==1
+        )
+        assert has_optional_parameters == pattern_mult_eq_1
+        assert has_optional_parameters(mult=1) == pattern_mult_eq_1
+        assert has_optional_parameters(mult=1, filterkilled=False) == pattern_mult_eq_1
+        assert has_optional_parameters(mult=2) != pattern_mult_eq_1
+
+        pattern_any = has_optional_parameters.like(
+            filterkilled=lambda v: True, mult=lambda v: True
+        )
+
+        assert has_optional_parameters == pattern_any
+        assert has_optional_parameters(mult=1) == pattern_any
+        assert has_optional_parameters(mult=1, filterkilled=False) == pattern_any
+        assert has_optional_parameters(mult=2) == pattern_any
+
+        # Test inside containers
+        assert has_optional_parameters(mult=2) not in [pattern_mult_eq_1, has_optional_parameters(mult=1)]
+        assert has_optional_parameters(mult=2) in [pattern_mult_eq_1, has_optional_parameters(mult=1), pattern_any]
+    
+
     def test_preserved_analysis_subclass_explosion_issue(self):
-        pass
-        # TODO: so the issue araise when dealing with more than two optional parameters. 
-        # it's required for the transformation to list all variant with non-default parameters
-        # that are preserved by the transform.
-        # To remidiate this situation we can:
-        # -  give-up on the class-call subclassing feature and move the analyses parameter in constructor
-        #    this means that we should add the parameters to the cache keys. the thing is the dependencies
-        #    currently needs to be declared at the class level, so in the case of dynamic dependencies this
-        #    does not work.
+        
+        class takes_many_optional_parameters(NodeAnalysis[int]):
+            # We can create an infinity of subclasses of this type since mult can be any ints
+            optionalParameters = dict(filterkilled=True, 
+                                      mult=1)
+            dependencies = (class_count, )
+            
+            def doPass(self, node: Any) -> int:
+                clscount = self.class_count
+                return clscount * self.mult
+        
+        # optimized version of 'transform_trues_into_ones'
+        class t1(transform_trues_into_ones):
+                                 # This will only preserves the default version of the analysis with filterkilled=True and mult=1.
+            __name__ = 'transform_trues_into_ones'
+            preservesAnalyses = (takes_many_optional_parameters, )
+
+        # better optimized version of 'transform_trues_into_ones'
+        class t2(transform_trues_into_ones):
+                                 # This will preserves all versions of the analysis
+            __name__ = 'transform_trues_into_ones'
+            preservesAnalyses = (takes_many_optional_parameters.like(filterkilled=lambda v:True, 
+                                                                     mult=lambda v: True), )
+        
+        # better optimized version of 'transform_trues_into_ones'
+        class t3(transform_trues_into_ones):
+                                 # This will only preserves  versions of the analysis with filterkilled=False and mult>0
+            __name__ = 'transform_trues_into_ones'
+            preservesAnalyses = (takes_many_optional_parameters.like(filterkilled=lambda v:not v, 
+                                                                     mult=lambda v: v>0), )
+
+        # TODO: Finish this test
+
         #  - a real solution would be to generate an ensemble of subclass that we can match against existing 
         #    analyses in the cache (this is what it is about afer all - this plus the fact that dependencies must be static
         #    at class level - but this might also be the thing to reconsider...)

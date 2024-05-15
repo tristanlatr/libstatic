@@ -44,6 +44,8 @@ class ASTCompat:
     def _onSupportLibraryEvent(self, event: SupportLibraryEvent):
         self._support = event.lib
 
+    def iter_child_nodes(self, node: AnyNode) -> Iterable[AnyNode]:
+        return self._support.iter_child_nodes(node)
 
     def walk(self, 
              node: AnyNode, 
@@ -51,16 +53,17 @@ class ASTCompat:
              stopTypecheck: type | tuple[type, ...] | None = None) -> Iterable[AnyNode]:
         """
         Recursively yield all nodes matching the typecheck
-        in the tree starting at *node* (B{excluding} *node* itself), in bfs order.
+        in the tree starting at *node* (including *node* itself), in bfs order.
 
         Do not recurse on children of types matching the stopTypecheck type.
         """
         from collections import deque
 
-        todo = deque(self._support.iter_child_nodes(node))
+        yield node
+        todo = deque(self.iter_child_nodes(node))
         while todo:
             node = todo.popleft()
             if stopTypecheck is None or not isinstance(node, stopTypecheck):
-                todo.extend(self._support.iter_child_nodes(node))
+                todo.extend(self.iter_child_nodes(node))
             if typecheck is None or isinstance(node, typecheck):
                 yield node

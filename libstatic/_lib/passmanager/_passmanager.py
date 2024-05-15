@@ -34,6 +34,16 @@
 # Comment determiner si la pass update l'ast: calculer un hash avant et apres.
 # TODO: Implement Analysis.like() + add tests
 # TODO: Add tests for the Pass.ctx 
+# TODO: Think of using multiprocessing to simultaneously run inter-module passes
+# on different modules. For the initial implementation to be possible this feature should
+# only be accessible as a PassManager factory that would eagerly compute a set of given passes
+# on each modules. 
+# instance method version: PassManager.parallelPasses(modules, passes) -> None:...
+# class method version: PassManager.fromParallelPasses(modules, passes) -> PassManager:...
+# The instance method version of the feature would require to re-compute all ancestors of the modules affected by the pass
+# The implementation would rely on a new method: PassManager._merge(self, other) that would merge two pm together
+# The dispatcher, the cache and the modules also needs a special method to merge them together.
+
 
 # Ressources:
 # LLVM PassManager documentation: https://llvm.org/doxygen/classllvm_1_1PassManager.html
@@ -70,7 +80,7 @@ from beniget.ordered_set import ordered_set # type: ignore
 from .events import (EventDispatcher, ClearAnalysisEvent, ModuleAddedEvent, 
                      ModuleTransformedEvent, ModuleRemovedEvent, AnalysisEnded, 
                      RunningAnalysis, SupportLibraryEvent, TransformEnded, RunningTransform)
-from ._modules import Module, ModuleCollection
+from ._modules import Module, ModuleCollection, _Addition, _Removal, SupportsGetItem
 from ._astcompat import ASTCompat, ISupport
 from ._caching import AnalyisCacheProxy, AnalysisResult
 
@@ -108,8 +118,6 @@ RunsOnT = TypeVar("RunsOnT")
 
 if TYPE_CHECKING:
     PassLike: TypeAlias = 'type[Transformation] | type[Analysis]'
-else:
-    PassLike = object
 
 ReturnsT = TypeVar("ReturnsT")
 
@@ -392,7 +400,7 @@ class Pass(Generic[RunsOnT, ReturnsT], metaclass=_PassMeta):
     @classmethod
     def isInterModules(cls) -> bool:
         """
-        Whether this analysis uses the L{modules}.
+        Whether this pass must have knowledge of the other modules in the system.
         """
         return modules in cls._getAllDependencies()
 
@@ -530,6 +538,25 @@ class Analysis(Pass[RunsOnT, ReturnsT]):
         Proxy analysis are never cached, so they dont; need to be accounted for in  L{Transformation.prservesAnalysis}.
         """
         return _AnalysisProxy.bind(analysis=cls)
+    
+    @classmethod
+    def fromNodeVisitor(cls, visitor: type) -> type[Self]:
+        class new_analysis(cls):
+            def doPass(self, node: Any) -> Any:
+                vis = visitor()
+                vis.visit(node)
+                return vis.result
+        new_analysis.__name__ = visitor.__name__
+        return new_analysis
+    
+    @classmethod
+    def fromCallable1(cls, cb: Callable[[AnyNode], object]) -> type[Self]:
+        raise NotImplementedError()
+    
+    @classmethod
+    def fromCallable2(cls, cb: Callable[[PassManager, AnyNode], object], 
+                     isInterModules: bool = False) -> type[Self]:
+        raise NotImplementedError()
 
     @classmethod
     def like(cls, **kwargs: Callable[[object], bool]) -> LikeAnalysisPattern:
@@ -554,6 +581,21 @@ class Analysis(Pass[RunsOnT, ReturnsT]):
         """
         return LikeAnalysisPattern(cls, **kwargs)
 
+
+class ModuleAnalysis(Analysis[ModuleNode, ReturnsT]):
+    """An analysis that operates on a whole module."""
+
+class NodeAnalysis(Analysis[AnyNode, ReturnsT]):
+    """An analysis that operates on any node."""
+
+class FunctionAnalysis(Analysis[AnyNode, ReturnsT]):
+    """An analysis that operates on a function."""
+
+
+class ClassAnalysis(Analysis[AnyNode, ReturnsT]):
+    """An analysis that operates on a class."""
+
+
 class LikeAnalysisPattern:
     """
     I represent several derivations of the same analaysis.
@@ -569,7 +611,12 @@ class LikeAnalysisPattern:
             raise TypeError(f'{callableName}() is missing keyword {problematic!r}')
         self.__match = kwargs
     
-    def matches(self, other: object | type) -> bool:
+    def matches(self, other: Any) -> bool:
+        """
+        Whether the given analysis type matches the pattern.
+
+        @note: This is the same as calling C{__eq__}.
+        """
         if not isinstance(other, type) or not issubclass(other, Analysis):
             return False
         for k, cb in self.__match.items():
@@ -582,6 +629,33 @@ class LikeAnalysisPattern:
 
     __eq__ = matches
 
+
+# This would be called a immutable pass in the LLVM jargo.
+class modules(Analysis[object, ModuleCollection]):
+    """
+    Special analysis that results in the mapping of modules: L{ModuleCollection}.
+    Use this to access other modules in the system.
+    """
+
+    doNotCache = True
+    passmanager: PassManager
+
+    def doPass(self, _: object) -> ModuleCollection:
+        return self.passmanager._getModules(self)
+
+
+# This would be called a immutable pass in the LLVM jargo.
+class ancestors(ModuleAnalysis[SupportsGetItem[AnyNode, list[AnyNode]]]):
+    """
+    Special analysis that results in the mapping of ancestors: L{AncestorsMap}.
+    Use this to access ancestors data of any node in the system.
+    """
+    doNotCache = True
+    passmanager: PassManager
+
+    def doPass(self, _: object) -> ModuleCollection:
+        return self.passmanager._getAncestors(self)
+    
 
 class Transformation(Pass[ModuleNode, ModuleNode]):
     """
@@ -605,15 +679,58 @@ class Transformation(Pass[ModuleNode, ModuleNode]):
     This variable should be overridden by subclasses to provide specific list.
     """
 
-    def __init__(self,):
+    # optimization, use recAddNode and recRemoveNode from your transformation
+    _updates: list[_Addition | _Removal] | None = None
+    
+    def __init__(self):
         self.update = False
         """
         It should be True if the module was modified by the transformation and False otherwise.
         """
+    
+    @classmethod
+    def prepareClass(cls):
+        cls.dependencies += (ancestors, )
+        super().prepareClass()
 
-        # TODO: Work in this optimization
-        # self.added_nodes: Sequence[AnyNode] = ()
-        # self.removed_nodes: Sequence[AnyNode] = ()
+    def _recUpdate(self):
+        self.update = True
+        if self._updates is None:
+            self._updates = []
+        
+    def recAddNode(self, node:AnyNode, ancestor:AnyNode):
+        """
+        Record that a new node has been added to the tree, this should be called 
+        everytime a node is added to properly optimize a transformation.  
+
+        @param node: The new node
+        @param ancestor: The parent of the new node, this node has must be already
+            present in the tree. 
+        """
+        self._recUpdate()
+        self._updates.append(_Addition(node, ancestor))
+        
+    def recRemoveNode(self, node:AnyNode):
+        """
+        Record that a node has been removed from the tree, this should be called 
+        everytime a node is removed to properly optimize a transformation.  
+        
+        @param node: The removed node
+        """
+        self._recUpdate()
+        self._updates.append(_Removal(node))
+    
+    def recReplaceNode(self, oldNode: AnyNode, newNode: AnyNode):
+        """
+        Record that a node has been replaced, this should be called 
+        everytime a node is replaced to properly optimize a transformation.  
+        
+        @param node: The replaces node
+        """
+        self._recUpdate()
+        self._updates.append(_Addition(newNode, self.ancestors[oldNode][-1]))
+        self._updates.append(_Removal(oldNode))
+
 
     def run(self, node: ModuleNode) -> ModuleNode:
         typ = type(self)
@@ -638,23 +755,16 @@ class Transformation(Pass[ModuleNode, ModuleNode]):
         new_node = self.run(node)
         return self.update, new_node
 
-
-class ModuleAnalysis(Analysis[ModuleNode, ReturnsT]):
-
-    """An analysis that operates on a whole module."""
-
-class NodeAnalysis(Analysis[AnyNode, ReturnsT]):
-
-    """An analysis that operates on any node."""
-
-class FunctionAnalysis(Analysis[AnyNode, ReturnsT]):
-
-    """An analysis that operates on a function."""
-
-
-class ClassAnalysis(Analysis[AnyNode, ReturnsT]):
-
-    """An analysis that operates on a class."""
+    @classmethod
+    def fromNodeTransformer(cls, transformer) -> type[Self]:
+        class new_transformation(cls):
+            def doPass(self, node: Any) -> Any:
+                vis = transformer()
+                vis.visit(node)
+                self.update = vis.update
+                return node
+        new_transformation.__name__ = transformer.__name__
+        return new_transformation
 
 
 class GetProxy(Generic[RunsOnT, ReturnsT]):
@@ -712,27 +822,11 @@ class _AnalysisProxy(NodeAnalysis[GetProxy]):
         return GetProxy(partial(self.passmanager.gather, self.analysis))
 
 
-# This would be called a immutable pass in the LLVM jargo.
-class modules(Analysis[object, ModuleCollection]):
-    """
-    Special analysis that results in the mapping of modules: L{ModuleCollection}.
-    Use this to access other modules in the system.
-    """
-
-    doNotCache = True
-    passmanager: PassManager
-
-    def run(self, _: object) -> Any:
-        # skip prepare() since this analysis is trivially special
-        return self.doPass(None)
-
-    def doPass(self, _: object) -> ModuleCollection:
-        return self.passmanager._getModules(self)
-
-
 class _RestrictedPassManager:
     """
     A proxy to the L{PassManager} instance that makes sure it is used correctly depending on the pass it's attached to.
+    
+    It implements L{IPassManager}.
     
     - Restrict intra-module passes L{gather} and L{apply} so they can't dynamically depend on inter-modules passes.
     - Disallow access to L{PassManager.modules} since it should always be accessed with L{passmanager.modules} analysis.
@@ -745,15 +839,15 @@ class _RestrictedPassManager:
         # 1
         if not passs.isInterModules():
 
-            def gather(analysis_: type[Pass], node: AnyNode) -> Any:
-                if analysis_.isInterModules():
-                    raise TypeError(f'You must list {modules.__qualname__} in your pass dependencies to gather this pass: {analysis_}')    
-                return pm.gather(analysis_, node)        
+            def gather(a: type[Pass], node: AnyNode) -> Any:
+                if a.isInterModules():
+                    raise TypeError(f'You must list {modules.__qualname__} in your pass dependencies to gather this pass: {a}')    
+                return pm.gather(a, node)        
             
-            def apply(transformation_: type[Pass], node: AnyNode):
-                if transformation_.isInterModules():
-                    raise TypeError(f'{modules.__qualname__} must be in your pass dependencies to apply this pass: {transformation_}')  
-                return pm.apply(transformation_, node)        
+            def apply(t: type[Pass], node: AnyNode):
+                if t.isInterModules():
+                    raise TypeError(f'{modules.__qualname__} must be in your pass dependencies to apply this pass: {t}')  
+                return pm.apply(t, node)        
 
             self.apply = apply
             self.gather = gather
@@ -889,9 +983,8 @@ class PassManager:
         """
         High-level function to call an L{Analysis} on any node in the system.
         """
-        if not TYPE_CHECKING:
-            if not issubclass(analysis, Analysis):
-                raise TypeError(f"unexpected analysis type: {analysis}")
+        if not issubclass(analysis, Analysis):
+            raise TypeError(f"unexpected analysis type: {analysis}")
 
         with self._ctx.pushPass(analysis, node):
             a = analysis()
@@ -906,9 +999,8 @@ class PassManager:
         If the transformation is an analysis, the result of the analysis
         is displayed.
         """
-        if not TYPE_CHECKING:
-            if not issubclass(transformation, Pass):
-                raise TypeError(f"unexpected pass type: {transformation}")
+        if not issubclass(transformation, Pass):
+            raise TypeError(f"unexpected pass type: {transformation}")
 
         with self._ctx.pushPass(transformation, node):
             a = transformation()
@@ -931,9 +1023,18 @@ class PassManager:
         # TODO: This might be unecessary with the restricted passmanager.
         if not isinstance(analysis, modules):
             raise RuntimeError(
-                f"Only the analysis {modules.__qualname__!r} can access the ModuleCollection, use that in your pass dependecies."
+                f"Only the analysis {modules.__qualname__!r} can access the module collection, use that in your pass dependecies."
             )
         return self.modules
+
+    def _getAncestors(self, analysis: Analysis) -> SupportsGetItem[AnyNode, list[AnyNode]]:
+        # access modules from within a pass context is done with passmanager.modules only.
+        # TODO: This might be unecessary with the restricted passmanager.
+        if not isinstance(analysis, ancestors):
+            raise RuntimeError(
+                f"Only the analysis {ancestors.__qualname__!r} can access the ancestors mapping, use that in your pass dependecies."
+            )
+        return self.modules.ancestors
 
 
 class Statistics:
