@@ -5,6 +5,8 @@
 #       This will be called client objects/façade and we don't care about them here.
 # -> If an analysis raises an exception during processing, this execption should be saved in the cache so it's re-raised
 #       whenever the same analysis is requested again.
+# -> Name mangling did not work well with dill, so the pattern is to use __{name} instead and NEVER access .__{something}
+#       unless throught self.__{something}.
 
 # Future ideas:
 # Pass instrumentation: Adding callbacks before and after passes:
@@ -52,7 +54,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from functools import lru_cache, partial
+from functools import lru_cache, partial, partialmethod
 from itertools import chain
 
 import sys
@@ -83,6 +85,7 @@ from .events import (EventDispatcher, ClearAnalysisEvent, ModuleAddedEvent,
 from ._modules import Module, ModuleCollection, _Addition, _Removal, SupportsGetItem
 from ._astcompat import ASTCompat, ISupport
 from ._caching import AnalyisCacheProxy, AnalysisResult
+
 
 __docformat__ = 'epytext'
 
@@ -157,6 +160,10 @@ class _PassMeta(type):
         return f'<class {passname!r}>'
     
     __repr__ = __str__
+    # __reduce__ = lambda
+    # def __reduce__(cls): 
+    #     # Avoids pickle related errors
+    #     return (__class__, (), cls.__dict__)
             
 
 class _PassDependencyDescriptor:
@@ -211,8 +218,22 @@ class PassContext:
         self._stack.discard(e)
 
 
-# this object does not exist at runtime it only helps
+# these object does not exist at runtime it only helps
 # for th typing.
+
+
+class _ICompatibleNodeVisitor(Protocol):
+    def visit(self, node:AnyNode) -> Any:...
+    @property
+    def result(self) -> Any:...
+
+
+class _ICompatibleNodeTransformer(Protocol):
+    def visit(self, node:AnyNode) -> Any:...
+    @property
+    def update(self) -> bool:...
+
+
 class IPassManager(Protocol): 
     """
     This interface defines how to run passes.
@@ -349,7 +370,7 @@ class Pass(Generic[RunsOnT, ReturnsT], metaclass=_PassMeta):
             """
 
         def __call__(self) -> Self: ...
-
+    
     @classmethod
     def bind(cls, **kwargs:Hashable) -> type[Self]:
         """
@@ -540,22 +561,16 @@ class Analysis(Pass[RunsOnT, ReturnsT]):
         return _AnalysisProxy.bind(analysis=cls)
     
     @classmethod
-    def fromNodeVisitor(cls, visitor: type) -> type[Self]:
-        class new_analysis(cls):
-            def doPass(self, node: Any) -> Any:
-                vis = visitor()
-                vis.visit(node)
-                return vis.result
-        new_analysis.__name__ = visitor.__name__
-        return new_analysis
-    
+    def fromNodeVisitor(cls, visitor: type) -> type[NodeAnalysis]:
+        return _AnalysisAdaptor(visitor=visitor)
+
     @classmethod
-    def fromCallable1(cls, cb: Callable[[AnyNode], object]) -> type[Self]:
+    def fromCallable1(cls, cb: Callable[[AnyNode], object]) -> type[NodeAnalysis]:
         raise NotImplementedError()
     
     @classmethod
     def fromCallable2(cls, cb: Callable[[PassManager, AnyNode], object], 
-                     isInterModules: bool = False) -> type[Self]:
+                     isInterModules: bool = False) -> type[NodeAnalysis]:
         raise NotImplementedError()
 
     @classmethod
@@ -756,20 +771,13 @@ class Transformation(Pass[ModuleNode, ModuleNode]):
         return self.update, new_node
 
     @classmethod
-    def fromNodeTransformer(cls, transformer) -> type[Self]:
-        class new_transformation(cls):
-            def doPass(self, node: Any) -> Any:
-                vis = transformer()
-                vis.visit(node)
-                self.update = vis.update
-                return node
-        new_transformation.__name__ = transformer.__name__
-        return new_transformation
+    def fromNodeTransformer(cls, transformer) -> type[Transformation]:
+        return _TransformationAdaptor(transformer=transformer)
 
 
 class GetProxy(Generic[RunsOnT, ReturnsT]):
     """
-    Provide L{get} method that defers to the given callable in the constructor.
+    Provide L{get} method that defers to an underlying callable.
     """
     def __init__(self, factory: Callable[[RunsOnT], ReturnsT]):
         self._factory = factory
@@ -822,6 +830,47 @@ class _AnalysisProxy(NodeAnalysis[GetProxy]):
         return GetProxy(partial(self.passmanager.gather, self.analysis))
 
 
+class _AnalysisAdaptor(NodeAnalysis[Any]):
+    """
+    Create an analysis from a compatible node visitor.
+    """
+    requiredParameters = ('visitor',)
+
+    if TYPE_CHECKING:
+        visitor: type[_ICompatibleNodeVisitor]
+
+    def __init_subclass__(cls, **kwargs: Hashable):
+        super().__init_subclass__(**kwargs)
+        # Override the __name__ so the pass has the visitor name
+        cls.__name__ = cls.visitor.__name__
+
+    def doPass(self, node: AnyNode) -> Any:
+        vis = self.visitor()
+        vis.visit(node)
+        return vis.result
+
+class _TransformationAdaptor(NodeAnalysis[Any]):
+    """
+    Create a transformation from a compatible node transform.
+    """
+    requiredParameters = ('transformer',)
+
+    if TYPE_CHECKING:
+        transformer: type[_ICompatibleNodeTransformer]
+
+    def __init_subclass__(cls, **kwargs: Hashable):
+        super().__init_subclass__(**kwargs)
+        # Override the __name__ so the pass has the visitor name
+        cls.__name__ = cls.transformer.__name__
+
+    def doPass(self, node: AnyNode) -> Any:
+        vis = self.transformer()
+        newNode = vis.visit(node)
+        self.update = vis.update
+        if newNode is not node:
+            raise RuntimeError('Transformers must not replace the node passed to the run() method')
+        return newNode
+
 class _RestrictedPassManager:
     """
     A proxy to the L{PassManager} instance that makes sure it is used correctly depending on the pass it's attached to.
@@ -833,7 +882,7 @@ class _RestrictedPassManager:
     - Disallow access to L{PassManager.add_modules} and L{PassManager.remove_module} in the context of an analysis.
 
     """
-    def __init__(self, passs: type[Pass], pm: IPassManager) -> None:
+    def __init__(self, passs: type[Pass], pm: IMutablePassManager) -> None:
         self.__pm = pm
         
         # 1
@@ -867,16 +916,18 @@ class _RestrictedPassManager:
     def modules(self):
         raise RuntimeError(f'You must access the modules with the {modules.__qualname__} dependencies')
     
-    # Forward all attribute to self.__pm if it's not defined in this class.
-    def __getattribute__(self, name: str) -> Any:
-        try:
-            return super().__getattribute__(name)
-        except AttributeError as e:
-            try:
-                return getattr(self.__pm, name)
-            except AttributeError:
-                raise e
+    # Default versions only forwards calls: explicit is better than implicit.
+    # so we don't rely on __getattribute__(). 
 
+    gather = lambda self,a,n: self.__pm.gather(a,n)
+    apply = lambda self,t,n: self.__pm.apply(t,n)
+    add_module = lambda self,m: self.__pm.add_module(m)
+    remove_module = lambda self,m: self.__pm.remove_module(m)
+    _getAncestors = lambda self,p: self.__pm._getAncestors(p)
+    _getModules = lambda self,p: self.__pm._getModules(p)
+    cache = property(lambda self: self.__pm.cache)
+    dispatcher = property(lambda self: self.__pm.dispatcher)
+    
 
 def _onModuleAddedOrRemovedEvent(self: PassManager, event: ModuleRemovedEvent | ModuleAddedEvent):
     """
@@ -1018,23 +1069,39 @@ class PassManager:
         """
         self.dispatcher.dispatchEvent(SupportLibraryEvent(lib))
     
-    def _getModules(self, analysis: Analysis) -> ModuleCollection:
-        # access modules from within a pass context is done with passmanager.modules only.
-        # TODO: This might be unecessary with the restricted passmanager.
-        if not isinstance(analysis, modules):
-            raise RuntimeError(
-                f"Only the analysis {modules.__qualname__!r} can access the module collection, use that in your pass dependecies."
-            )
+    def _getModules(self, analysis: modules) -> ModuleCollection:
+        # access modules from within a pass context.
+        if not isinstance(analysis, modules): raise RuntimeError()
         return self.modules
 
-    def _getAncestors(self, analysis: Analysis) -> SupportsGetItem[AnyNode, list[AnyNode]]:
-        # access modules from within a pass context is done with passmanager.modules only.
-        # TODO: This might be unecessary with the restricted passmanager.
-        if not isinstance(analysis, ancestors):
-            raise RuntimeError(
-                f"Only the analysis {ancestors.__qualname__!r} can access the ancestors mapping, use that in your pass dependecies."
-            )
+    def _getAncestors(self, analysis: ancestors) -> SupportsGetItem[AnyNode, list[AnyNode]]:
+        # access modules from within a pass context.
+        if not isinstance(analysis, ancestors): raise RuntimeError()
         return self.modules.ancestors
+
+    def _merge(self, other: PassManager) -> None:
+        """
+        Merge the given pass manager into this one.
+        """
+        self.cache._merge(other.cache)
+        self.modules._merge(other.modules)
+
+    # @classmethod
+    # def fromParallelPasses(cls, 
+    #                        modules: Iterable[Module], 
+    #                        passes: Collection[type[Pass]], 
+    #                        pmFactory: Callable[[], PassManager]=None) -> PassManager:
+    #     """
+    #     Run passes in parallel on the givem modules using L{multiprocessing}. 
+    #     Number of processes will match the CPU's cores.
+
+    #     @param modules: The target modules.
+    #     @param passes: The passes to run.
+    #     @param pmFactory: A zero argument callable that returns an isntance of L{PassManager}.
+    #         Can be used to customize the library support for instance.
+    #     """
+    # In partice this apprach runsten time slower :/
+   
 
 
 class Statistics:

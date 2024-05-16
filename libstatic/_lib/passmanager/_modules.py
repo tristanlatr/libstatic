@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import (
     Any,
+    Iterable,
     Iterator,
     Mapping,
     TYPE_CHECKING,
@@ -146,8 +147,8 @@ class AncestorsMap(SupportsGetItem[AnyNode, list[AnyNode]]):
         dispatcher.addEventListener(ModuleRemovedEvent, self._onModuleRemovedEvent)
 
         # Use weak keys dictionnary here.
-        self.__data: dict[AnyNode, list[AnyNode]] = WeakKeyDictionary()
-        self.__removed: set[ModuleNode] = WeakSet()
+        self.__data: WeakKeyDictionary[AnyNode, list[AnyNode]] = WeakKeyDictionary()
+        self.__removed: WeakSet[ModuleNode] = WeakSet()
 
         self._ast = ast
         self._ancestorsType = _getAncestors(ast)
@@ -222,6 +223,12 @@ class AncestorsMap(SupportsGetItem[AnyNode, list[AnyNode]]):
             return self[key]
         except KeyError:
             return default
+    
+    def _data(self) -> WeakKeyDictionary[AnyNode, list[AnyNode]]:
+        return self.__data
+        
+    def _merge(self, other: AncestorsMap) -> None:
+        self.__data.update(other._data())
         
     def __iter__(self) -> Iterator[AnyNode]:
         raise NotImplementedError('this "mapping" is not iterable')
@@ -246,26 +253,33 @@ class ModuleCollection(Mapping[str | ModuleNode | AnyNode, Module]):
 
         dispatcher.addEventListener(ModuleAddedEvent, self._onModuleAddedEvent)
         dispatcher.addEventListener(ModuleRemovedEvent, self._onModuleRemovedEvent)
+    
+    def _merge(self, other: ModuleCollection) -> None:
+        for mod in other.values():
+            self._add(mod)
+        self.ancestors._merge(other.ancestors)
+    
+    def _add(self, module: Module) -> None:
+        modname = module.modname
+        modnode = module.node
 
-    def _onModuleAddedEvent(self, event: ModuleAddedEvent) -> None:
-        mod = event.mod
-        modname = mod.modname
-        modnode = mod.node
-
-        if self.get(modname) not in (None, mod):
+        if self.get(modname) not in (None, module):
             raise ValueError(
                 f"a module named {modname!r} " f"already exist: {self[modname]}"
             )
 
-        if self.get(modnode) not in (None, mod):
+        if self.get(modnode) not in (None, module):
             raise ValueError(
                 f"the ast of the module {modname!r} is already "
                 f"associated with another module: {self[modnode]}"
             )
 
         # register the module as beeing a part of this collection.
-        self.__name2module[modname] = mod
-        self.__node2module[modnode] = mod
+        self.__name2module[modname] = module
+        self.__node2module[modnode] = module
+
+    def _onModuleAddedEvent(self, event: ModuleAddedEvent) -> None:
+        self._add(event.mod)
 
     def _onModuleRemovedEvent(self, event: ModuleRemovedEvent) -> None:
         mod = event.mod

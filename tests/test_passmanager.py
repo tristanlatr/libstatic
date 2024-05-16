@@ -4,7 +4,7 @@ from collections import defaultdict
 import sys
 from textwrap import dedent
 import time
-from typing import Any, Mapping
+from typing import Any, Collection, Mapping
 
 from unittest import TestCase
 
@@ -18,10 +18,52 @@ from libstatic._lib.shared import LocalStmtVisitor
 
 # main framework module we're testing
 from libstatic._lib.passmanager import (PassManager, Module, NodeAnalysis, FunctionAnalysis, 
-                                        ClassAnalysis, ModuleAnalysis, Transformation)
+                                        ClassAnalysis, ModuleAnalysis, Transformation, Analysis, Pass)
 from libstatic._lib import passmanager, analyses
 from libstatic._lib.passmanager import events
 from libstatic._lib.passmanager._astcompat import ASTCompat
+
+
+# factory
+
+def fromPasses(modules: Collection[Module], passes: Collection[type[Pass]]) -> PassManager:
+    pm = PassManager()
+    _transforms, _analyses = (), ()
+    for p in passes:
+        if p.isInterModules():
+            raise TypeError('only intra-module passes can be run with this function')
+        if issubclass(p, Transformation):
+            _transforms += (p,)
+        elif issubclass(p, Analysis):
+            _analyses += (p,)
+
+    for m in modules:
+        pm.add_module(m)
+        for t in _transforms:
+            pm.apply(t, m.node)
+        for a in _analyses:
+            pm.gather(a, m.node)
+    
+    return pm
+
+
+from time import perf_counter
+
+class catchtime:
+    def __init__(self, label=None):
+        self.label = label or ''
+        if label:
+            self.label += ' '
+
+    def __enter__(self):
+        self.start = perf_counter()
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self.time = perf_counter() - self.start
+        self.readout = f'{self.label}time: {self.time:.3f} seconds'
+        print(self.readout)
+
 
 # test analysis
 
@@ -511,6 +553,39 @@ class TestPassManagerFramework(TestCase):
         assert ast.unparse(node) == 'v = False'
 
         # TODO: Test that this is way faster.
+    
+    def test_passmanger_merge(self):
+        # Quicksort Python One-liner
+        src = 'qsort = lambda L: [] if L==[] else qsort([x for x in L[1:] if x< L[0]]) + L[0:1] + qsort([x for x in L[1:] if x>=L[0]])'
+        src = '\n'.join(src for _ in range(10))
+        
+        with catchtime('parse') as stimer:
+            modules = [Module(ast.parse(f'v = {i}; {src}'), f'test_{i}') for i in range(20)]
+        
+        from libstatic._lib.analyses import def_use_chains
+        set1, set2 = modules[:10], modules[10:]
+        assert len(set1) == len(set2) == 10
+        
+        with catchtime('process set1'):
+            pm1 = fromPasses(set1, [def_use_chains])
+        
+        with catchtime('process set2'):
+            pm2 = fromPasses(set2, [def_use_chains])
+
+        pm = PassManager()
+        
+        with catchtime('merging into new'):
+            pm._merge(pm1)
+            pm._merge(pm2)
+
+        with catchtime('get all analyses from cache') as cacheAccess:
+            for m in pm.modules.values():
+                pm.gather(def_use_chains, m.node)
+        
+        assert cacheAccess.time < 0.001
+        assert len(pm.modules) == 20
+        assert False
+
     
     def test_cache_cleared_when_module_removed(self):
         pm = PassManager()
