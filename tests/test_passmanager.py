@@ -533,14 +533,22 @@ class TestPassManagerFramework(TestCase):
         """
         Test the Transformation.recAddNode and Transformation.recRemoveNode methods
         """
-        src = 'v = True'
-        pm = PassManager()
-        pm.add_module(Module(
-            ast.parse(src), 'test', 'test.py', code=src, 
-        ))
-        updates, node = pm.apply(transform_trues_into_ones_opti, pm.modules['test'].node)
-        assert updates
-        assert ast.unparse(node) == 'v = 1'
+        # Quicksort Python One-liner
+        src = 'v=True; qsort = lambda L: [] if L==[] else qsort([x for x in L[1:] if x< L[0]]) + L[0:1] + qsort([x for x in L[1:] if x>=L[0]])'
+        src = '\n'.join(src for _ in range(10))
+        
+        with catchtime('parse') as stimer:
+            modules = [Module(ast.parse(f'v = {i}; {src}'), f'test_{i}') for i in range(20)]
+        
+
+        with catchtime('not-opti') as not_opti:
+            fromPasses(modules, [transform_trues_into_ones])
+        
+        with catchtime('opti') as opti:
+            fromPasses(modules, [transform_trues_into_ones_opti])
+        
+        # Yes it's way faster...
+        assert not_opti.time > (1.7 * opti.time)
 
         # check it's not marked as updatesd when it's not.
         src = 'v = False'
@@ -551,8 +559,6 @@ class TestPassManagerFramework(TestCase):
         updates, node = pm.apply(transform_trues_into_ones_opti, pm.modules['test'].node)
         assert not updates
         assert ast.unparse(node) == 'v = False'
-
-        # TODO: Test that this is way faster.
     
     def test_passmanger_merge(self):
         # Quicksort Python One-liner
@@ -584,7 +590,6 @@ class TestPassManagerFramework(TestCase):
         
         assert cacheAccess.time < 0.001
         assert len(pm.modules) == 20
-        assert False
 
     
     def test_cache_cleared_when_module_removed(self):
