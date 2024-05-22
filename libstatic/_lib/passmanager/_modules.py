@@ -8,6 +8,7 @@ from typing import (
     Iterator,
     Mapping,
     TYPE_CHECKING,
+    MutableMapping,
     Protocol
 )
 
@@ -108,24 +109,20 @@ def _getAncestors(astcompat: ASTCompat):
 
         visit = generic_visit
 
-        # def doPass(self, node: ast.Module) -> dict[ast.AST, list[ast.AST]]:
-        #     self.visit(node)
-        #     return self.result
-
     return ancestors
 
 if TYPE_CHECKING:
     class ancestors:
-        result: dict[AnyNode, list[AnyNode]]
+        result: MutableMapping[AnyNode, list[AnyNode]]
         current: tuple[AnyNode, ...]
         def visit(self, node):...
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, slots=True)
 class _Removal:
     "when a node is removed"
     node: AnyNode
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, slots=True)
 class _Addition:
     "when a node is added"
     node: AnyNode
@@ -153,7 +150,7 @@ class AncestorsMap(SupportsGetItem[AnyNode, list[AnyNode]]):
         self._ast = ast
         self._ancestorsType = _getAncestors(ast)
     
-    def ancestorsWithContext(self, ancestor: AnyNode) -> ancestors:
+    def _ancestorsWithContext(self, ancestor: AnyNode) -> ancestors:
         current = self.__data[ancestor]
         ans = self._ancestorsType()
         ans.current = tuple(current)
@@ -178,15 +175,15 @@ class AncestorsMap(SupportsGetItem[AnyNode, list[AnyNode]]):
         node = event.mod.node
         self.__removed.add(node)
 
-        
+
     def _onModuleTransformedEvent(self, event: ModuleTransformedEvent) -> None:
         t = event.transformation
-        if t._updates is not None:
+        if t._updates:
             # optimizations: Avoid a O(Number of nodes in the module), every time a mode is transformed
             for u in t._updates:
                 # It's O(Number of nodes added+removed)
                 if isinstance(u, _Addition):
-                    ans = self.ancestorsWithContext(u.ancestor)
+                    ans = self._ancestorsWithContext(u.ancestor)
                     ans.result = self.__data
                     ans.visit(u.node)
 
@@ -202,10 +199,10 @@ class AncestorsMap(SupportsGetItem[AnyNode, list[AnyNode]]):
             self._onModuleAddedEvent(event)
 
     def _hasBeenRemoved(self, node) -> bool:
-        return node in self.__removed or (
+        return node in self.__removed or bool((
             ans := self.__data[node] # if that raises, the node is not in the system :/
-            ) and ans[0] in self.__removed
-    
+            ) and ans[0] in self.__removed)
+
     # mapping-ish interface
 
     def __contains__(self, __key: object) -> bool:
@@ -223,13 +220,13 @@ class AncestorsMap(SupportsGetItem[AnyNode, list[AnyNode]]):
             return self[key]
         except KeyError:
             return default
-    
+
     def _data(self) -> WeakKeyDictionary[AnyNode, list[AnyNode]]:
         return self.__data
-        
+
     def _merge(self, other: AncestorsMap) -> None:
         self.__data.update(other._data())
-        
+
     def __iter__(self) -> Iterator[AnyNode]:
         raise NotImplementedError('this "mapping" is not iterable')
 

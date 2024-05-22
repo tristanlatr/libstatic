@@ -54,7 +54,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from functools import lru_cache, partial, partialmethod
+from functools import lru_cache, partial
 from itertools import chain
 
 import sys
@@ -562,7 +562,7 @@ class Analysis(Pass[RunsOnT, ReturnsT]):
     
     @classmethod
     def fromNodeVisitor(cls, visitor: type) -> type[NodeAnalysis]:
-        return _AnalysisAdaptor(visitor=visitor)
+        return _AnalysisAdaptor.bind(visitor=visitor)
 
     @classmethod
     def fromCallable1(cls, cb: Callable[[AnyNode], object]) -> type[NodeAnalysis]:
@@ -668,7 +668,7 @@ class ancestors(ModuleAnalysis[SupportsGetItem[AnyNode, list[AnyNode]]]):
     doNotCache = True
     passmanager: PassManager
 
-    def doPass(self, _: object) -> ModuleCollection:
+    def doPass(self, _: object) -> SupportsGetItem[AnyNode, list[AnyNode]]:
         return self.passmanager._getAncestors(self)
     
 
@@ -694,24 +694,21 @@ class Transformation(Pass[ModuleNode, ModuleNode]):
     This variable should be overridden by subclasses to provide specific list.
     """
 
-    # optimization, use recAddNode and recRemoveNode from your transformation
-    _updates: list[_Addition | _Removal] | None = None
     
     def __init__(self):
         self.update = False
         """
         It should be True if the module was modified by the transformation and False otherwise.
         """
+
+        # optimization, use recAddNode and recRemoveNode from your transformation
+        self._updates: list[_Addition | _Removal] = []
     
     @classmethod
     def prepareClass(cls):
         cls.dependencies += (ancestors, )
         super().prepareClass()
 
-    def _recUpdate(self):
-        self.update = True
-        if self._updates is None:
-            self._updates = []
         
     def recAddNode(self, node:AnyNode, ancestor:AnyNode):
         """
@@ -719,10 +716,10 @@ class Transformation(Pass[ModuleNode, ModuleNode]):
         everytime a node is added to properly optimize a transformation.  
 
         @param node: The new node
-        @param ancestor: The parent of the new node, this node has must be already
+        @param ancestor: The parent of the new node, this node must be already
             present in the tree. 
         """
-        self._recUpdate()
+        self.update = True
         self._updates.append(_Addition(node, ancestor))
         
     def recRemoveNode(self, node:AnyNode):
@@ -732,7 +729,7 @@ class Transformation(Pass[ModuleNode, ModuleNode]):
         
         @param node: The removed node
         """
-        self._recUpdate()
+        self.update = True
         self._updates.append(_Removal(node))
     
     def recReplaceNode(self, oldNode: AnyNode, newNode: AnyNode):
@@ -742,8 +739,12 @@ class Transformation(Pass[ModuleNode, ModuleNode]):
         
         @param node: The replaces node
         """
-        self._recUpdate()
-        self._updates.append(_Addition(newNode, self.ancestors[oldNode][-1]))
+        parent = self.ancestors[oldNode][-1] # node not in the system :/ 
+        # this line could raise KeyError ir IndexError but
+        # it's not caught for performance reasons
+
+        self.update = True
+        self._updates.append(_Addition(newNode, parent))
         self._updates.append(_Removal(oldNode))
 
 
@@ -772,7 +773,7 @@ class Transformation(Pass[ModuleNode, ModuleNode]):
 
     @classmethod
     def fromNodeTransformer(cls, transformer) -> type[Transformation]:
-        return _TransformationAdaptor(transformer=transformer)
+        return _TransformationAdaptor.bind(transformer=transformer)
 
 
 class GetProxy(Generic[RunsOnT, ReturnsT]):
@@ -849,7 +850,7 @@ class _AnalysisAdaptor(NodeAnalysis[Any]):
         vis.visit(node)
         return vis.result
 
-class _TransformationAdaptor(NodeAnalysis[Any]):
+class _TransformationAdaptor(Transformation):
     """
     Create a transformation from a compatible node transform.
     """
@@ -898,8 +899,8 @@ class _RestrictedPassManager:
                     raise TypeError(f'{modules.__qualname__} must be in your pass dependencies to apply this pass: {t}')  
                 return pm.apply(t, node)        
 
-            self.apply = apply
-            self.gather = gather
+            self.apply = apply # type: ignore
+            self.gather = gather # type: ignore
         
         # 3
         if issubclass(passs, Analysis):
@@ -908,8 +909,8 @@ class _RestrictedPassManager:
             def remove_module(_):
                 raise RuntimeError('cannot remove a module from within an analysis')
             
-            self.add_module = add_module
-            self.remove_module = remove_module
+            self.add_module = add_module # type: ignore
+            self.remove_module = remove_module # type: ignore
         
     # 2
     @property
@@ -918,15 +919,18 @@ class _RestrictedPassManager:
     
     # Default versions only forwards calls: explicit is better than implicit.
     # so we don't rely on __getattribute__(). 
-
+    
+    # Public API
     gather = lambda self,a,n: self.__pm.gather(a,n)
     apply = lambda self,t,n: self.__pm.apply(t,n)
     add_module = lambda self,m: self.__pm.add_module(m)
     remove_module = lambda self,m: self.__pm.remove_module(m)
+    cache: AnalyisCacheProxy = property(lambda self: self.__pm.cache) # type: ignore
+    dispatcher: EventDispatcher = property(lambda self: self.__pm.dispatcher) # type: ignore
+    
+    # Private API
     _getAncestors = lambda self,p: self.__pm._getAncestors(p)
     _getModules = lambda self,p: self.__pm._getModules(p)
-    cache = property(lambda self: self.__pm.cache)
-    dispatcher = property(lambda self: self.__pm.dispatcher)
     
 
 def _onModuleAddedOrRemovedEvent(self: PassManager, event: ModuleRemovedEvent | ModuleAddedEvent):

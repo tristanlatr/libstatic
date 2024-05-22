@@ -547,7 +547,7 @@ class TestPassManagerFramework(TestCase):
         with catchtime('opti') as opti:
             fromPasses(modules, [transform_trues_into_ones_opti])
         
-        # Yes it's way faster...
+        # Yes it's faster...
         assert not_opti.time > opti.time
 
         # check it's not marked as updatesd when it's not.
