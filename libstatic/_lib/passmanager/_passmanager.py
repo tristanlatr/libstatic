@@ -57,25 +57,20 @@ from contextlib import contextmanager
 from functools import lru_cache, partial
 from itertools import chain
 
-import sys
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
-    ClassVar,
     Collection,
     Hashable,
-    Iterable,
     Iterator,
-    Self,
-    TypeAlias,
     TypeVar,
     Generic,
-    Sequence,
     Protocol,
-    cast,
     overload,
 )
+if TYPE_CHECKING:
+    from typing import Self, TypeAlias
 
 from beniget.ordered_set import ordered_set # type: ignore
 
