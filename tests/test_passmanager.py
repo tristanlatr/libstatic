@@ -666,15 +666,16 @@ class TestPassManagerFramework(TestCase):
         assert has_optional_parameters(mult=2) == pattern_any
 
         # Test inside containers
+        assert has_optional_parameters in (pattern_any,)
         assert has_optional_parameters(mult=2) not in [pattern_mult_eq_1, has_optional_parameters(mult=1)]
         assert has_optional_parameters(mult=2) in [pattern_mult_eq_1, has_optional_parameters(mult=1), pattern_any]
     
 
     def test_preserved_analysis_subclass_explosion_issue(self):
         
-        class takes_many_optional_parameters(NodeAnalysis[int]):
+        class class_count_with_parameters(NodeAnalysis[int]):
             # We can create an infinity of subclasses of this type since mult can be any ints
-            optionalParameters = dict(filterkilled=True, 
+            optionalParameters = dict(filterkilled=False, 
                                       mult=1)
             dependencies = (class_count, )
             
@@ -684,35 +685,121 @@ class TestPassManagerFramework(TestCase):
         
         # optimized version of 'transform_trues_into_ones'
         class t1(transform_trues_into_ones):
-                                 # This will only preserves the default version of the analysis with filterkilled=True and mult=1.
+                                 # This will only preserves the default version of the 
+                                 # analysis with filterkilled=True and mult=1.
             __name__ = 'transform_trues_into_ones'
-            preservesAnalyses = (takes_many_optional_parameters, )
+            preservesAnalyses = (class_count, class_count_with_parameters, )
 
         # better optimized version of 'transform_trues_into_ones'
         class t2(transform_trues_into_ones):
                                  # This will preserves all versions of the analysis
             __name__ = 'transform_trues_into_ones'
-            preservesAnalyses = (takes_many_optional_parameters.like(filterkilled=lambda v:True, 
+            preservesAnalyses = (class_count, class_count_with_parameters.like(filterkilled=lambda v:True, 
                                                                      mult=lambda v: True), )
         
         # better optimized version of 'transform_trues_into_ones'
         class t3(transform_trues_into_ones):
-                                 # This will only preserves  versions of the analysis with filterkilled=False and mult>0
+                                 # This will only preserves versions of the 
+                                 # analysis with filterkilled=False and mult>0
             __name__ = 'transform_trues_into_ones'
-            preservesAnalyses = (takes_many_optional_parameters.like(filterkilled=lambda v:not v, 
+            preservesAnalyses = (class_count, class_count_with_parameters.like(filterkilled=lambda v:not v, 
                                                                      mult=lambda v: v>0), )
 
-        # TODO: Finish this test
+        src = 'v = True\nn = 1\nclass A: ...\nclass B: ...'
+        pm = PassManager()
+        mod = ast.parse(src)
+        pm.add_module(Module(
+            mod, 'test', 'test.py', code=src, 
+        ))
 
-        #  - a real solution would be to generate an ensemble of subclass that we can match against existing 
-        #    analyses in the cache (this is what it is about afer all - this plus the fact that dependencies must be static
-        #    at class level - but this might also be the thing to reconsider...)
-        #    A solution would be to add new class method such that we can create a "ensemble of analyses" like
-        #    analysis_name.like(keyword=lambda v: bool(v), other_unimportant=lambda v:True)
-        #    or shorter: analysis_name.like(keyword=True, other_unimportant=None) # all keywords must be given when creating a ensemble.
-        #    this would be used in the Transformation.preservesAnalyses attribute to indicate the transform preserves
-        #    a varieties of derivation of the given analysis.
-    
+        def gather_analyses():
+            pm.gather(class_count_with_parameters, mod)
+            pm.gather(class_count_with_parameters.bind(mult=-4), mod)
+            pm.gather(class_count_with_parameters.bind(mult=0), mod)
+            pm.gather(class_count_with_parameters.bind(mult=3), mod)
+            pm.gather(class_count_with_parameters.bind(mult=-4, filterkilled=True), mod)
+            pm.gather(class_count_with_parameters.bind(mult=0, filterkilled=True), mod)
+            pm.gather(class_count_with_parameters.bind(mult=3, filterkilled=True), mod)
+            assert list(list(c.analyses()) for c in pm.cache._data().values()) == [
+                [
+                    class_count,
+                    class_count_with_parameters, 
+                    class_count_with_parameters.bind(mult=-4), 
+                    class_count_with_parameters.bind(mult=0), 
+                    class_count_with_parameters.bind(mult=3), 
+                    class_count_with_parameters.bind(mult=-4, filterkilled=True), 
+                    class_count_with_parameters.bind(mult=0, filterkilled=True), 
+                    class_count_with_parameters.bind(mult=3, filterkilled=True), 
+                ]
+            ]
+
+        gather_analyses()
+        
+        # when the non-optimized version of the transformation is run, all analyses are invalidated
+        # and needs to be recomputed.
+        pm.apply(transform_trues_into_ones, mod)
+        assert list(list(c.analyses()) for c in pm.cache._data().values()) == [
+                [
+                    class_count,
+                ]
+            ]
+        
+        pm = PassManager()
+        mod = ast.parse(src)
+        pm.add_module(Module(
+            mod, 'test', 'test.py', code=src, 
+        ))
+        gather_analyses()
+        
+        # Now let's apply t1 which defined the preserved analysis with only the default values.
+        pm.apply(t1, mod)
+        assert list(list(c.analyses()) for c in pm.cache._data().values()) == [
+                [
+                    class_count,
+                    class_count_with_parameters, 
+                ]
+            ]
+
+        pm = PassManager()
+        mod = ast.parse(src)
+        pm.add_module(Module(
+            mod, 'test', 'test.py', code=src, 
+        ))
+        gather_analyses()
+
+        # Now t2, which preserves all versions of the analysis
+        pm.apply(t2, mod)
+        assert list(list(c.analyses()) for c in pm.cache._data().values()) == [
+                [
+                    class_count,
+                    class_count_with_parameters, 
+                    class_count_with_parameters.bind(mult=-4), 
+                    class_count_with_parameters.bind(mult=0), 
+                    class_count_with_parameters.bind(mult=3), 
+                    class_count_with_parameters.bind(mult=-4, filterkilled=True), 
+                    class_count_with_parameters.bind(mult=0, filterkilled=True), 
+                    class_count_with_parameters.bind(mult=3, filterkilled=True), 
+                ]
+            ]
+        
+        pm = PassManager()
+        mod = ast.parse(src)
+        pm.add_module(Module(
+            mod, 'test', 'test.py', code=src, 
+        ))
+        gather_analyses()
+
+        # Now t3, which preserves for filterkilled=False and mult>0
+        pm.apply(t3, mod)
+        assert list(list(c.analyses()) for c in pm.cache._data().values()) == [
+                [
+                    class_count,
+                    class_count_with_parameters, 
+                    class_count_with_parameters.bind(mult=3), 
+                ]
+            ]
+            
+
     def test_pass_instrumentation_run_times(self):
         pass # TODO: We should be able to hack something to get the run times of all analyses
         # 
