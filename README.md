@@ -1,6 +1,6 @@
 # libstatic
 
-Static analysis library based on [beginet](https://github.com/serge-sans-paille/beniget/).
+Static analysis library based on [beniget](https://github.com/serge-sans-paille/beniget/).
 
 The purpose of this package is to provide a simple library that helps with analyzing a collection of related python modules.
 
