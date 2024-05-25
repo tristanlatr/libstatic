@@ -243,6 +243,11 @@ class IPassManager(Protocol):
     def dispatcher(self) -> EventDispatcher:...
     @property
     def cache(self) -> AnalyisCacheProxy:...
+    
+    # Private API
+    def _getAncestors(self, analysis: ancestors) -> SupportsGetItem[AnyNode, list[AnyNode]]:...
+    def _getModules(self, analysis: modules) -> ModuleCollection:...
+
 
 
 class IMutablePassManager(IPassManager, Protocol):
@@ -648,7 +653,6 @@ class modules(Analysis[object, ModuleCollection]):
     """
 
     doNotCache = True
-    passmanager: PassManager
 
     def doPass(self, _: object) -> ModuleCollection:
         return self.passmanager._getModules(self)
@@ -661,7 +665,6 @@ class ancestors(ModuleAnalysis[SupportsGetItem[AnyNode, list[AnyNode]]]):
     Use this to access ancestors data of any node in the system.
     """
     doNotCache = True
-    passmanager: PassManager
 
     def doPass(self, _: object) -> SupportsGetItem[AnyNode, list[AnyNode]]:
         return self.passmanager._getAncestors(self)
@@ -886,12 +889,12 @@ class _RestrictedPassManager:
 
             def gather(a: type[Pass], node: AnyNode) -> Any:
                 if a.isInterModules():
-                    raise TypeError(f'You must list {modules.__qualname__} in your pass dependencies to gather this pass: {a}')    
+                    raise TypeError(f'{modules.__qualname__} must be in your pass dependencies to run this pass: {t}')  
                 return pm.gather(a, node)        
             
             def apply(t: type[Pass], node: AnyNode):
                 if t.isInterModules():
-                    raise TypeError(f'{modules.__qualname__} must be in your pass dependencies to apply this pass: {t}')  
+                    raise TypeError(f'{modules.__qualname__} must be in your pass dependencies to run this pass: {t}')  
                 return pm.apply(t, node)        
 
             self.apply = apply # type: ignore
@@ -931,7 +934,7 @@ class _RestrictedPassManager:
 def _onModuleAddedOrRemovedEvent(self: PassManager, event: ModuleRemovedEvent | ModuleAddedEvent):
     """
     Clear the analysis cache of all inter-modules analyses. 
-    # TODO: This could use some fine tuning so mark the results as preserved.
+    # TODO: This could use some fine tuning to mark the results as preserved.
     """
     for a in self.cache.analyses():
         if a.isInterModules():
