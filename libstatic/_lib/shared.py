@@ -54,6 +54,12 @@ def unparse(node:ast.AST) -> str:
     except Exception:
         return '??'
 
+LeafTypeStmt = (ast.Assign, ast.AugAssign, ast.AnnAssign, ast.Expr, 
+                ast.Return, ast.Raise, ast.Assert, 
+                ast.Pass, ast.Break, ast.Continue, ast.Delete,
+                ast.Global, ast.Nonlocal,
+                ast.Import, ast.ImportFrom)
+
 class StmtVisitor(ast.NodeVisitor):
     """
     Does not recurse on leaf type statements' content by default.

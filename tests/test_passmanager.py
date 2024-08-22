@@ -535,7 +535,7 @@ class TestPassManagerFramework(TestCase):
         """
         # Quicksort Python One-liner
         src = 'v=True; qsort = lambda L: [] if L==[] else qsort([x for x in L[1:] if x< L[0]]) + L[0:1] + qsort([x for x in L[1:] if x>=L[0]])'
-        src = '\n'.join(src for _ in range(10))
+        src = '\n'.join(src for _ in range(80))
         
         with catchtime('parse') as stimer:
             modules = [Module(ast.parse(f'v = {i}; {src}'), f'test_{i}') for i in range(20)]

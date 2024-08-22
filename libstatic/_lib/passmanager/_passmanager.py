@@ -556,7 +556,7 @@ class Analysis(Pass[RunsOnT, ReturnsT]):
         
         This can be used to avoid calling repetitively C{self.passmanager.gather(analysis, ...)}.
 
-        Proxy analysis are never cached, so they dont; need to be accounted for in  L{Transformation.prservesAnalysis}.
+        Proxy analysis are never cached, so they don't need to be accounted for in  L{Transformation.prservesAnalysis}.
         """
         return _AnalysisProxy.bind(analysis=cls)
     
@@ -889,7 +889,7 @@ class _RestrictedPassManager:
 
             def gather(a: type[Pass], node: AnyNode) -> Any:
                 if a.isInterModules():
-                    raise TypeError(f'{modules.__qualname__} must be in your pass dependencies to run this pass: {t}')  
+                    raise TypeError(f'{modules.__qualname__} must be in your pass dependencies to run this pass: {a}')  
                 return pm.gather(a, node)        
             
             def apply(t: type[Pass], node: AnyNode):
@@ -931,61 +931,6 @@ class _RestrictedPassManager:
     _getModules = lambda self,p: self.__pm._getModules(p)
     
 
-def _onModuleAddedOrRemovedEvent(self: PassManager, event: ModuleRemovedEvent | ModuleAddedEvent):
-    """
-    Clear the analysis cache of all inter-modules analyses. 
-    # TODO: This could use some fine tuning to mark the results as preserved.
-    """
-    for a in self.cache.analyses():
-        if a.isInterModules():
-            self.dispatcher.dispatchEvent(
-                ClearAnalysisEvent(a, event.mod.node)
-            )
-
-
-def _onModuleTransformedEvent(self: PassManager, event: ModuleTransformedEvent):
-    """
-    Alert that the given module has been transformed, this is automatically called
-    at the end of a transformation if it updated the module.
-    """
-    transformation = event.transformation
-    mod: Module = event.mod
-    # the transformation updated the AST, so analyses may need to be rerun
-    # Instead of clearing the entire cache, only invalidate analysis that are affected
-    # by the transformation.
-    invalidated_analyses: set[type[Analysis]] = ordered_set()
-    for m, analysis in self.cache.modulesAnalyses():
-        if (
-            # if the analysis is explicitely presedved by this transform,
-            # do not invalidate.
-            (analysis not in transformation.preservesAnalyses)
-            and (
-                # if it's not explicately preserved and the transform affects the module
-                # invalidate.             or if the analysis requires other modules
-                (m.node is mod.node) or (analysis.isInterModules())
-            )
-        ):
-            invalidated_analyses.add(analysis)
-
-    for analys in invalidated_analyses:
-        # alert that this analysis has been invalidated
-        self.dispatcher.dispatchEvent(
-            ClearAnalysisEvent(analys, mod.node)
-        )
-
-
-def _onClearAnalysisEvent(pm: PassManager, event: ClearAnalysisEvent):
-    """
-    Clear the cache from this analysis.
-    """
-    analysis = event.analysis
-    node: ModuleNode = event.node
-
-    if analysis.isInterModules():
-        pm.cache.clear(analysis, None)
-    else:
-        pm.cache.clear(analysis, node)
-
 
 def _initAstSupport(pm: PassManager):
     """Supports the standard library by defaut"""
@@ -1013,10 +958,6 @@ class PassManager:
         self.cache = AnalyisCacheProxy(self.modules, d)
         self._ctx = PassContext(self.modules)
 
-        self.dispatcher.addEventListener(ClearAnalysisEvent, partial(_onClearAnalysisEvent, self))
-        self.dispatcher.addEventListener(ModuleTransformedEvent, partial(_onModuleTransformedEvent, self))
-        self.dispatcher.addEventListener(ModuleAddedEvent, partial(_onModuleAddedOrRemovedEvent, self))
-        self.dispatcher.addEventListener(ModuleRemovedEvent, partial(_onModuleAddedOrRemovedEvent, self))
 
     def add_module(self, mod: Module) -> None:
         """
@@ -1077,7 +1018,7 @@ class PassManager:
         return self.modules
 
     def _getAncestors(self, analysis: ancestors) -> SupportsGetItem[AnyNode, list[AnyNode]]:
-        # access modules from within a pass context.
+        # access ancestors from within a pass context.
         if not isinstance(analysis, ancestors): raise RuntimeError()
         return self.modules.ancestors
 
@@ -1102,7 +1043,7 @@ class PassManager:
     #     @param pmFactory: A zero argument callable that returns an isntance of L{PassManager}.
     #         Can be used to customize the library support for instance.
     #     """
-    # In partice this apprach runsten time slower :/
+    # In partice this approach runtime is slower :/
    
 
 

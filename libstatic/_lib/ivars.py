@@ -56,7 +56,7 @@ class IVarsVisitor(LocalStmtVisitor):
             except StopIteration:
                 continue
             else:
-                self.ivars.setdefault(attr.node.attr, []).append(attr) # type: ignore[attr]
+                self.ivars.setdefault(attr.node.attr, []).append(attr) # type: ignore
 
     visit_AsyncFunctionDef = visit_FunctionDef
 
