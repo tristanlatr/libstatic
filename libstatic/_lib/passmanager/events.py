@@ -99,23 +99,6 @@ class ModuleTransformedEvent(Event):
 
 
 @dataclasses.dataclass(frozen=True)
-class ClearAnalysisEvent(Event):
-    """
-    When an analysis is invalidated.
-    """
-
-    analysis: type[Analysis]
-    """
-    The analysis type invalidated. 
-    """
-    
-    node: Any
-    """
-    Old the module node transformed (or added/removed).
-    """
-
-
-@dataclasses.dataclass(frozen=True)
 class ModuleAddedEvent(Event):
     """
     When a module is added to the passmanager.
@@ -214,7 +197,7 @@ class AnalysisEnded(Event):
 @dataclasses.dataclass(frozen=True)
 class SupportLibraryEvent(Event):
     """
-    When a library is supported.
+    When an ast library is supported.
     """
 
     lib: ISupport

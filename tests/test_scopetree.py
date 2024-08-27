@@ -1,13 +1,16 @@
 
-
+import sys
 import ast
 from textwrap import dedent
 from unittest import TestCase
+import pytest
 
-from libstatic._lib.scopetree import Builder, GlobalScope, ClassScope, FunctionScope
 
 class TestScopeTree(TestCase):
+    @pytest.mark.skipif(sys.version_info < (3, 10), reason='uses match-case syntax')
     def test_scopes(self, ):
+        from libstatic._lib.scopetree import GlobalScope, ClassScope, FunctionScope
+
         # Set up a sample program
         # class C:
         #   def foo(self, a = blah):
@@ -39,7 +42,10 @@ class TestScopeTree(TestCase):
         assert foo.lookup("x") is globals
         assert c.lookup("x") is None
     
+    @pytest.mark.skipif(sys.version_info < (3, 10), reason='uses match-case syntax')
     def test_builder(self, ):
+        from libstatic._lib.scopetree import Builder
+
         src = '''
         class C:
           def foo(self, a = blah):

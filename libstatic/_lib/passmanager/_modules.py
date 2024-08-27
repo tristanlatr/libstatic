@@ -4,11 +4,9 @@ from __future__ import annotations
 
 from typing import (
     Any,
-    Iterable,
     Iterator,
     Mapping,
     TYPE_CHECKING,
-    MutableMapping,
     Protocol
 )
 
@@ -89,10 +87,10 @@ class Module:
     """
 
 def _getAncestors(astcompat: ASTCompat):
+    # This is not considered as an analysis because it's a core part of the library
+    # and must be maintained before the analysis cache.
     class ancestors(ast.NodeVisitor):
-        '''
-        Associate each node with the list of its ancestors in the result attribute.
-        '''
+        # See typing declaration for docs.
 
         current: tuple[AnyNode, ...] | tuple[()]
 
@@ -113,16 +111,25 @@ def _getAncestors(astcompat: ASTCompat):
 
 if TYPE_CHECKING:
     class ancestors:
-        result: MutableMapping[AnyNode, list[AnyNode]]
+        """
+        Associate each node with the list of its ancestors in the result attribute.
+        """
+        result: Mapping[AnyNode, list[AnyNode]]
+        """
+        For each visited node, stores it's list of ancestors in this mapping.
+        """
         current: tuple[AnyNode, ...]
+        """
+        The current list of ancestors of the next node to visit.
+        """
         def visit(self, node):...
 
-@dataclasses.dataclass(frozen=True, slots=True)
+@dataclasses.dataclass(frozen=True)
 class _Removal:
     "when a node is removed"
     node: AnyNode
 
-@dataclasses.dataclass(frozen=True, slots=True)
+@dataclasses.dataclass(frozen=True)
 class _Addition:
     "when a node is added"
     node: AnyNode
@@ -136,7 +143,7 @@ class AncestorsMap(SupportsGetItem[AnyNode, list[AnyNode]]):
 
     Part of L{ModuleCollection}. 
     """
-    def __init__(self, dispatcher: EventDispatcher, ast: ASTCompat) -> None:
+    def __init__(self, dispatcher: EventDispatcher, astcompat: ASTCompat) -> None:
         super().__init__()
         # register the event listeners
         dispatcher.addEventListener(ModuleAddedEvent, self._onModuleAddedEvent)
@@ -147,10 +154,14 @@ class AncestorsMap(SupportsGetItem[AnyNode, list[AnyNode]]):
         self.__data: WeakKeyDictionary[AnyNode, list[AnyNode]] = WeakKeyDictionary()
         self.__removed: WeakSet[ModuleNode] = WeakSet()
 
-        self._ast = ast
-        self._ancestorsType = _getAncestors(ast)
+        self._astcompat = astcompat
+        self._ancestorsType = _getAncestors(astcompat)
     
     def _ancestorsWithContext(self, ancestor: AnyNode) -> ancestors:
+        """
+        Create a ancestors gatherer with a pre-set context coming from the given node.
+        Should only be used to gather the ancestors of the direct children of the given node.
+        """
         current = self.__data[ancestor]
         ans = self._ancestorsType()
         ans.current = tuple(current)
@@ -170,7 +181,7 @@ class AncestorsMap(SupportsGetItem[AnyNode, list[AnyNode]]):
     def _onModuleRemovedEvent(
         self, event: ModuleRemovedEvent | ModuleTransformedEvent
     ) -> None:
-        # Since we use weakrefs we dont have to delete the ourselves.
+        # Since we use weakrefs we dont have to delete it ourselves.
         # Instead we mark the module as removed, and that's it... 
         node = event.mod.node
         self.__removed.add(node)
@@ -188,7 +199,7 @@ class AncestorsMap(SupportsGetItem[AnyNode, list[AnyNode]]):
                     ans.visit(u.node)
 
                 elif isinstance(u, _Removal):
-                    for n in self._ast.walk(u.node):
+                    for n in self._astcompat.walk(u.node):
                         if n in self.__data:
                             del self.__data[n]
                 else:
@@ -198,7 +209,7 @@ class AncestorsMap(SupportsGetItem[AnyNode, list[AnyNode]]):
             self._onModuleRemovedEvent(event)
             self._onModuleAddedEvent(event)
 
-    def _hasBeenRemoved(self, node) -> bool:
+    def _hasBeenRemoved(self, node: object) -> bool:
         return node in self.__removed or bool((
             ans := self.__data[node] # if that raises, the node is not in the system :/
             ) and ans[0] in self.__removed)
@@ -214,7 +225,7 @@ class AncestorsMap(SupportsGetItem[AnyNode, list[AnyNode]]):
             raise KeyError(__key) # module has been removed
         return self.__data[__key]
 
-    def get(self, key, default=None):
+    def get(self, key: AnyNode, default=None):
         'D.get(k[,d]) -> D[k] if k in D, else d.  d defaults to None.'
         try:
             return self[key]
@@ -234,7 +245,7 @@ class AncestorsMap(SupportsGetItem[AnyNode, list[AnyNode]]):
         raise NotImplementedError('this "mapping" is not sized')
 
 
-class ModuleCollection(Mapping[str | ModuleNode | AnyNode, Module]):
+class ModuleCollection(Mapping['str | ModuleNode | AnyNode', Module]):
     """
     A smart mapping to contain the pass manager modules.
 

@@ -5,13 +5,13 @@ from __future__ import annotations
 
 from typing import Mapping, TYPE_CHECKING
 
+import sys
 import ast
 
 from libstatic._lib.imports import ParseImportedNames, ImportInfo
 from libstatic._lib.ivars import _compute_ivars
 from libstatic._lib import exceptions
 from libstatic._lib.passmanager import (Module, NodeAnalysis, ClassAnalysis, ModuleAnalysis)
-from libstatic._lib.scopetree import Builder as ScopeTreeBuilder, Scope
 from libstatic._lib import passmanager
 
 from beniget.standard import DefUseChains, UseDefChains # type: ignore
@@ -21,7 +21,7 @@ import beniget # type: ignore
 ancestors = passmanager.ancestors
 modules = passmanager.modules
 
-class expand_expr(NodeAnalysis[str|None]):
+class expand_expr(NodeAnalysis['str | None']):
     ...
 
 class node_ancestor(NodeAnalysis[ast.AST]):
@@ -58,7 +58,7 @@ class node_ancestor(NodeAnalysis[ast.AST]):
                 return n  # type: ignore
         raise exceptions.StaticValueError(node, f"node has no parent of type {self.klass}")
 
-class node_enclosing_scope(NodeAnalysis[ast.AST|None]):
+class node_enclosing_scope(NodeAnalysis['ast.AST | None']):
     """
     Get the first enclosing scope of this use or definition.
     Returns None only of the definition is a Module.
@@ -89,34 +89,36 @@ class node_enclosing_scope(NodeAnalysis[ast.AST|None]):
             return None
         return self.node_ancestor
 
-class scope_tree(ModuleAnalysis[dict[ast.AST, Scope]]):
-    """
-    Collect scope information as well as which scope uses which name. 
+if sys.version_info >= (3, 10):
+    from libstatic._lib.scopetree import Builder as ScopeTreeBuilder, Scope
+    class scope_tree(ModuleAnalysis[dict[ast.AST, Scope]]):
+        """
+        Collect scope information as well as which scope uses which name. 
 
-    >>> src = '''
-    ... class C:
-    ...     def foo(self, a = blah):
-    ...         global x
-    ...         x = a
-    ... '''
-    >>> mod = ast.parse(src)
-    >>> pm = passmanager.PassManager()
-    >>> pm.add_module(passmanager.Module(mod, 'test'))
-    >>> scopes = pm.gather(scope_tree, mod)
-    >>> from .. import scopetree
-    >>> print(scopetree.dump(scopes.values()))
-    GlobalScope('<globals>'): L=['C']; U={}
-      ClassScope('C'): L=['foo']; U={'blah': None}
-        FunctionScope('foo'): L=['a', 'self']; G=['x']; U={'a': FunctionScope('foo')}
-    <BLANKLINE>
+        >>> src = '''
+        ... class C:
+        ...     def foo(self, a = blah):
+        ...         global x
+        ...         x = a
+        ... '''
+        >>> mod = ast.parse(src)
+        >>> pm = passmanager.PassManager()
+        >>> pm.add_module(passmanager.Module(mod, 'test'))
+        >>> scopes = pm.gather(scope_tree, mod)
+        >>> from .. import scopetree
+        >>> print(scopetree.dump(scopes.values()))
+        GlobalScope('<globals>'): L=['C']; U={}
+        ClassScope('C'): L=['foo']; U={'blah': None}
+            FunctionScope('foo'): L=['a', 'self']; G=['x']; U={'a': FunctionScope('foo')}
+        <BLANKLINE>
 
-    """
-    def doPass(self, node: ast.Module) -> dict[ast.AST, Scope]:
-        builder = ScopeTreeBuilder()
-        builder.build(node)
-        return builder.scopes
+        """
+        def doPass(self, node: ast.Module) -> dict[ast.AST, Scope]:
+            builder = ScopeTreeBuilder()
+            builder.build(node)
+            return builder.scopes
 
-class node_qualname(NodeAnalysis[str|None]):
+class node_qualname(NodeAnalysis['str | None']):
     """
     Get the qualified name of the definition. If the node is not
     the definition of a name it will raise an error.
@@ -232,7 +234,7 @@ class ivars_map(passmanager.ClassAnalysis):
     def doPass(self, node: ast.ClassDef) -> dict[str, list[beniget.Def]]:
         return _compute_ivars(self.def_use_chains, node)
 
-class get_submodule(ModuleAnalysis[Module | None]):
+class get_submodule(ModuleAnalysis['Module | None']):
     """
     >>> pm = passmanager.PassManager()
     >>> pm.add_module(passmanager.Module(ast.parse('pass'), 'test', is_package=True))

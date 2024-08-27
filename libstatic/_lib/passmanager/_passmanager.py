@@ -74,12 +74,12 @@ if TYPE_CHECKING:
 
 from beniget.ordered_set import ordered_set # type: ignore
 
-from .events import (EventDispatcher, ClearAnalysisEvent, ModuleAddedEvent, 
+from .events import (EventDispatcher, ModuleAddedEvent, 
                      ModuleTransformedEvent, ModuleRemovedEvent, AnalysisEnded, 
                      RunningAnalysis, SupportLibraryEvent, TransformEnded, RunningTransform)
 from ._modules import Module, ModuleCollection, _Addition, _Removal, SupportsGetItem
 from ._astcompat import ASTCompat, ISupport
-from ._caching import AnalyisCacheProxy, AnalysisResult
+from ._caching import CacheProxy, AnalysisResult
 
 
 __docformat__ = 'epytext'
@@ -129,6 +129,7 @@ class _PassMeta(type):
 
     # TODO: required parameter should be supported as positional arguments.
     # but we need to handle when there are several values for one argument.
+    # TODO: Remove the implicit subclassing with __call__ and only support bind().
     @overload
     def __call__(cls: type[Pass]) -> Pass:... # type: ignore
     @overload
@@ -155,10 +156,6 @@ class _PassMeta(type):
         return f'<class {passname!r}>'
     
     __repr__ = __str__
-    # __reduce__ = lambda
-    # def __reduce__(cls): 
-    #     # Avoids pickle related errors
-    #     return (__class__, (), cls.__dict__)
             
 
 class _PassDependencyDescriptor:
@@ -242,7 +239,7 @@ class IPassManager(Protocol):
     @property
     def dispatcher(self) -> EventDispatcher:...
     @property
-    def cache(self) -> AnalyisCacheProxy:...
+    def cache(self) -> CacheProxy:...
     
     # Private API
     def _getAncestors(self, analysis: ancestors) -> SupportsGetItem[AnyNode, list[AnyNode]]:...
@@ -337,17 +334,20 @@ class Pass(Generic[RunsOnT, ReturnsT], metaclass=_PassMeta):
     """
     Statically declared dependencies: If your pass requires a previous pass list it here. 
     All L{Transformation}s will be applied eagerly while L{Analysis} result will be wrapped in a descriptor
-    waiting to be accessed before running. 
+    waiting to be accessed before running. Must be set at class level. 
+    If you require dynamic dependencies, see L{prepareClass}.
     """
 
     requiredParameters: tuple[str] | tuple[()] = ()
     """
     Some passes looks for specific name that needs to be provided as arguments. 
+    Must be statically declared at class level. 
     """
 
     optionalParameters: dict[str, Hashable] = {}
     """
     Other optional arguments to their default values.
+    Must be statically declared at class level. 
     """
 
     update = False
@@ -423,6 +423,7 @@ class Pass(Generic[RunsOnT, ReturnsT], metaclass=_PassMeta):
         """
         Whether this pass must have knowledge of the other modules in the system.
         """
+        # Harmoniozed cost is O(1)
         return modules in cls._getAllDependencies()
 
     def __getattribute__(self, name):
@@ -459,7 +460,7 @@ class Pass(Generic[RunsOnT, ReturnsT], metaclass=_PassMeta):
                 # If the dependency is abstract (i.e it does not have a required parameter)
                 # the dependent analyses should not use the self.analysis_name attribute - 
                 # it's going to fail with TypeError :/
-                # And instead use self.gather(analysis_name(keyword='stuff'), node)
+                # And instead use self.gather(analysis_name.bind(keyword='stuff'), node)
                 callback = partial(
                     self.passmanager.gather, analysis, gather_on_node
                 )  # type:ignore
@@ -509,7 +510,16 @@ class Analysis(Pass[RunsOnT, ReturnsT]):
 
     doNotCache = False
     """
-    This indicates the pass manager that this analysis should never be cached. 
+    Whether the result of this analysis should never be cached.
+    This can be set at class level only.
+    """
+
+    isComplete = False
+    """
+    Whether the result of the analysis is completely full. Only applicable to inter-modules analyses (intra-modules analyses are assumed to alwasy be complete).
+    Meaning it will be kept in cache when a new module is added to the system. 
+    This is an optimization you don't want to forget about when writting an inter-module analysis.
+    This should be set at instance level. Typically an import graph is never complete, but type inference can be complete.
     """
 
     def run(self, node: RunsOnT) -> ReturnsT:
@@ -529,13 +539,15 @@ class Analysis(Pass[RunsOnT, ReturnsT]):
                 except Exception as e:
                     analysis_result = AnalysisResult.Error(e)
                     if not typ.doNotCache:
-                        self.passmanager.cache.set(typ, node, analysis_result)
+                        self.passmanager.cache.set(typ, node, analysis_result, 
+                                                   isComplete=self.isComplete)
                     raise
                 analysis_result = AnalysisResult.Success(result)
                 if not typ.doNotCache:
                     # only set values in the cache for non-proxy analyses.
                     self.passmanager.cache.set(
-                        typ, node, analysis_result
+                        typ, node, analysis_result, 
+                        isComplete=self.isComplete
                     )
         finally:
             assert analysis_result is not None
@@ -556,28 +568,22 @@ class Analysis(Pass[RunsOnT, ReturnsT]):
         
         This can be used to avoid calling repetitively C{self.passmanager.gather(analysis, ...)}.
 
-        Proxy analysis are never cached, so they don't need to be accounted for in  L{Transformation.prservesAnalysis}.
+        Proxy analysis are never cached, so they don't need to be accounted for in  L{Transformation.preservesAnalyses}.
         """
         return _AnalysisProxy.bind(analysis=cls)
     
     @classmethod
-    def fromNodeVisitor(cls, visitor: type) -> type[NodeAnalysis]:
+    def fromNodeVisitor(cls, visitor: type[_ICompatibleNodeVisitor]) -> type[NodeAnalysis]:
         return _AnalysisAdaptor.bind(visitor=visitor)
 
     @classmethod
-    def fromCallable1(cls, cb: Callable[[AnyNode], object]) -> type[NodeAnalysis]:
+    def fromCallable(cls, cb: Callable[[AnyNode], object]) -> type[NodeAnalysis]:
         raise NotImplementedError()
     
-    @classmethod
-    def fromCallable2(cls, cb: Callable[[PassManager, AnyNode], object], 
-                     isInterModules: bool = False) -> type[NodeAnalysis]:
-        raise NotImplementedError()
-
-    @classmethod
     def like(cls, **kwargs: Callable[[object], bool]) -> LikeAnalysisPattern:
         """
         Create a pattern representing several possible derivations of the analysis to be matched against a concrete analysis. 
-        Designed to be used when declaring L{Transformation.prservesAnalysis}.
+        Designed to be used when declaring L{Transformation.preservesAnalyses}.
 
         When creating a "like" pattern, all optional parameters must be given. 
         Required parameters, onther other hand, don't need to be specified and will match any value unless 
@@ -690,6 +696,7 @@ class Transformation(Pass[ModuleNode, ModuleNode]):
     well as all other analyses that transitively uses the L{modules} analisys.
 
     This variable should be overridden by subclasses to provide specific list.
+    Can be set at class and/or instance level. 
     """
 
     
@@ -738,7 +745,7 @@ class Transformation(Pass[ModuleNode, ModuleNode]):
         @param node: The replaces node
         """
         parent = self.ancestors[oldNode][-1] # node not in the system :/ 
-        # this line could raise KeyError ir IndexError but
+        # this line could raise KeyError or IndexError but
         # it's not caught for performance reasons
 
         self.update = True
@@ -923,13 +930,14 @@ class _RestrictedPassManager:
     apply = lambda self,t,n: self.__pm.apply(t,n)
     add_module = lambda self,m: self.__pm.add_module(m)
     remove_module = lambda self,m: self.__pm.remove_module(m)
-    cache: AnalyisCacheProxy = property(lambda self: self.__pm.cache) # type: ignore
+    cache: CacheProxy = property(lambda self: self.__pm.cache) # type: ignore
     dispatcher: EventDispatcher = property(lambda self: self.__pm.dispatcher) # type: ignore
     
     # Private API
     _getAncestors = lambda self,p: self.__pm._getAncestors(p)
     _getModules = lambda self,p: self.__pm._getModules(p)
     
+    #TODO: lambda functions are great for simplicity, but not for clarty, documentation and typing...
 
 
 def _initAstSupport(pm: PassManager):
@@ -947,15 +955,15 @@ class PassManager:
     def __init__(self) -> None:
         
         self.dispatcher = d = EventDispatcher()
-        self._ast = _ast = ASTCompat(d)
+        self._astcompat = astcompat = ASTCompat(d)
         _initAstSupport(self)
 
-        self.modules = ModuleCollection(d, _ast)
+        self.modules = ModuleCollection(d, astcompat)
         """
         Contains all the modules in the system.
         """
 
-        self.cache = AnalyisCacheProxy(self.modules, d)
+        self.cache = CacheProxy(self.modules, d)
         self._ctx = PassContext(self.modules)
 
 
@@ -1022,30 +1030,13 @@ class PassManager:
         if not isinstance(analysis, ancestors): raise RuntimeError()
         return self.modules.ancestors
 
-    def _merge(self, other: PassManager) -> None:
-        """
-        Merge the given pass manager into this one.
-        """
-        self.cache._merge(other.cache)
-        self.modules._merge(other.modules)
-
-    # @classmethod
-    # def fromParallelPasses(cls, 
-    #                        modules: Iterable[Module], 
-    #                        passes: Collection[type[Pass]], 
-    #                        pmFactory: Callable[[], PassManager]=None) -> PassManager:
+    # def _merge(self, other: PassManager) -> None:
     #     """
-    #     Run passes in parallel on the givem modules using L{multiprocessing}. 
-    #     Number of processes will match the CPU's cores.
-
-    #     @param modules: The target modules.
-    #     @param passes: The passes to run.
-    #     @param pmFactory: A zero argument callable that returns an isntance of L{PassManager}.
-    #         Can be used to customize the library support for instance.
+    #     Merge the given pass manager into this one.
     #     """
-    # In partice this approach runtime is slower :/
+    #     self.cache._merge(other.cache)
+    #     self.modules._merge(other.modules)
    
-
 
 class Statistics:
     def __init__(self, dispatcher: EventDispatcher) -> None:

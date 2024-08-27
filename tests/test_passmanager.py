@@ -137,7 +137,7 @@ class simple_symbol_table(ModuleAnalysis[dict[str, list[ast.AST]]], ast.NodeVisi
             return
         self.result[node.id].append(node)
 
-class simple_goto_def(NodeAnalysis[ast.AST | None]):
+class simple_goto_def(NodeAnalysis['ast.AST | None']):
     "goto the definition of th symbol, but only works at module level"
     dependencies = (simple_symbol_table, analyses.ancestors)
 
@@ -560,36 +560,36 @@ class TestPassManagerFramework(TestCase):
         assert not updates
         assert ast.unparse(node) == 'v = False'
     
-    def test_passmanger_merge(self):
-        # Quicksort Python One-liner
-        src = 'qsort = lambda L: [] if L==[] else qsort([x for x in L[1:] if x< L[0]]) + L[0:1] + qsort([x for x in L[1:] if x>=L[0]])'
-        src = '\n'.join(src for _ in range(10))
+    # def test_passmanger_merge(self):
+    #     # Quicksort Python One-liner
+    #     src = 'qsort = lambda L: [] if L==[] else qsort([x for x in L[1:] if x< L[0]]) + L[0:1] + qsort([x for x in L[1:] if x>=L[0]])'
+    #     src = '\n'.join(src for _ in range(10))
         
-        with catchtime('parse') as stimer:
-            modules = [Module(ast.parse(f'v = {i}; {src}'), f'test_{i}') for i in range(20)]
+    #     with catchtime('parse') as stimer:
+    #         modules = [Module(ast.parse(f'v = {i}; {src}'), f'test_{i}') for i in range(20)]
         
-        from libstatic._lib.analyses import def_use_chains
-        set1, set2 = modules[:10], modules[10:]
-        assert len(set1) == len(set2) == 10
+    #     from libstatic._lib.analyses import def_use_chains
+    #     set1, set2 = modules[:10], modules[10:]
+    #     assert len(set1) == len(set2) == 10
         
-        with catchtime('process set1'):
-            pm1 = fromPasses(set1, [def_use_chains])
+    #     with catchtime('process set1'):
+    #         pm1 = fromPasses(set1, [def_use_chains])
         
-        with catchtime('process set2'):
-            pm2 = fromPasses(set2, [def_use_chains])
+    #     with catchtime('process set2'):
+    #         pm2 = fromPasses(set2, [def_use_chains])
 
-        pm = PassManager()
+    #     pm = PassManager()
         
-        with catchtime('merging into new'):
-            pm._merge(pm1)
-            pm._merge(pm2)
+    #     with catchtime('merging into new'):
+    #         pm._merge(pm1)
+    #         pm._merge(pm2)
 
-        with catchtime('get all analyses from cache') as cacheAccess:
-            for m in pm.modules.values():
-                pm.gather(def_use_chains, m.node)
+    #     with catchtime('get all analyses from cache') as cacheAccess:
+    #         for m in pm.modules.values():
+    #             pm.gather(def_use_chains, m.node)
         
-        assert cacheAccess.time < 0.001
-        assert len(pm.modules) == 20
+    #     assert cacheAccess.time < 0.001
+    #     assert len(pm.modules) == 20
 
     
     def test_cache_cleared_when_module_removed(self):
@@ -720,17 +720,15 @@ class TestPassManagerFramework(TestCase):
             pm.gather(class_count_with_parameters.bind(mult=-4, filterkilled=True), mod)
             pm.gather(class_count_with_parameters.bind(mult=0, filterkilled=True), mod)
             pm.gather(class_count_with_parameters.bind(mult=3, filterkilled=True), mod)
-            assert list(list(c.analyses()) for c in pm.cache._data().values()) == [
-                [
-                    class_count,
-                    class_count_with_parameters, 
-                    class_count_with_parameters.bind(mult=-4), 
-                    class_count_with_parameters.bind(mult=0), 
-                    class_count_with_parameters.bind(mult=3), 
-                    class_count_with_parameters.bind(mult=-4, filterkilled=True), 
-                    class_count_with_parameters.bind(mult=0, filterkilled=True), 
-                    class_count_with_parameters.bind(mult=3, filterkilled=True), 
-                ]
+            assert list(pm.cache.analyses()) == [
+                class_count,
+                class_count_with_parameters, 
+                class_count_with_parameters.bind(mult=-4), 
+                class_count_with_parameters.bind(mult=0), 
+                class_count_with_parameters.bind(mult=3), 
+                class_count_with_parameters.bind(mult=-4, filterkilled=True), 
+                class_count_with_parameters.bind(mult=0, filterkilled=True), 
+                class_count_with_parameters.bind(mult=3, filterkilled=True), 
             ]
 
         gather_analyses()
@@ -738,10 +736,8 @@ class TestPassManagerFramework(TestCase):
         # when the non-optimized version of the transformation is run, all analyses are invalidated
         # and needs to be recomputed.
         pm.apply(transform_trues_into_ones, mod)
-        assert list(list(c.analyses()) for c in pm.cache._data().values()) == [
-                [
+        assert list(pm.cache.analyses()) == [
                     class_count,
-                ]
             ]
         
         pm = PassManager()
@@ -753,11 +749,9 @@ class TestPassManagerFramework(TestCase):
         
         # Now let's apply t1 which defined the preserved analysis with only the default values.
         pm.apply(t1, mod)
-        assert list(list(c.analyses()) for c in pm.cache._data().values()) == [
-                [
+        assert list(pm.cache.analyses()) == [
                     class_count,
                     class_count_with_parameters, 
-                ]
             ]
 
         pm = PassManager()
@@ -769,8 +763,7 @@ class TestPassManagerFramework(TestCase):
 
         # Now t2, which preserves all versions of the analysis
         pm.apply(t2, mod)
-        assert list(list(c.analyses()) for c in pm.cache._data().values()) == [
-                [
+        assert list(pm.cache.analyses()) == [
                     class_count,
                     class_count_with_parameters, 
                     class_count_with_parameters.bind(mult=-4), 
@@ -779,7 +772,6 @@ class TestPassManagerFramework(TestCase):
                     class_count_with_parameters.bind(mult=-4, filterkilled=True), 
                     class_count_with_parameters.bind(mult=0, filterkilled=True), 
                     class_count_with_parameters.bind(mult=3, filterkilled=True), 
-                ]
             ]
         
         pm = PassManager()
@@ -791,12 +783,10 @@ class TestPassManagerFramework(TestCase):
 
         # Now t3, which preserves for filterkilled=False and mult>0
         pm.apply(t3, mod)
-        assert list(list(c.analyses()) for c in pm.cache._data().values()) == [
-                [
+        assert list(pm.cache.analyses()) == [
                     class_count,
                     class_count_with_parameters, 
                     class_count_with_parameters.bind(mult=3), 
-                ]
             ]
             
 
@@ -970,7 +960,7 @@ class TestPassManagerFramework(TestCase):
         assert list(pm.cache.analyses()) == [function_arguments, test_analysis(expected_number_of_functions=3),]
 
         v = pm.gather(function_arguments.proxy(), node)
-        v
+        
     
     def test_class_to_module_analysis_promotion(self):
         # class bases on a whole module

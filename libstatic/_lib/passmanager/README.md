@@ -230,7 +230,6 @@ used by client code, some are used by default. To add a custom event listener, u
 ```
 Event
 ├─ ModuleTransformedEvent
-├─ ClearAnalysisEvent
 ├─ ModuleAddedEvent
 ├─ ModuleRemovedEvent
 ├─ RunningTransform
