@@ -580,6 +580,7 @@ class Analysis(Pass[RunsOnT, ReturnsT]):
     def fromCallable(cls, cb: Callable[[AnyNode], object]) -> type[NodeAnalysis]:
         raise NotImplementedError()
     
+    @classmethod
     def like(cls, **kwargs: Callable[[object], bool]) -> LikeAnalysisPattern:
         """
         Create a pattern representing several possible derivations of the analysis to be matched against a concrete analysis. 
