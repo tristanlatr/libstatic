@@ -108,7 +108,7 @@ if sys.version_info >= (3, 10):
         >>> from .. import scopetree
         >>> print(scopetree.dump(scopes.values()))
         GlobalScope('<globals>'): L=['C']; U={}
-        ClassScope('C'): L=['foo']; U={'blah': None}
+          ClassScope('C'): L=['foo']; U={'blah': None}
             FunctionScope('foo'): L=['a', 'self']; G=['x']; U={'a': FunctionScope('foo')}
         <BLANKLINE>
 

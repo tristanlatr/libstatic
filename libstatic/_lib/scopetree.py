@@ -24,6 +24,7 @@ import ast
 import contextlib
 import io
 import os
+import sys
 import types
 from typing import Iterable, Iterator
 
