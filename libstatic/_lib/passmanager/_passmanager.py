@@ -701,7 +701,7 @@ class Transformation(Pass[ModuleNode, ModuleNode]):
     """
 
     
-    def __init__(self):
+    def __init__(self) -> None:
         self.update = False
         """
         It should be True if the module was modified by the transformation and False otherwise.
@@ -711,12 +711,12 @@ class Transformation(Pass[ModuleNode, ModuleNode]):
         self._updates: list[_Addition | _Removal] = []
     
     @classmethod
-    def prepareClass(cls):
+    def prepareClass(cls) -> None:
         cls.dependencies += (ancestors, )
         super().prepareClass()
 
         
-    def recAddNode(self, node:AnyNode, ancestor:AnyNode):
+    def recAddNode(self, node:AnyNode, ancestor:AnyNode) -> None:
         """
         Record that a new node has been added to the tree, this should be called 
         everytime a node is added to properly optimize a transformation.  
@@ -728,7 +728,7 @@ class Transformation(Pass[ModuleNode, ModuleNode]):
         self.update = True
         self._updates.append(_Addition(node, ancestor))
         
-    def recRemoveNode(self, node:AnyNode):
+    def recRemoveNode(self, node:AnyNode) -> None:
         """
         Record that a node has been removed from the tree, this should be called 
         everytime a node is removed to properly optimize a transformation.  
@@ -738,7 +738,7 @@ class Transformation(Pass[ModuleNode, ModuleNode]):
         self.update = True
         self._updates.append(_Removal(node))
     
-    def recReplaceNode(self, oldNode: AnyNode, newNode: AnyNode):
+    def recReplaceNode(self, oldNode: AnyNode, newNode: AnyNode) -> None:
         """
         Record that a node has been replaced, this should be called 
         everytime a node is replaced to properly optimize a transformation.  

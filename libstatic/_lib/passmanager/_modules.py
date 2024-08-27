@@ -86,7 +86,7 @@ class Module:
     The source.
     """
 
-def _getAncestors(astcompat: ASTCompat):
+def _getAncestors(astcompat: ASTCompat) -> type[ancestors]:
     # This is not considered as an analysis because it's a core part of the library
     # and must be maintained before the analysis cache.
     class ancestors(ast.NodeVisitor):
@@ -210,6 +210,11 @@ class AncestorsMap(SupportsGetItem[AnyNode, list[AnyNode]]):
             self._onModuleAddedEvent(event)
 
     def _hasBeenRemoved(self, node: object) -> bool:
+        """
+        Since we use weak key mapping, we don't manage the deletion of values ourselve.
+        We trust the weak key mapping to do the job, but if we still have another reference to tthe object
+        we must maintain a set of removed modules.
+        """
         return node in self.__removed or bool((
             ans := self.__data[node] # if that raises, the node is not in the system :/
             ) and ans[0] in self.__removed)

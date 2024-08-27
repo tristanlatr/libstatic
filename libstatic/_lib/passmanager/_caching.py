@@ -9,13 +9,12 @@ import operator
 from typing import Collection, Hashable, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import NoReturn
     from ._passmanager import Analysis
     from ._modules import ModuleCollection, Module, AnyNode
 
 from .events import EventDispatcher, ModuleAddedEvent, ModuleRemovedEvent, ModuleTransformedEvent
 
-from beniget.beniget import ordered_set
+from beniget.beniget import ordered_set # type: ignore
 
 class AnalysisResult:
     """
@@ -125,7 +124,7 @@ class Cache:
             # Ignore empty sets.
             return ordered_set(k for k,v in self.__store[key].items() if v)
     
-    def __init__(self):
+    def __init__(self) -> None:
         self.__store: dict[CacheKey, AnalysisResult] = {}
         self.index = Cache.Index()
 
