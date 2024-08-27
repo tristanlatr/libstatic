@@ -135,7 +135,8 @@ class _ComputeWildcards:
                 # name wildcard imports are binding.
                 new_node = ast.alias(
                     name, asname=None, lineno=alias.lineno, 
-                    col_offset=getattr(alias, 'col_offset', None)) # TODO: should the default value be -1?
+                    # TODO: should the default value be -1?
+                    col_offset=getattr(alias, 'col_offset', None)) #type:ignore 
                 resolved_def = Imp(new_node, islive=True, orgmodule=old_def.orgmodule, orgname=name)
                 
                 # TODO: We should use the modifiers for the following lines:

@@ -94,11 +94,11 @@ def _getAncestors(astcompat: ASTCompat) -> type[ancestors]:
 
         current: tuple[AnyNode, ...] | tuple[()]
 
-        def __init__(self):
+        def __init__(self) -> None:
             self.result: dict[AnyNode, list[AnyNode]] = {}
             self.current = ()
 
-        def generic_visit(self, node):
+        def generic_visit(self, node: AnyNode) -> None:
             self.result[node] = current = self.current
             self.current += node,
             for n in astcompat.iter_child_nodes(node):
@@ -110,7 +110,7 @@ def _getAncestors(astcompat: ASTCompat) -> type[ancestors]:
     return ancestors
 
 if TYPE_CHECKING:
-    class ancestors:
+    class ancestors(Protocol):
         """
         Associate each node with the list of its ancestors in the result attribute.
         """
