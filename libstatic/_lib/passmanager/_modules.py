@@ -86,43 +86,34 @@ class Module:
     The source.
     """
 
-def _getAncestors(astcompat: ASTCompat) -> type[ancestors]:
-    # This is not considered as an analysis because it's a core part of the library
-    # and must be maintained before the analysis cache.
-    class ancestors(ast.NodeVisitor):
-        # See typing declaration for docs.
+# This is not considered as an analysis because it's a core part of the library
+# and must be maintained before the analysis cache.
+class ancestors(ast.NodeVisitor):
+    """
+    Associate each node with the list of its ancestors in the result attribute.
+    """
+    current: tuple[AnyNode, ...] | tuple[()]
 
-        current: tuple[AnyNode, ...] | tuple[()]
-
-        def __init__(self) -> None:
-            self.result: dict[AnyNode, list[AnyNode]] = {}
-            self.current = ()
-
-        def generic_visit(self, node: AnyNode) -> None:
-            self.result[node] = current = self.current
-            self.current += node,
-            for n in astcompat.iter_child_nodes(node):
-                self.generic_visit(n)
-            self.current = current
-
-        visit = generic_visit
-
-    return ancestors
-
-if TYPE_CHECKING:
-    class ancestors(Protocol):
-        """
-        Associate each node with the list of its ancestors in the result attribute.
-        """
-        result: Mapping[AnyNode, list[AnyNode]]
+    def __init__(self, astcompat: ASTCompat) -> None:
+        self.result: dict[AnyNode, list[AnyNode]] = {}
         """
         For each visited node, stores it's list of ancestors in this mapping.
         """
-        current: tuple[AnyNode, ...]
+        self.current = ()
         """
         The current list of ancestors of the next node to visit.
         """
-        def visit(self, node):...
+
+        self.__astcompat = astcompat
+
+    def generic_visit(self, node: AnyNode) -> None:
+        self.result[node] = current = self.current
+        self.current += node,
+        for n in self.__astcompat.iter_child_nodes(node):
+            self.generic_visit(n)
+        self.current = current
+
+    visit = generic_visit
 
 @dataclasses.dataclass(frozen=True)
 class _Removal:
@@ -154,8 +145,7 @@ class AncestorsMap(SupportsGetItem[AnyNode, list[AnyNode]]):
         self.__data: WeakKeyDictionary[AnyNode, list[AnyNode]] = WeakKeyDictionary()
         self.__removed: WeakSet[ModuleNode] = WeakSet()
 
-        self._astcompat = astcompat
-        self._ancestorsType = _getAncestors(astcompat)
+        self.__astcompat = astcompat
     
     def _ancestorsWithContext(self, ancestor: AnyNode) -> ancestors:
         """
@@ -163,7 +153,7 @@ class AncestorsMap(SupportsGetItem[AnyNode, list[AnyNode]]):
         Should only be used to gather the ancestors of the direct children of the given node.
         """
         current = self.__data[ancestor]
-        ans = self._ancestorsType()
+        ans = ancestors(self.__astcompat)
         ans.current = tuple(current)
         return ans
 
@@ -174,7 +164,7 @@ class AncestorsMap(SupportsGetItem[AnyNode, list[AnyNode]]):
             self.__removed.discard(newmod)
         
         # O(Number of nodes in the module), every time, that's probably necessary
-        ans = self._ancestorsType()
+        ans = ancestors(self.__astcompat)
         ans.result = self.__data
         ans.visit(newmod)
 
@@ -199,7 +189,7 @@ class AncestorsMap(SupportsGetItem[AnyNode, list[AnyNode]]):
                     ans.visit(u.node)
 
                 elif isinstance(u, _Removal):
-                    for n in self._astcompat.walk(u.node):
+                    for n in self.__astcompat.walk(u.node):
                         if n in self.__data:
                             del self.__data[n]
                 else:
@@ -258,11 +248,11 @@ class ModuleCollection(Mapping['str | ModuleNode | AnyNode', Module]):
     both by module name or by module ast node (alternatively by any node contained in a known module).
     """
 
-    def __init__(self, dispatcher: EventDispatcher, ast):
+    def __init__(self, dispatcher: EventDispatcher, astcompat: ASTCompat) -> None:
         self.__name2module: dict[str, Module] = {}
         self.__node2module: dict[ModuleNode, Module] = {}
         
-        self.ancestors = AncestorsMap(dispatcher, ast); "The ancestors"
+        self.ancestors = AncestorsMap(dispatcher, astcompat); "The ancestors"
 
         dispatcher.addEventListener(ModuleAddedEvent, self._onModuleAddedEvent)
         dispatcher.addEventListener(ModuleRemovedEvent, self._onModuleRemovedEvent)
