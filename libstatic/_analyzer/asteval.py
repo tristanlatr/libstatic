@@ -3,11 +3,10 @@ from __future__ import annotations
 import ast
 import numbers
 import sys
-import types
+
 from typing import (
     Any,
     Callable,
-    Collection,
     List,
     Mapping,
     Type,
