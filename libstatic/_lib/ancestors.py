@@ -3,7 +3,7 @@ from __future__ import annotations
 import ast
 from typing import Dict, List
 
-
+# TODO: Delete me since the passmanager implicitely computes the ancestors already.
 class Ancestors(ast.NodeVisitor):
     """
     Build the ancestor tree, that associates a node to the list of node visited
