@@ -12,6 +12,7 @@ from beniget.beniget import Def as BenigetDef # type: ignore
 # TODO: This module mixes-up argument paring ans import reolving as part of the def use chains
 # Even if that might have looked as a good idea, it's not and this should be separared in several analyses
 
+# TODO: The beniget converted should not be necessary anymore once beniget supports the standard library.
 from .model import Cls, Func, Var, Imp, Def, Arg, Lamb, Comp, Attr, NameDef
 from .imports import ParseImportedNames, ImportInfo
 from .exceptions import StaticCodeUnsupported

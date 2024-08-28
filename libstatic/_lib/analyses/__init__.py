@@ -1,6 +1,8 @@
 """
 Collection of analyses. 
 """
+# TODO: All of the implementations should go into submodules and then exported here. 
+
 from __future__ import annotations
 
 from typing import Mapping, TYPE_CHECKING

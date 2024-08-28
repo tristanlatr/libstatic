@@ -45,7 +45,7 @@ class ImportParser(ast.NodeVisitor):
             if al.asname:
                 self._result[al] = ImportInfo(orgmodule=al.name)
             else:
-                # here, we're lossng the dependency on "driver" of "import pydoctor.driver" in 'orgmodule',
+                #TODO: here, we're lossng the dependency on "driver" of "import pydoctor.driver" in 'orgmodule',
                 self._result[al] = ImportInfo(orgmodule=al.name.split(".", 1)[0])
             # This seems to be the most resonable place to fix the ast.alias node not having
             # proper line number information on python3.9 and before.
