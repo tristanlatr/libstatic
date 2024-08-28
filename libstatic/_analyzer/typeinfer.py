@@ -912,6 +912,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
         result = self.get_type(node.operand, path)
         if result is not None:
             # result = result.add_ass(Ass.NO_UNARY_OVERLOAD)
+            # TODO: Use typeshed here to get precise type.
             return result
         return None
 
@@ -923,6 +924,7 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
         rt = self.get_type(node.right, path)
         if rt is None:
             return None
+        # TODO: Use typeshed here to get precise type.
         if lt.qualname == rt.qualname == "builtins.int":
             if isinstance(node.op, ast.Div):
                 return self.builtin("float").add_meta(
