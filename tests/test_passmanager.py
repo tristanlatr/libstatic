@@ -969,3 +969,6 @@ class TestPassManagerFramework(TestCase):
     def test_do_not_cache_analysis_honored(self):
         # TODO: It seem that _AnalysisProxy types are still added to the caches
         ...
+    
+    def test_isComplete(self):
+        ...

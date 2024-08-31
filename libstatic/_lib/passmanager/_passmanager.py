@@ -2,7 +2,7 @@
 # Implementation notes: 
 # -> Only true analysis results should be in the cache, proxies do not belong in the cache since they can be re-created on the fly
 # -> There is no such things as a analysis that runs on all modules 
-#       This will be called client objects/façade and we don't care about them here.
+#       This will be left for client for now.
 # -> If an analysis raises an exception during processing, this execption should be saved in the cache so it's re-raised
 #       whenever the same analysis is requested again.
 # -> Name mangling did not work well with dill, so the pattern is to use __{name} instead and NEVER access .__{something}
@@ -16,14 +16,17 @@
 
 # About caching analysis results in files
 # - all modules should have hash keys generated and updated on transformations:
+# Comment determiner si la pass update l'ast: calculer un hash avant et apres.
 #       1/ local hash (module ast + modulename + is_package, ...): that is only valid for intra-module analysis
 #       2/ inter-modules hash: that is a combinaison of the module hash and all it's dependencies'inter-module hashes.
 
-# TODO: Implement isComplete analysis feature that would stay in the cache when a module is added. 
-# TODO: Implment transform added / remove nodes in order to optimize visiting time for root module mapping
-# TODO: Create an adaptors
+# TODO: Refactor everything snake_case()
+# TODO: The rebuilding methods of the ancestors are accessible directly through Transformation
+# instance, maybe we should move this elsewhere in order to give the possibility to build other kind
+# of analysis results rebuilder like the one we'll need for the chains...
+# TODO: Add a fallback analysis class in case the cyclic context are detected.
+# TODO: Add tests for the Pass.ctx 
 # TODO: Integrate with a simple logging framework.
-# TODO: Think of where to use weakrefs. 
 # TODO: Work for having function and classes transformations
 # that will invalidate only the required function analyses.
 # Seulement les transformations de modules peuvent changer l'interface
@@ -32,20 +35,7 @@
 # les aures transformation du même niveau.
 # Exemple: Pas possible d'ajouter des global ou nonlocal keyword depuis
 # une transformation de fonction.
-# Compatibilité avec NodeTransformer + NodeVisitor pour les analyses.
-# Comment determiner si la pass update l'ast: calculer un hash avant et apres.
-# TODO: Implement Analysis.like() + add tests
-# TODO: Add tests for the Pass.ctx 
-# TODO: Think of using multiprocessing to simultaneously run inter-module passes
-# on different modules. For the initial implementation to be possible this feature should
-# only be accessible as a PassManager factory that would eagerly compute a set of given passes
-# on each modules. 
-# instance method version: PassManager.parallelPasses(modules, passes) -> None:...
-# class method version: PassManager.fromParallelPasses(modules, passes) -> PassManager:...
-# The instance method version of the feature would require to re-compute all ancestors of the modules affected by the pass
-# The implementation would rely on a new method: PassManager._merge(self, other) that would merge two pm together
-# The dispatcher, the cache and the modules also needs a special method to merge them together.
-
+# Ceci améliorera grandement l'éfficacité du pass manager.
 
 # Ressources:
 # LLVM PassManager documentation: https://llvm.org/doxygen/classllvm_1_1PassManager.html
@@ -211,7 +201,7 @@ class PassContext:
 
 
 # these object does not exist at runtime it only helps
-# for th typing.
+# for typing.
 
 
 class _ICompatibleNodeVisitor(Protocol):
@@ -423,7 +413,7 @@ class Pass(Generic[RunsOnT, ReturnsT], metaclass=_PassMeta):
         """
         Whether this pass must have knowledge of the other modules in the system.
         """
-        # Harmoniozed cost is O(1)
+        # armoniozed cost is O(1)
         return modules in cls._getAllDependencies()
 
     def __getattribute__(self, name):
@@ -632,14 +622,15 @@ class LikeAnalysisPattern:
         if not all(problematic:=i in kwargs for i in analysis.optionalParameters):
             raise TypeError(f'{callableName}() is missing keyword {problematic!r}')
         self.__match = kwargs
+        self.__analysis = analysis
     
-    def matches(self, other: Any) -> bool:
+    def matches(self, other: object) -> bool:
         """
         Whether the given analysis type matches the pattern.
 
         @note: This is the same as calling C{__eq__}.
         """
-        if not isinstance(other, type) or not issubclass(other, Analysis):
+        if not isinstance(other, type) or not issubclass(other, self.__analysis):
             return False
         for k, cb in self.__match.items():
             v = getattr(other, k)
@@ -715,7 +706,9 @@ class Transformation(Pass[ModuleNode, ModuleNode]):
         cls.dependencies += (ancestors, )
         super().prepareClass()
 
-        
+    
+    # TODO: Refactor these methods into a extensible designe that let each analysis
+    # define their own mutators for their result strucures.
     def recAddNode(self, node:AnyNode, ancestor:AnyNode) -> None:
         """
         Record that a new node has been added to the tree, this should be called 
@@ -816,6 +809,8 @@ class _AnalysisProxy(NodeAnalysis[GetProxy]):
     """
     An analysis that returns a simple proxy that provide a C{get} method which trigers
     the underlying analysis on the given node.
+
+    The node on which this analysis is run has no importance, it can be None or anything else.
     """
     
     doNotCache = True
@@ -1023,12 +1018,14 @@ class PassManager:
     
     def _getModules(self, analysis: modules) -> ModuleCollection:
         # access modules from within a pass context.
-        if not isinstance(analysis, modules): raise RuntimeError()
+        if not isinstance(analysis, modules): 
+            raise TypeError(f'illegal usage of private method')
         return self.modules
 
     def _getAncestors(self, analysis: ancestors) -> SupportsGetItem[AnyNode, list[AnyNode]]:
         # access ancestors from within a pass context.
-        if not isinstance(analysis, ancestors): raise RuntimeError()
+        if not isinstance(analysis, ancestors): 
+            raise TypeError(f'illegal usage of private method')
         return self.modules.ancestors
 
     # def _merge(self, other: PassManager) -> None:
@@ -1041,7 +1038,6 @@ class PassManager:
 
 class Statistics:
     def __init__(self, dispatcher: EventDispatcher) -> None:
-        pass
-
+        self.run_times = {}
     def _onRun(self, event):...
     def _onFinish(self, event):...
