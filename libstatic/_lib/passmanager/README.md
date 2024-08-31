@@ -1,10 +1,9 @@
-# ``twisted.python.code`` package proposal
+# The pass manager framework
 
 Summary
 -------
 
-
-This new package introduces a framework designed to help work with the abstract syntax tree (AST) analysis and rewriting.
+This package introduces a framework designed to help work with the abstract syntax tree (AST) analysis and rewriting.
 It is an implementation of the pass manager architectural pattern in compiler design - comparable to the ones found in [LLVM](https://llvm.org/docs/WritingAnLLVMPass.html#what-passmanager-does
 ), [GCC](https://gcc.gnu.org/onlinedocs/gccint/Pass-manager.html) or [pythran](https://pythran.readthedocs.io/en/latest/TUTORIAL.html). 
 
@@ -16,39 +15,38 @@ The pass manager is responsible to optimize analyses results so they don't have 
 
 Since python is a highly dynamic language and one module can affect the state of other modules, 
 the pass manager works on an entire system of packages and modules, not just a module at a time. 
+
 Passes that do not require awareness of the other modules in the system are called _intra-module passes_, on the other hand, passes that 
 requires access are called _inter-modules passes_. 
 
-Alongside the framework, a collection of qualitative passes and utilities is provided to make development and adoption faster. The exact scope for the 
-included passes is still to be determined, and implementation for additional passes and utilities can be contributed in a second phase. 
+Alongside the framework, a collection of qualitative passes and utilities is provided to make development and adoption faster. See _Analyses_ for more informations on bundled analyses.
 
 Package structure: 
 
 ```tree
-twisted/python/code/
+libstatic/
 ├─ __init__.py
 ├─ passmanager/
 │  ├─ __init__.py
-│  ├─ exceptions.py
-│  ├─ finder.py
-│  ├─ pass manager implementaion modules...
-├─ utils.py
+│  ├─ implementaion modules...
 ├─ analyses/
 │  ├─ __init__.py
-│  ├─ analysis implementations...
+│  ├─ implementaion modules...
 ├─ transformations/
 │  ├─ __init__.py
-│  ├─ transformation implementations...
+│  ├─ implementaion modules...
+├─ utils.py
+├─ exceptions.py
+├─ finder.py
 ```
 
 Non-Goals
 ---------
 
 - Inter-modules refactoring utilities, like renaming a module/class etc. While it could be included, some existing libraries are doing a good
-  job for these duties. You can use [rope](https://rope.readthedocs.io/en/latest/library.html#rename) or [libcst](https://libcst.readthedocs.io/). 
+  job for these duties. You can use [rope](https://rope.readthedocs.io/en/latest/library.html#rename) or [libcst](https://libcst.readthedocs.io/) for instance. 
   The transformation interface is designed with optimization and normalization in mind, not cross-modules refactoring.
 - Introspection of modules. One could write code that generates AST for a given module by inspection (like [astroid](https://github.com/pylint-dev/astroid/blob/v3.2.0/astroid/raw_building.py) does). But this is not in the scope and can easily be done on the client side.
-- Some [old twisted ticket](https://github.com/twisted/twisted/issues/4531) has some discussions about including static analysis in ``twisted.python.modules``, I disagree with this approach since the delimitation between introspection and static analysis would become blurry.
 
 
 Motivation
@@ -67,51 +65,13 @@ for those without the ability to statically resolve wildcards imports (There are
 <!-- 
 How does it compare to the competition, if any?
 
+- typeshed_client evaluates the values of the __all__ variable but only for ty  stubs and cannot do it
+for actual python files using .append() for instance. 
+
+- 
+
 TODO -->
 
-Rationale
----------
-
-Why particular design decisions were made.
-
-- Why a pass manager? 
-  The pass manager design allows developers to write transformations depending on arbitrary analyses.
-  This feature can be very useful to normalize the AST before passing it to your main visitor. E.g. to
-  apply the [undataclass](https://www.pythonmorsels.com/undataclass/) transformation in order to seemlessly 
-  support dataclasses by your app since the implicit methods will become explicit; Or expand wildcard imports, which are a major pain for most static analysis tools.
-
-- Setting custom attributes on AST node is a bad practice; it doesn't plays well with AST transformations.
-  Instead, analysis results should be stored in other data structures that potentially contains references to nodes.
-  This way, when the AST is transformed, the pass manager has two options: 
-    - keep the analysis if it's still valid after the transformation - or 
-    - clear it from the cache if the transformation invalidated it
-
-- Pass reproducibility is required, meaning (like in [LLVM](https://llvm.org/docs/WritingAnLLVMPass.html)) a pass cannot maintain a state across invocations of ``Pass.doPass()`` (including global data). This restriction is needed in order to keep the cache sain.
-
-- Analysis should be "pure": an analysis cannot manually update other analysis datastructures. This is also because analysis cache must be sain.
-
-- A transformation can only change the node being passed to ``Pass.doPass()`` (which is always a module currently, but it's 
-  more a design restriction and might be lifted in the future). If the transformation affects the API of a module (e.g by renaming a class), 
-  the dependant modules should also be adjusted with an applicable transformation until no other modules are affected. 
-
-- A transformation can mark an analysis as preserved and manually update the resulting datastructure so it doesn't have to be re-run. 
-  This implies that a transformation result can never be cached since it might update other analysis data structures. 
-  
-- The pass manager implementation is not coupled to any particular tree type, meaning you can use the it with trees generated
-  by the [parso](https://parso.readthedocs.io/en/latest/index.html) library; given the fact that the pass manager is provided with the compatible strategy. Nevertheless, implementation of included 
-  passes and examples will always use the standard library.
-
-- It is not helpful to consider analyses that runs only on functions or only classes appart from analyses that runs on any kind of nodes. Classes are callable and an expression might refer to a function definition. 
-An analysis that runs on modules, in contrast, is different because the pass manager will always run it on the root
-module when it's declared as a pass dependency. A move that cannot be done with confidence for other kind of nodes.
-
-Modules are the only thing we can be relatively sure they are what the AST says they are. But even there, with the beauty of Python, one can dynamically set `sys.modules['something']` to an arbitrary object. Like the [klein.resource](https://github.com/twisted/klein/blob/23.12.0/src/klein/resource.py) module which is implemented as an instance.
-
-
-- When a module is added to the system, the inter-modules analyses not marked as "complete" will be cleared from the cache. 
-  This optimization allows for an analysis result to return best-effort results when information is missing in the system and later get the complete result after the required module is added to the system. 
-
-- When a module is removed, all inter-modules analyses are cleared no matter their completeness. 
 
 Specification
 -------------
@@ -139,7 +99,7 @@ Modules can be created manually or with the finder (discussed below).
 * ``PassManager.gather(analysis, node) -> object`` is used to gather (!) the result of an analysis on an AST node.
 * ``PassManager.apply(transformation, node) -> tuple[bool, node]`` is used to apply (sic) a transformation on an AST node. Returns whether the pass updated the content and the modified node.
 * ``PassManager.modules`` is a mapping to access the collection of added ``Module``s. Modules can be retrieved by module qualified name or by node (any node in the module). The  pass manager needs to maintain a map of all nodes in the system to their root module, this is required for the cache to know which module entry to use when given arbitrary nodes. See the transformation optimizations to reduce the cost of this operation.
-* ``PassManager.support(ast)`` is used to switch the pass manager AST support kind. Valid values includes ``gast`` or ``ast``. 
+* ``PassManager.support(ast)`` is used to switch the pass manager AST support kind. Valid values includes ``gast`` or ``ast`` but it's easy to write adapters for or ast library like parso or astroid.
 
 **The Pass interface**
 
@@ -191,8 +151,7 @@ Running a pass: The ``PassManager`` is the only object that should instantiate p
 
 - ``Transformation.update``: Instance attribute indicating whether the transformation did something.
 - ``Transformation.preservesAnalyses``: Instance attribute listing analyses that are preserved after the transformation updates the content. If a preserved analysis takes parameters, the "like" pattern should be created instead of simply listing the class name (i.e. if the transform preserves the parameterized analysis ``instance_variables`` for any value of its parameter ``inherited``, one must write ``instance_variables.like(inherited=lambda v:True)``, where ``v`` is the value of the parameter)  
-- ``Transformation.addedNodes``: Instance attribute listing the new nodes added to the tree, optionally filled. These are used to optimize post transformation tree visiting. 
-- ``Transformation.removedNodes``: Instance attribute listing the new nodes added to the tree, optionally filled. 
+- ``Transformation.recAddNode()`` / ``recRemoveNode()``/ ``recReplaceNode()``: Methods to optionnaly use to optimize post transformation tree visiting. 
 
 **The Analysis interface**
 
@@ -212,15 +171,14 @@ Here are some factories to convert various forms of objects into a ``Pass`` type
 
 - ``Analysis.fromNodeVisitor(visitor)``: Converts a node visitor into an analysis. 
   The pass must not have any requirements. The class must expose a ``visit()`` method and the result be stored in ``self.result`` instance variable. 
-- ``Analysis.fromSimpleCallable(callable: Callable[[Node], object])``: Converts a one-argument callable into an analysis. The pass must not have any requirements.
-- ``Analysis.fromCallable(callable: Callable[[PassManager, Node], object], isInterModules=False)``: Converts a two-argument callable where the first argument is the pass manager and the second the node. The analysis can use ``gather`` method to request requirements. If the parameter ``isInterModules`` is true, the analysis will be allowed to depend on other inter-modules analyses and request the ``passmanger.modules`` analysis.
+- ``Analysis.fromCallable(callable: Callable[[Node], object])``: Converts a one-argument callable into an analysis. The pass must not have any requirements.
 - ``Transformation.fromNodeTransformer(transformer)``: Converts a node transformer into a transformation. 
   The pass must not have any requirements. The class must expose a ``visit()`` method and whether the transformation changed the content stored in ``self.update`` instance variable. 
 
 Declaring a ``Pass`` subclass is required if:
 
 - the pass uses parameters or,
-- the pass uses optimizations like ``Analysis.isComplete`` or ``Transformation.preservesAnalyses``.
+- the pass uses optimizations like ``Analysis.isComplete`` or ``Transformation.preservesAnalyses`` or ````Transformation.recAddNode()`` and friends.
 
 **Pass instrumentation**
 
@@ -244,52 +202,54 @@ Event
 The finder is in charge of finding python modules and creating ``Module`` instances for them based on a given search context.
 It can load modules by fully qualified name or load all modules under a given path. 
 
-Future developments
---------------------
 
-- File based caching; this requires generating a hash of the AST in order to cache 
-  intra-modules analyses. For inter-modules analyses, it will requires a inter-modules hash. Some [similar work](https://github.com/QuantStack/memestra/blob/0.2.1/memestra/caching.py) has already been done. 
-- Provide a pipeline API: Pass managers might organize passes into pipelines, but this will be left to client code for the moment.
-- Provide support for namespace packages
-- Having transformations that run only on function definitions, makes sens. Because we could make more cache optimizations as long as the function is pure and its API is not changed, typically opmization passes: it must not affect the global scope - before and/or after the transform.
+## The bundled analyses and transformations
 
+All analyses are made available in the ``libstatic.analyses`` module, all transformations in ``libstatic.transformations`` .
 
-Alternatives
-------------
+**Normalizations**
 
-- ``rope``: Rope runs static analysis on the whole project at once when requested. This task can be very time consuming.
-  The approach here, in opposit, is to provide a framework to optimize passes and run only the minimum required.
-- ``astroid``: While a great library, it does not offer the flexibility we thrive for - it includes a couples of APIs the main
-  one being ``NodeNG.infer()`` that returns a generator for potential values. I've tried to use it but could not make it evaluate
-  the values of ``__all__`` variables without patching astroid internals (which is not really inline with the GNU Lesser General Public License v2.1). Also it does not work with the standard library AST.
-- ``pytype``: There is an included library in pytype: [traces](https://google.github.io/pytype/developers/tools.html#traces), but pytype analyzer is not known to be fast and working with opcode traces adds a layer of complexity. 
-- ``mypy``: Some [code](https://github.com/pyastrx/pyastrx/blob/v0.5.2/pyastrx/inference/mypy.py) in the ``pyastrx`` project shows that we can use ``mypy`` to extract type inference results and later matches these to node instances. But this approach does not offer enough flexibility and it is rather "hacky". 
+Dead code remover: `remove_dead_code`
 
-Reference Implementation
-------------------------
+``__all__`` variable shenanigans normalizations: ``normalize__all__`.
 
-The implementation is currently in development and misses a lot of optimization features and unit tests. 
+**Node ancestors**
 
-But here is where you can look at the code:
+Maps each node to their parents in the syntax-tree.
 
-https://github.com/tristanlatr/libstatic/tree/passmanager/libstatic/_lib/passmanager
+Analyses: `ancestors`, `ancestor`, 
+    `enclosing_scope`, `all_enclosing_scopes`.
 
-Dependencies
-------------
+**Import resolution**
 
-- The pass manager infrastructure itself does not have any external dependencies.  
+Analyses: `parsed_imports`, `definitions_of_imports`. 
 
-- The finder module uses ``typeshed_client``.
+Transformations: `expand_wildcards`.
 
-- The def-use chains analysis is provided by [beniget](https://github.com/serge-sans-paille/beniget), so many interesting analyses will require it;
-  Including the evaluation of ``__all__`` variables, type inference and others.
+**Chains of definitions**
 
-Usages
-------
+Analyses: `def_use_chains`, `use_def_chains`.
 
-- Support ``pydoctor`` in its code analysis.
+**Function parameters**
 
-Thanks
-------
+Analyses: `function_params`, `function_sugnature`.
 
-Special thanks to [@serge-sans-paille](https://github.com/serge-sans-paille) for all the help and reviews.
+**Method resolution order**
+
+Analyses: `method_resolution_order`.
+
+**Attributes**
+
+Analyses: `locals_map`, `ivars_maps`, `get_submodule`, `get_local`, `get_ivar`, `get_attribute`
+
+**Symbolic evaluation**
+
+Analyses: `literal_eval`.
+
+**Reachability**
+
+Analyses: `unreachable_nodes`.
+
+**Type inference**
+
+Analyses: `infer_type`.
