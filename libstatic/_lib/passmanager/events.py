@@ -130,7 +130,7 @@ class RunningTransform(Event):
     
     transformation: type[Transformation]
     """
-    The transformstion type.
+    The transformation type.
     """
 
     node: Any
@@ -147,7 +147,7 @@ class TransformEnded(Event):
     
     transformation: Transformation
     """
-    The transformstion instance.
+    The transformation instance.
     """
     
     node: Any
