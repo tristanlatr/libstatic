@@ -28,6 +28,7 @@
 # TODO: Add tests for the Pass.ctx 
 # TODO: Integrate with a simple logging framework.
 # TODO: Work for having function and classes transformations
+# TODO: Wrap ann exception raised with custom exceptions
 # that will invalidate only the required function analyses.
 # Seulement les transformations de modules peuvent changer l'interface
 # publique d'un module (ex changer signature d'une fonction ou autre).
@@ -162,8 +163,7 @@ class _PassDependencyDescriptor:
 class PassContext:
 
     """
-    Class that does the book-keeping of the chains of passes runs and provide
-    accessors for the current node and the current modules (both might represent the same).
+    Class that does the book-keeping of the chains of passes runs.
 
     It is accessible by in the L{Pass.ctx} instance attribute.
     """
@@ -185,7 +185,7 @@ class PassContext:
         return self._modules[self.current]
 
     @contextmanager
-    def pushPass(self, passs: type[Pass], node: AnyNode) -> Iterator[None]:
+    def _pushPass(self, passs: type[Pass], node: AnyNode) -> Iterator[None]:
         key = (passs, node)
         if key in self._stack:
             # TODO: Use a exception subclass in order to potentially catch and
@@ -984,7 +984,7 @@ class PassManager:
         if not issubclass(analysis, Analysis):
             raise TypeError(f"unexpected analysis type: {analysis}")
 
-        with self._ctx.pushPass(analysis, node):
+        with self._ctx._pushPass(analysis, node):
             a = analysis()
             a._attach(_RestrictedPassManager(analysis, self), self._ctx)
             ret = a.run(node)
@@ -1000,7 +1000,7 @@ class PassManager:
         if not issubclass(transformation, Pass):
             raise TypeError(f"unexpected pass type: {transformation}")
 
-        with self._ctx.pushPass(transformation, node):
+        with self._ctx._pushPass(transformation, node):
             a = transformation()
             a._attach(_RestrictedPassManager(transformation, self), self._ctx)
             ret = a._apply(node)

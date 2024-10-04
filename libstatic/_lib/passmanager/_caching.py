@@ -206,7 +206,7 @@ class CacheProxy:
         # remove all inter-modules analyses
         # TODO: filter out the ones that do not depend on the removed module,
         # this require the import graph to be considered as a special analysis like
-        # the ancestors and the root module mapping..
+        # the ancestors and the modules mapping..
 
         for k in self.__cache.index.search(isInterModule=True):
             self.__cache.discard(k)
