@@ -55,6 +55,7 @@ from typing import (
     Collection,
     Hashable,
     Iterator,
+    Sequence,
     TypeVar,
     Generic,
     Protocol,
@@ -232,7 +233,7 @@ class IPassManager(Protocol):
     def cache(self) -> CacheProxy:...
     
     # Private API
-    def _getAncestors(self, analysis: ancestors) -> SupportsGetItem[AnyNode, list[AnyNode]]:...
+    def _getAncestors(self, analysis: ancestors) -> SupportsGetItem[AnyNode, Sequence[AnyNode]]:...
     def _getModules(self, analysis: modules) -> ModuleCollection:...
 
 
@@ -603,7 +604,6 @@ class NodeAnalysis(Analysis[AnyNode, ReturnsT]):
 class FunctionAnalysis(Analysis[AnyNode, ReturnsT]):
     """An analysis that operates on a function."""
 
-
 class ClassAnalysis(Analysis[AnyNode, ReturnsT]):
     """An analysis that operates on a class."""
 
@@ -657,14 +657,14 @@ class modules(Analysis[object, ModuleCollection]):
 
 
 # This would be called a immutable pass in the LLVM jargo.
-class ancestors(ModuleAnalysis[SupportsGetItem[AnyNode, list[AnyNode]]]):
+class ancestors(ModuleAnalysis[SupportsGetItem[AnyNode, Sequence[AnyNode]]]):
     """
     Special analysis that results in the mapping of ancestors: L{AncestorsMap}.
     Use this to access ancestors data of any node in the system.
     """
     doNotCache = True
 
-    def doPass(self, _: object) -> SupportsGetItem[AnyNode, list[AnyNode]]:
+    def doPass(self, _: None) -> SupportsGetItem[AnyNode, Sequence[AnyNode]]:
         return self.passmanager._getAncestors(self)
     
 
@@ -945,7 +945,7 @@ def _initAstSupport(pm: PassManager):
 class PassManager:
     """
     Front end to the pass system.
-    One L{PassManager} can be used for the analysis of a collection of modules.
+    One L{PassManager} can be used for the analysis of a collection of trees.
     """
 
     def __init__(self) -> None:
@@ -1022,7 +1022,7 @@ class PassManager:
             raise TypeError(f'illegal usage of private method')
         return self.modules
 
-    def _getAncestors(self, analysis: ancestors) -> SupportsGetItem[AnyNode, list[AnyNode]]:
+    def _getAncestors(self, analysis: ancestors) -> SupportsGetItem[AnyNode, Sequence[AnyNode]]:
         # access ancestors from within a pass context.
         if not isinstance(analysis, ancestors): 
             raise TypeError(f'illegal usage of private method')
@@ -1035,9 +1035,9 @@ class PassManager:
     #     self.cache._merge(other.cache)
     #     self.modules._merge(other.modules)
    
-
-class Statistics:
-    def __init__(self, dispatcher: EventDispatcher) -> None:
-        self.run_times = {}
-    def _onRun(self, event):...
-    def _onFinish(self, event):...
+# TODO: Implement me as an SystemObserverAnalysis
+# class Statistics:
+#     def __init__(self, dispatcher: EventDispatcher) -> None:
+#         self.run_times = {}
+#     def _onRun(self, event):...
+#     def _onFinish(self, event):...

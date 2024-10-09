@@ -16,6 +16,10 @@ from typing import (
     overload,
 )
 
+from beniget.beniget import ordered_set # type: ignore
+
+OrderedSet = ordered_set
+
 _T = TypeVar("_T")
 class LazySeq(Sequence[_T]):
     """
@@ -203,3 +207,27 @@ class FrozenDict(Mapping['_KT', '_VT']):
                 hash_ ^= hash(pair)
             self._hash = hash_
         return self._hash
+
+class FrozenNamespace:
+    def __init__(self, *args, **kwargs):
+        self._d = FrozenDict(*args, **kwargs)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        raise TypeError('Cannot set attribute on FrozenNamespace instance')
+    
+    def __getattribute__(self, name: str) -> Any:
+        if name in self._d:
+            return self._d[name]
+        return super(FrozenNamespace, self).__getattribute__(name)
+
+    def __repr__(self):
+        items = (f"{k}={v!r}" for k, v in self._d.items())
+        return "{}({})".format(type(self).__name__, ", ".join(items))
+
+    def __hash__(self) -> int:
+        return hash(self._d)+1
+
+    def __eq__(self, other):
+        if isinstance(self, FrozenNamespace) and isinstance(other, FrozenNamespace):
+           return self._d == other._d
+        return NotImplemented

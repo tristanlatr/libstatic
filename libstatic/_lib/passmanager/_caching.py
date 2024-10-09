@@ -58,13 +58,17 @@ CacheKeyLabel = ('isInterModule', 'isComplete', 'analysis', 'module', 'node')
 DoNotIndexKeyLabel= ordered_set(('node',))
 CacheKeyLabelSet = ordered_set(CacheKeyLabel)
 CacheKey = tuple[bool, bool, type['Analysis'], 'Module', Hashable]
+# TODO: maybe it should be bool, bool, str, str, node
+
+# TODO: We might be able to dynamically determine whether the pass depends on other module's analyses
+# that will maybe enable to cache more results to file.
 """
 The keys are:
 
 - 'isInterModule': whether the analyses depends on other modules analyses
 - 'isComplete': whether the analysis has a final complete result
 - 'analysis': the analysis type
-- 'module': the module used as context to run the analysis
+- 'module': the root module used as context to run the analysis
 - 'node': the node on which the analysis is ran, not indexed.
 """
 
