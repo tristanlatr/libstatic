@@ -9,6 +9,5 @@ build:
       pydoctor \
       --project-version=$READTHEDOCS_GIT_IDENTIFIER \
       --html-viewsource-base=$READTHEDOCS_GIT_CLONE_URL/tree/$READTHEDOCS_GIT_COMMIT_HASH \
-      --html-base-url=$READTHEDOCS_CANONICAL_URL \
       --html-output $READTHEDOCS_OUTPUT/html/ \
       ./libstatic
