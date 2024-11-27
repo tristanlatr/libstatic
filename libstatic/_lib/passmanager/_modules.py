@@ -2,22 +2,35 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import (
     Any,
+    Collection,
+    Container,
+    Generic,
+    Hashable,
+    Iterable,
     Iterator,
     Mapping,
     TYPE_CHECKING,
-    Protocol
+    MutableMapping,
+    Protocol,
+    Sequence,
+    TypedDict
 )
 
 import dataclasses
 import ast
 from weakref import WeakKeyDictionary, WeakSet
 
+from libstatic._lib.structures import FrozenNamespace, OrderedSet
+
 from .events import (EventDispatcher, ModuleAddedEvent, 
                      ModuleTransformedEvent, ModuleRemovedEvent)
 
 from typing import TypeVar
+
+import attrs
 
 _KT_contra = TypeVar("_KT_contra", contravariant=True)
 _VT_co = TypeVar("_VT_co", covariant=True)
@@ -32,14 +45,14 @@ if TYPE_CHECKING:
 
 __docformat__ = 'epytext'
 
-ModuleNode = Any
+RootNode = Any
 """
-Symbol that represent a ast module node. 
+Represent the root of a tree.
 """
 
 AnyNode = Any
 """
-Symbol that represent any kind of ast node. 
+Represent any kind of node in a tree as well root nodes.
 """
 
 
@@ -49,7 +62,7 @@ class Module:
     The specifications of a python module.
     """
 
-    node: ModuleNode
+    node: RootNode
     """
     The module node.
     """
@@ -86,6 +99,68 @@ class Module:
     The source.
     """
 
+
+class ITreeSupport(Protocol):
+    """
+    Instances of this class carries all the required information for the passmanager to support
+    concrete types of trees like the one created by standard library L{ast} or L{astroid} or L{gast} or L{parso}.
+
+    Currently, the only things that needs to be known about the tree is: 
+      
+      - how to iterate across the direct children of a node. 
+      - get a list of identifiers a tree includes/imports/depends on.
+
+    But that list might grow with the future developments
+    """
+
+    @staticmethod
+    def children(node: AnyNode) -> Iterable[AnyNode]:
+        """
+        Yields the direct child node starting at the given node inclusively. Like L{ast.iter_child_nodes}.
+        """
+    
+    @staticmethod
+    def includes(node: RootNode) -> Sequence[str]:
+        """
+        Return a list of identifiers coresponding to the trees this one depends on.
+        Typically this is the list of the imported modules. 
+        Python Note: it's important to list all imports including the ones inside functions or uder TYPE_CHECKING blocks.
+        """
+
+class ASTreeSupport(ITreeSupport):
+    @staticmethod
+    def children(node: AnyNode) -> Iterable[AnyNode]:
+        return ast.iter_child_nodes(node)
+    @staticmethod
+    def includes(node: RootNode) -> Sequence[str]:
+        raise NotImplementedError()
+
+@dataclasses.dataclass(frozen=True)
+class TreeWalker:
+    treesupport: ITreeSupport
+
+    def walk(self, 
+             node: AnyNode, 
+             typecheck: type | tuple[type, ...] | None = None,
+             stopTypecheck: type | tuple[type, ...] | None = None) -> Iterable[AnyNode]:
+        """
+        Recursively yield all nodes matching the typecheck
+        in the tree starting at *node* (including *node* itself), in bfs order.
+
+        Do not recurse on children of types matching the stopTypecheck type.
+        """
+        from collections import deque
+
+        yield node
+        todo = deque(self.treesupport.children(node))
+        while todo:
+            node = todo.popleft()
+            if stopTypecheck is None or not isinstance(node, stopTypecheck):
+                todo.extend(self.treesupport.children(node))
+            if typecheck is None or isinstance(node, typecheck):
+                yield node
+
+
 # This is not considered as an analysis because it's a core part of the library
 # and must be maintained before the analysis cache.
 class ancestors(ast.NodeVisitor):
@@ -95,7 +170,7 @@ class ancestors(ast.NodeVisitor):
     current: tuple[AnyNode, ...] | tuple[()]
 
     def __init__(self, astcompat: ASTCompat) -> None:
-        self.result: dict[AnyNode, list[AnyNode]] = {}
+        self.result: MutableMapping[AnyNode, Sequence[AnyNode]] = {}
         """
         For each visited node, stores it's list of ancestors in this mapping.
         """
@@ -127,7 +202,7 @@ class _Addition:
     ancestor: AnyNode
 
 
-class AncestorsMap(SupportsGetItem[AnyNode, list[AnyNode]]):
+class AncestorsMap(SupportsGetItem[AnyNode, Sequence[AnyNode]]):
     """
     Tracks the ancestors of all nodes in the system and 
     provide the special L{passmanager.ancestors} analysis.
@@ -142,8 +217,8 @@ class AncestorsMap(SupportsGetItem[AnyNode, list[AnyNode]]):
         dispatcher.addEventListener(ModuleRemovedEvent, self._onModuleRemovedEvent)
 
         # Use weak keys dictionnary here.
-        self.__data: WeakKeyDictionary[AnyNode, list[AnyNode]] = WeakKeyDictionary()
-        self.__removed: WeakSet[ModuleNode] = WeakSet()
+        self.__data: WeakKeyDictionary[AnyNode, Sequence[AnyNode]] = WeakKeyDictionary()
+        self.__removed: WeakSet[RootNode] = WeakSet()
 
         self.__astcompat = astcompat
     
@@ -202,7 +277,7 @@ class AncestorsMap(SupportsGetItem[AnyNode, list[AnyNode]]):
     def _hasBeenRemoved(self, node: object) -> bool:
         """
         Since we use weak key mapping, we don't manage the deletion of values ourselve.
-        We trust the weak key mapping to do the job, but if we still have another reference to tthe object
+        We trust the weak key mapping to do the job, but if we still have another reference to the object
         we must maintain a set of removed modules.
         """
         return node in self.__removed or bool((
@@ -215,7 +290,7 @@ class AncestorsMap(SupportsGetItem[AnyNode, list[AnyNode]]):
         return (__key in self.__data 
                 and not self._hasBeenRemoved(__key))
 
-    def __getitem__(self, __key: AnyNode) -> ModuleNode:
+    def __getitem__(self, __key: AnyNode) -> RootNode:
         if self._hasBeenRemoved(__key):
             raise KeyError(__key) # module has been removed
         return self.__data[__key]
@@ -227,7 +302,7 @@ class AncestorsMap(SupportsGetItem[AnyNode, list[AnyNode]]):
         except KeyError:
             return default
 
-    def _data(self) -> WeakKeyDictionary[AnyNode, list[AnyNode]]:
+    def _data(self) -> WeakKeyDictionary[AnyNode, Sequence[AnyNode]]:
         return self.__data
 
     def _merge(self, other: AncestorsMap) -> None:
@@ -240,7 +315,8 @@ class AncestorsMap(SupportsGetItem[AnyNode, list[AnyNode]]):
         raise NotImplementedError('this "mapping" is not sized')
 
 
-class ModuleCollection(Mapping['str | ModuleNode | AnyNode', Module]):
+# TODO: rename me for Forest
+class ModuleCollection(Mapping['str | RootNode | AnyNode', Module]):
     """
     A smart mapping to contain the pass manager modules.
 
@@ -250,7 +326,7 @@ class ModuleCollection(Mapping['str | ModuleNode | AnyNode', Module]):
 
     def __init__(self, dispatcher: EventDispatcher, astcompat: ASTCompat) -> None:
         self.__name2module: dict[str, Module] = {}
-        self.__node2module: dict[ModuleNode, Module] = {}
+        self.__node2module: dict[RootNode, Module] = {}
         
         self.ancestors = AncestorsMap(dispatcher, astcompat); "The ancestors"
 
@@ -298,7 +374,7 @@ class ModuleCollection(Mapping['str | ModuleNode | AnyNode', Module]):
 
     # Mapping interface
 
-    def __getitem__(self, __key: str | ModuleNode | AnyNode) -> Module:
+    def __getitem__(self, __key: str | RootNode | AnyNode) -> Module:
         if isinstance(__key, str):
             return self.__name2module[__key]
         try:
@@ -315,3 +391,146 @@ class ModuleCollection(Mapping['str | ModuleNode | AnyNode', Module]):
 
     def __len__(self) -> int:
         return len(self.__name2module)
+
+
+RootNodeT = TypeVar('RootNodeT')
+AttributesT = TypeVar('AttributesT')
+
+class Tree(Generic[RootNodeT, AttributesT]):
+    """
+    Encapsulate a single tree. This is a read-only datastructure.
+    
+    All roots are required to have an identifier.  Typically this is the module name.
+    """
+    def __init__(self, root: RootNodeT, identifier: str, **attributes: Hashable) -> None:
+        self.__root = root
+        self.__identifier = identifier
+        
+        self.attributes: AttributesT = FrozenNamespace(**attributes)
+    
+    @property
+    def root(self) -> RootNodeT:
+        return self.__root
+    
+    @property
+    def identifier(self) -> str:
+        return self.__identifier
+
+    def __hash__(self) -> int:
+        return hash((self.root, self.identifier, self.attributes))
+    
+    def __eq__(self, other: object) -> bool:
+        if isinstance(self, Tree) and isinstance(other, Tree):
+            return self.root == other.root and \
+                self.identifier == other.identifier and \
+                self.attributes == other.attributes
+        return NotImplemented
+
+class Forest(Collection[Tree[RootNodeT, AttributesT]]):
+    """
+    A collection of trees. 
+    """
+    def __init__(self, trees: Iterable[Tree]=None) -> None:
+
+        # each operation must maintain these 3 structures.
+        self.__identifier2tree: dict[str, Tree[RootNodeT, AttributesT]] = {}
+        self.__root2tree: dict[RootNode, Tree[RootNodeT, AttributesT]] = {}
+        self.__trees: OrderedSet[Tree[RootNodeT, AttributesT]] = OrderedSet()
+
+        if trees is not None:
+            for t in trees:
+                self.add(t)
+    
+    def add(self, tree: Tree[RootNodeT, AttributesT]) -> None:
+
+        if tree in self:
+            return
+
+        if self.get(tree.identifier):
+            raise ValueError(
+                f"identifier {tree.identifier!r} " 
+                f"if already taken: {self[tree.identifier]}"
+            )
+
+        if self.get(tree.root):
+            raise ValueError(
+                f"root node {tree.identifier!r} is already "
+                f"associated with another tree: {self[tree.root]}"
+            )
+
+        # add the tree in the collection.
+        self.__identifier2tree[tree.identifier] = tree
+        self.__root2tree[tree.root] = tree
+        self.__trees.add(tree)
+    
+    def remove(self, tree: Tree[RootNodeT, AttributesT]) -> None:
+        if tree in self:
+            raise ValueError(f"tree not in the collection: {tree}")
+
+        # remove the tree from the collection
+        del self.__identifier2tree[tree.identifier]
+        del self.__root2tree[tree.root]
+        self.__trees.discard(tree)
+    
+    #  getitem interface
+
+    def __getitem__(self, __key: str | RootNodeT) -> Tree[RootNodeT, AttributesT]:
+        if isinstance(__key, str):
+            return self.__identifier2tree[__key]
+        else:
+            return self.__root2tree[__key]
+    
+    def get(self, key: str | RootNodeT, default:Any=None) -> Tree[RootNodeT, AttributesT] | None:
+        try:
+            return self[key]
+        except KeyError:
+            return default
+    
+    # collection interface
+    
+    def __iter__(self) -> Iterator[Tree[RootNodeT, AttributesT]]:
+        return iter(self.__trees)
+
+    def __len__(self) -> int:
+        return len(self.__trees)
+
+    def __contains__(self, other: object) -> bool:
+        # A forest contains trees, root nodes and identifiers.
+        return other in self.__trees or \
+            other in self.__identifier2tree or \
+            other in self.__root2tree
+
+if TYPE_CHECKING:
+    class ASTAttributes:
+        'only for typing'
+        
+        filename: str | None 
+        """
+        The filename of the source file.
+        """
+
+        isPackage: bool
+        """
+        Whether the module is a package.
+        """
+        
+        # TODO: namespace packages are not supported at the moment.
+        # is_namespace_package: bool
+        # """
+        # Whether the module is a namespace package.
+        # """
+        
+        isStub: bool
+        """
+        Whether the module is a stub module.
+        """
+        
+        sourceCode: str | None
+        """
+        The source.
+        """
+    AbstractSyntaxTree = Tree[ast.Module, ASTAttributes]
+    ASTForest = Forest[ast.Module, ASTAttributes]
+else:
+    AbstractSyntaxTree = Tree
+    ASTForest = Forest

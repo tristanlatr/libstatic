@@ -74,8 +74,9 @@ The keys are:
 
 class Cache:
     """
-    This cache is implemented with a dictionary that maps a series of keys to a single value and
-    an index that help searching for matching cached results.
+    This cache is composed of: 
+        - a dictionary that maps a series of keys to a single value and
+        - an index that helps searching for matching results
     """
     
     class Index:
@@ -195,7 +196,8 @@ class CacheProxy:
         return self.__cache.index.kvalues('analysis')
     
     def _onModuleAddedEvent(self, event: ModuleAddedEvent) -> None:
-        # O(number of incomplete inter-modules analyses)
+        # O(max(number of incomplete analyses, number of inter-modules analyses) + 
+        #   number of incomplete inter-modules anayses )
         # remove all results of inter-modules analyses that are not complete
         for k in self.__cache.index.search(isInterModule=True, isComplete=False):
             self.__cache.discard(k)

@@ -69,7 +69,7 @@ from beniget.ordered_set import ordered_set # type: ignore
 from .events import (EventDispatcher, ModuleAddedEvent, 
                      ModuleTransformedEvent, ModuleRemovedEvent, AnalysisEnded, 
                      RunningAnalysis, SupportLibraryEvent, TransformEnded, RunningTransform)
-from ._modules import Module, ModuleCollection, _Addition, _Removal, SupportsGetItem
+from ._modules import Tree, Forest, Module, ModuleCollection, _Addition, _Removal, SupportsGetItem, ITreeSupport, ASTreeSupport
 from ._astcompat import ASTCompat, ISupport
 from ._caching import CacheProxy, AnalysisResult
 
@@ -491,6 +491,114 @@ class Pass(Generic[RunsOnT, ReturnsT], metaclass=_PassMeta):
         raise NotImplementedError(self.doPass)
 
 
+def _instance_attrs(attrs: Sequence[str]):
+    """
+    Get a metaclass that will consider any object with the given required attributes as an instance of its type.
+    Note that setting the attribute None as the same effect of not beeing there.
+    """
+    class DynamicMetaclass(type):
+        def __instancecheck__(self, instance: object) -> bool:
+            for a in attrs:
+                if getattr(instance, a, None) is None:
+                    return False
+            return True
+    return DynamicMetaclass
+
+if TYPE_CHECKING:
+    class IGenericMutators(Protocol):
+        """
+        A mutator that provides generic methods to support transformations.
+        """
+        def addNode(self, node, ancestor):...
+        def removeNode(self, node):...
+        def replaceNode(self, oldnode, newnode):...
+
+    class IGenericForestMutators(Protocol):
+        """
+        A mutator that provides generic methods to support forest transformations.
+        """
+        def addTree(self, tree: Tree):...
+        def removeTree(self, tree: Tree):...
+else:
+    # https://github.com/python/typing/issues/1363
+    class IGenericMutators:
+        __metaclass__ = _instance_attrs(('addNode', 'removeNode', 'replaceNode', ))
+
+    class IGenericForestMutators:
+        __metaclass__ = _instance_attrs(('addTree', 'removeTree', ))
+
+
+class Mutator(Generic[T]):
+    """
+    An analysis mutator. 
+
+    Subclasses of this object are respondsible to edit 
+    the result datastrucure in order to keep it valid when a supported transformation is run. 
+    They might define as many different mutation methods for their result OR a combinaison of 
+    generic mutators. The advantage with the generic mutators is that all the analyses that support
+    the generic mutators will be updated in one call. 
+    Whereas if the structure is complex and requires more context, it must be updated specifically 
+    with the non-generic mutator of the analysis.
+    
+    A Mutator always operates on the same node as the current transformation is run on. This means that a
+    module transformation can only mutates the module analyses coresponding to the transformed module.
+    
+    A mutator cannot define both generic methods and some other specific methods.
+    A mutator might define both sets of generic methods: L{IGenericMutators} and L{IGenericForestMutators}.
+    A mutator should not be defined for analysis that have the C{doNotCache = True} flag.
+    
+    Declaration of a generic mutator::
+        class ancestors(ModuleAnalysis):
+            class genericMutator(Mutator):
+                def addNode(self, node, parent):...
+                def removeNode(self, node):...
+                def replaceNode(self, oldnode, newnode):...
+    
+    Using it from a transformation::
+        class MyTransform(Transformation):
+            def doPass(self, module: ast.Module):
+                newnode = ast.Constant(value='docs')
+                module.body.insert(newnode)
+                self.mutators.addNode(newnode, module)
+    
+    Declaration of a non-generic mutator::
+        class defuse(ModuleAnalysis):
+            class mutator(Mutator):
+                def addLink(node, node):...
+                def removeLink(node, node):...
+    
+    Using it from a transformation::
+        class MyTransform(Transformation):
+            def doPass(self, module: ast.Module):
+                ...
+                self.mutators.defuse.addLink(node, node2)
+    """
+
+    def __init__(self, result: T) -> None:
+        self.result: T = result
+
+class MutatorsProxy:
+    """
+    What you got inside a transformation as C{self.mutators}
+    """
+    # This class is fundamentally dynamic since all the specific mutator
+    # are set as instance attributes depending on their name...
+
+    # Nevertheless these generic methods are defined here since they proxy the calls
+    # to all supported mutators.
+    
+    def addTree(self, tree):...
+    def removeTree(self, tree):...
+    
+    def addNode(self, node, ancestor):...
+    def removeNode(self, node):...
+    def replaceNode(self, oldnode, newnode):...
+
+    def __init__(self) -> None:
+        pass
+
+
+
 class Analysis(Pass[RunsOnT, ReturnsT]):
     """
     A pass that does not change its content but gathers informations about it.
@@ -513,6 +621,11 @@ class Analysis(Pass[RunsOnT, ReturnsT]):
     This should be set at instance level. Typically an import graph is never complete, but type inference can be complete.
     """
 
+    mutator: Mutator | None = None
+
+    genericMutator: IGenericMutators | IGenericForestMutators | None = None
+
+    # TODO: Move this logic inside new class: AnalysisRunner.
     def run(self, node: RunsOnT) -> ReturnsT:
         typ = type(self)
         self.passmanager.dispatcher.dispatchEvent(
@@ -572,7 +685,7 @@ class Analysis(Pass[RunsOnT, ReturnsT]):
         raise NotImplementedError()
     
     @classmethod
-    def like(cls, **kwargs: Callable[[object], bool]) -> LikeAnalysisPattern:
+    def like(cls, **kwargs: Callable[[object], bool]) -> AnalysisGroup:
         """
         Create a pattern representing several possible derivations of the analysis to be matched against a concrete analysis. 
         Designed to be used when declaring L{Transformation.preservesAnalyses}.
@@ -592,25 +705,30 @@ class Analysis(Pass[RunsOnT, ReturnsT]):
         @param kwargs: The analysis parameters names to the match function. A match function is a one-argument
             callable that returne whether the value for the parameter matches.
         """
-        return LikeAnalysisPattern(cls, **kwargs)
+        like = _LikeAnalysisPattern(cls, **kwargs)
+        return AnalysisGroup(lambda analysis: like.matches(analysis))
 
+
+class ForestAnalysis(Analysis[Forest, ReturnsT]):
+    """An analysis that operates on the entire forest of trees."""
+    # these should (but are not required to) provide a generic mutator that support addTree and removeTree
+    # theorically a forest analysis has only to implement the mutators add/remove  in order to work
 
 class ModuleAnalysis(Analysis[ModuleNode, ReturnsT]):
-    """An analysis that operates on a whole module."""
+    """An analysis that operates on the root node of a tree, typically the module."""
 
 class NodeAnalysis(Analysis[AnyNode, ReturnsT]):
     """An analysis that operates on any node."""
 
-class FunctionAnalysis(Analysis[AnyNode, ReturnsT]):
-    """An analysis that operates on a function."""
+class FunctionAnalysis(NodeAnalysis[AnyNode, ReturnsT]):
+    """An analysis that operates on a function node."""
 
-class ClassAnalysis(Analysis[AnyNode, ReturnsT]):
-    """An analysis that operates on a class."""
+class ClassAnalysis(NodeAnalysis[AnyNode, ReturnsT]):
+    """An analysis that operates on a class node."""
 
-
-class LikeAnalysisPattern:
+class _LikeAnalysisPattern:
     """
-    I represent several derivations of the same analaysis.
+    Represents several derivations of the same analaysis.
     """
     
     def __init__(self, analysis: type[Analysis], 
@@ -640,8 +758,22 @@ class LikeAnalysisPattern:
             return True
         return False
 
-    __eq__ = matches
+class AnalysisGroup:
+    """
+    Represents a group of analyses.
+    """
+    def __init__(self, callback: Callable[[Analysis], bool]) -> None:
+        self.__cb = callback
+    def __eq__(self, value: object) -> bool:
+        if isinstance(value, Analysis):
+            return self.__cb(value)
+        return False
 
+SupportsGenericMutatorsGroup = AnalysisGroup(
+    lambda analysis: isinstance(analysis.mutator, IGenericMutators))
+
+SupportsGenericForestMutatorsGroup = AnalysisGroup(
+    lambda analysis: isinstance(analysis.mutator, IGenericForestMutators))
 
 # This would be called a immutable pass in the LLVM jargo.
 class modules(Analysis[object, ModuleCollection]):
@@ -668,15 +800,50 @@ class ancestors(ModuleAnalysis[SupportsGetItem[AnyNode, Sequence[AnyNode]]]):
         return self.passmanager._getAncestors(self)
     
 
-class Transformation(Pass[ModuleNode, ModuleNode]):
+class _BaseTransformation(Pass[RunsOnT, ReturnsT]):
+    mutators: MutatorsProxy
+    preservesAnalyses: Collection[type[Analysis] | AnalysisGroup] = ()
+
+class _ForestTransformation(_BaseTransformation[Forest, Forest]):
+    """
+    A forest transformation is internally used to add or remove a tree from the forest. 
+
+    It should never be subclassed by client code.
+    """
+
+class _AddTree(_ForestTransformation):
+    """
+    A forest transformation that adds a new tree.
+    """
+    requiredParameters = ('tree',)
+
+    def doPass(self, node: Forest) -> Forest:
+        node.add(self.tree)
+        self.mutators.addTree(self.tree)
+        self.preservesAnalyses = (SupportsGenericForestMutatorsGroup,)
+        # TODO: caches
+
+class _RemoveTree(_ForestTransformation):
+    """
+    A forest transformation that removes a tree.
+    """
+    requiredParameters = ('tree',)
+
+    def doPass(self, node: Forest) -> Forest:
+        node.remove(self.tree)
+        self.mutators.removeTree(self.tree)
+        self.preservesAnalyses = (SupportsGenericForestMutatorsGroup,)
+        # TODO: caches
+
+class Transformation(_BaseTransformation[ModuleNode, ModuleNode]):
     """
     A pass that updates the module's content.
     
     A transformation must never update other modules, but otherwise can change anything in
-    the current module including global varibles functions and classes.
+    the current module including global variables functions and classes.
     """
 
-    preservesAnalyses: Collection[type[Analysis] | LikeAnalysisPattern] = ()
+    preservesAnalyses: Collection[type[Analysis] | AnalysisGroup] = ()
     """
     One of the jobs of the PassManager is to optimize how and when analyses are run. 
     In particular, it attempts to avoid recomputing data unless it needs to. 
@@ -709,42 +876,42 @@ class Transformation(Pass[ModuleNode, ModuleNode]):
     
     # TODO: Refactor these methods into a extensible designe that let each analysis
     # define their own mutators for their result strucures.
-    def recAddNode(self, node:AnyNode, ancestor:AnyNode) -> None:
-        """
-        Record that a new node has been added to the tree, this should be called 
-        everytime a node is added to properly optimize a transformation.  
+    # def recAddNode(self, node:AnyNode, ancestor:AnyNode) -> None:
+    #     """
+    #     Record that a new node has been added to the tree, this should be called 
+    #     everytime a node is added to properly optimize a transformation.  
 
-        @param node: The new node
-        @param ancestor: The parent of the new node, this node must be already
-            present in the tree. 
-        """
-        self.update = True
-        self._updates.append(_Addition(node, ancestor))
+    #     @param node: The new node
+    #     @param ancestor: The parent of the new node, this node must be already
+    #         present in the tree. 
+    #     """
+    #     self.update = True
+    #     self._updates.append(_Addition(node, ancestor))
         
-    def recRemoveNode(self, node:AnyNode) -> None:
-        """
-        Record that a node has been removed from the tree, this should be called 
-        everytime a node is removed to properly optimize a transformation.  
+    # def recRemoveNode(self, node:AnyNode) -> None:
+    #     """
+    #     Record that a node has been removed from the tree, this should be called 
+    #     everytime a node is removed to properly optimize a transformation.  
         
-        @param node: The removed node
-        """
-        self.update = True
-        self._updates.append(_Removal(node))
+    #     @param node: The removed node
+    #     """
+    #     self.update = True
+    #     self._updates.append(_Removal(node))
     
-    def recReplaceNode(self, oldNode: AnyNode, newNode: AnyNode) -> None:
-        """
-        Record that a node has been replaced, this should be called 
-        everytime a node is replaced to properly optimize a transformation.  
+    # def recReplaceNode(self, oldNode: AnyNode, newNode: AnyNode) -> None:
+    #     """
+    #     Record that a node has been replaced, this should be called 
+    #     everytime a node is replaced to properly optimize a transformation.  
         
-        @param node: The replaces node
-        """
-        parent = self.ancestors[oldNode][-1] # node not in the system :/ 
-        # this line could raise KeyError or IndexError but
-        # it's not caught for performance reasons
+    #     @param node: The replaces node
+    #     """
+    #     parent = self.ancestors[oldNode][-1] # node not in the system :/ 
+    #     # this line could raise KeyError or IndexError but
+    #     # it's not caught for performance reasons
 
-        self.update = True
-        self._updates.append(_Addition(newNode, parent))
-        self._updates.append(_Removal(oldNode))
+    #     self.update = True
+    #     self._updates.append(_Addition(newNode, parent))
+    #     self._updates.append(_Removal(oldNode))
 
 
     def run(self, node: ModuleNode) -> ModuleNode:
@@ -873,6 +1040,8 @@ class _TransformationAdaptor(Transformation):
             raise RuntimeError('Transformers must not replace the node passed to the run() method')
         return newNode
 
+# TODO: Get rid of me and use two different interfaces. 
+# this is probably an anti-pattern :/
 class _RestrictedPassManager:
     """
     A proxy to the L{PassManager} instance that makes sure it is used correctly depending on the pass it's attached to.
@@ -880,6 +1049,7 @@ class _RestrictedPassManager:
     It implements L{IPassManager}.
     
     - Restrict intra-module passes L{gather} and L{apply} so they can't dynamically depend on inter-modules passes.
+    
     - Disallow access to L{PassManager.modules} since it should always be accessed with L{passmanager.modules} analysis.
     - Disallow access to L{PassManager.add_modules} and L{PassManager.remove_module} in the context of an analysis.
 
@@ -948,16 +1118,16 @@ class PassManager:
     One L{PassManager} can be used for the analysis of a collection of trees.
     """
 
+    treesupport: ITreeSupport = ASTreeSupport
+
     def __init__(self) -> None:
         
         self.dispatcher = d = EventDispatcher()
-        self._astcompat = astcompat = ASTCompat(d)
-        _initAstSupport(self)
-
         self.modules = ModuleCollection(d, astcompat)
         """
         Contains all the modules in the system.
         """
+        self.trees = Forest()
 
         self.cache = CacheProxy(self.modules, d)
         self._ctx = PassContext(self.modules)
@@ -969,6 +1139,7 @@ class PassManager:
         Use PassManager.modules to access modules.
         """
         self.dispatcher.dispatchEvent(ModuleAddedEvent(mod))
+        # self.apply(_AddTree(tree=mod), )
 
     def remove_module(self, mod: Module) -> None:
         """
@@ -1007,14 +1178,14 @@ class PassManager:
         
         return ret
 
-    def support(self, lib: ISupport) -> None:
-        """
-        Change the support for AST parser. This should be called first if you use the pass manager with 
-        a AST parser library that is not the standard library. 
+    # def support(self, lib: ISupport) -> None:
+    #     """
+    #     Change the support for AST parser. This should be called first if you use the pass manager with 
+    #     a AST parser library that is not the standard library. 
 
-        Only one type of tree can be supported at a time.
-        """
-        self.dispatcher.dispatchEvent(SupportLibraryEvent(lib))
+    #     Only one type of tree can be supported at a time.
+    #     """
+    #     self.dispatcher.dispatchEvent(SupportLibraryEvent(lib))
     
     def _getModules(self, analysis: modules) -> ModuleCollection:
         # access modules from within a pass context.
@@ -1035,7 +1206,21 @@ class PassManager:
     #     self.cache._merge(other.cache)
     #     self.modules._merge(other.modules)
    
-# TODO: Implement me as an SystemObserverAnalysis
+# Future vision
+
+# trees = [Tree(ast.parse(), 'twisted.python.filepath', isPackage=False, ...)]
+# pm = ASTPassManager(trees)
+# pm.add(tree) => pm.apply(add_tree.bind(tree), None)
+# import_graph = passm.gather(import_graph, None)
+# passm.apply(ast.parse(...), 'twisted.python.filepath', 
+#        isPackage=False, filename='src/twisted/python/filepath.py', 
+#    )
+# passm.addRoot(Root(ast.parse(...), 'twisted.python.filepath', 
+#        isPackage=False, filename='src/twisted/python/filepath.py'))
+# passm.roots
+
+
+# TODO: Implement me as a GlobalProperty
 # class Statistics:
 #     def __init__(self, dispatcher: EventDispatcher) -> None:
 #         self.run_times = {}

@@ -287,12 +287,9 @@ class get_local(NodeAnalysis[list[ast.AST]]):
         cls.dependencies += (locals_map.bind(include_inherited=cls.include_inherited), )
         super().prepareClass()
     
-    def prepare(self, node: ast.AST):
-        super().prepare(node)
+    def doPass(self, node: ast.AST) -> list[ast.AST]:
         if not isinstance(node, (ast.Module, ast.ClassDef)):
             raise TypeError(f'expected module or class, got {node}')
-
-    def doPass(self, node: ast.AST) -> list[ast.AST]:
         return [] # TODO
 
 class get_attribute(NodeAnalysis[list[ast.AST]]):
@@ -316,12 +313,9 @@ class get_attribute(NodeAnalysis[list[ast.AST]]):
             cls.dependencies += (get_ivar.bind(include_inherited=cls.include_inherited), )
         return super().prepareClass()
 
-    def prepare(self, node: ast.AST):
-        super().prepare(node)
+    def doPass(self, node: ast.AST) -> list[ast.AST]:
         if not isinstance(node, (ast.Module, ast.ClassDef)):
             raise TypeError(f'expected module or class, got {node}')
-
-    def doPass(self, node: ast.AST) -> list[ast.AST]:
         values: list[beniget.Def] = []
         if not self.ignore_locals:
             if self.include_ivars and isinstance(node, ast.ClassDef):
