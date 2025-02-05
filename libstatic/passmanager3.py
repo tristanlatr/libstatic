@@ -368,12 +368,16 @@ class PassPrototype:
         # TODO:...
         ...
 
-    # Methods to instanciate a pass prototype.
-
     def __call__(self, *args: Hashable, **kwargs: Hashable) -> PassInstance:
         return self._instanciate()(*args, **kwargs)
     
     def proxy(self, level: _ElemKind) -> PassInstance:
+        """
+        Derive this pass to return new pass that results into a simple proxy that provide a C{get} method which trigers
+        the original pass on the given node.
+        
+        This can be used to avoid calling repetitively ``passmanager.gather(pass, ...)``.
+        """
         return self._instanciate().proxy(level)
     
     def _instanciate(self) -> PassInstance:
@@ -382,6 +386,18 @@ class PassPrototype:
     # Method to create a PassPattern from this pass.
 
     def like(self, **args_predicate: Callable[[object], bool]) -> _IPassPattern:
+        """
+        Create a pattern representing several possible derivations of 
+        the pass to be matched against other passes. 
+
+        Designed to be used for preserved analyses.
+
+        When creating a "like" pattern, all parameters must be given. 
+
+        @param kwargs: The analysis parameters names to the match function. 
+            A match function is a one-argument
+            callable that returne whether the value for the parameter matches.
+        """
         return _ParameterizedPassPattern(
             self, **args_predicate
         )
@@ -427,12 +443,9 @@ class PassInstance:
         
         self_args = self.args
         args_dict = {}
-        # trivially support positional parameters, even if 
-        # argument already have valus this will override them.
-        # TODO: Raise an excet
+        # support positional parameters
         for pname, value in zip(params, args):
-            # This prevents the creation of new instance of PassInstance whith the same
-            # params values.
+            # This prevents the creation of new instance of PassInstance whith the same params values.
             if value != (self_args.get(pname, _nah)):
                 args_dict[pname] = value
         
@@ -620,7 +633,6 @@ def new_pass_prototype(
         dependencies=dependencies, 
         cached=cached,
         immutable=immutable,
-
     )
     
 
@@ -658,10 +670,17 @@ def _mtree_proxy_pass(c: IConnector, node: MTree, *,
 
 
 _RunsOnPointer: TypeAlias = tuple[Forest,] | tuple[Forest, MTree] | tuple[Forest, MTree, AnyNode]
+"""
+A "pointer" stores the path of an element under one of these forms: 
+    
+    - forest
+    - forest, mtree
+    - forest, mtree, node
+"""
 
 _PassRun: TypeAlias = tuple[PassInstance, _RunsOnPointer]
 """
-A pass run encapsulate a pass and on which element it has been run.
+A "pass run" stores a pass and on which element it has been run.
 """
 
 class _PassRunMetadata:
