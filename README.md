@@ -1,4 +1,4 @@
-# libstatic
+# libstatic (work in progress)
 
 Static analysis library based on [beniget](https://github.com/serge-sans-paille/beniget/).
 
