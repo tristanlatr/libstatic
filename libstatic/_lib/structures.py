@@ -8,6 +8,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from functools import reduce
 import operator
+import types
 from typing import (
     Callable,
     Collection,
@@ -24,13 +25,15 @@ from typing import (
     overload,
 )
 
-from beniget.beniget import ordered_set as _oset # type: ignore
+from beniget.ordered_set import ordered_set as _oset # type: ignore
 
 OrderedSet = _oset
 
 _T = TypeVar("_T")
 _KT = TypeVar("_KT")
 _VT = TypeVar("_VT")
+
+################# Generic immutable-like lazy sequence
 
 class LazySeq(Sequence[_T]):
     """
@@ -102,6 +105,8 @@ class LazySeq(Sequence[_T]):
             return False
         return True
 
+################# Generic immutable-like lazy mapping
+
 class LazyMap(Mapping[_KT, _VT]):
     """
     A lazy map makes an iterator look like an immutable mapping.
@@ -158,6 +163,8 @@ class LazyMap(Mapping[_KT, _VT]):
         self._consume_all()
         return len(self._dict)
 
+################# Generic immutable ChainMap
+
 class ChainMap(Mapping['_KT', '_VT']):
     """
     Combine multiple mappings for sequential lookup.
@@ -190,8 +197,37 @@ class ChainMap(Mapping['_KT', '_VT']):
             d.update(dict.fromkeys(mapping))    # reuses stored hash values if possible
         return iter(d)
 
+################# Generic immuatble mapping
 
+# TODO: Rename me FrozenMap, a dict is always mutable.
 class FrozenDict(Mapping['_KT', '_VT']):
+    """
+    An immutable mapping.
+
+    Example usage:
+
+    >>> fd = FrozenDict(a=1, b=2)
+    >>> fd['a']
+    1
+    >>> fd['b']
+    2
+    >>> list(fd)
+    ['a', 'b']
+    >>> len(fd)
+    2
+    >>> repr(fd)
+    "{'a': 1, 'b': 2}"
+    >>> str(fd)
+    "{'a': 1, 'b': 2}"
+    >>> hash(fd) == hash(FrozenDict(a=1, b=2))
+    True
+    >>> hash(fd) != hash(FrozenDict(a=2, b=1))
+    True
+    >>> fd['c']
+    Traceback (most recent call last):
+        ...
+    KeyError: 'c'
+    """
 
     __slots__ = '_d', '_hash'
     # copied from https://stackoverflow.com/a/2704866
@@ -228,33 +264,68 @@ class FrozenDict(Mapping['_KT', '_VT']):
             self._hash = hash_
         return self._hash
 
-# TODO: This should be optimized to use __slots__ and avoid custom __getattribute__ calls.
-class FrozenNamespace:
+################# Generic namespace
+
+# TODO: Can this be optimized to use __slots__? 
+class FrozenNamespace(types.SimpleNamespace):
+    """
+    An immutable namespace.
+
+    Example usage:
+
+    >>> fn = FrozenNamespace(a=1, b=2)
+    >>> fn.a
+    1
+    >>> fn.b
+    2
+    >>> fn.c
+    Traceback (most recent call last):
+        ...
+    AttributeError: 'FrozenNamespace' object has no attribute 'c'
+    >>> fn.a = 3
+    Traceback (most recent call last):
+        ...
+    AttributeError: 'FrozenNamespace' object is read-only
+    >>> print(repr(fn))
+    FrozenNamespace(a=1, b=2)
+    >>> hash(fn) == hash(FrozenNamespace(a=1, b=2))
+    True
+    >>> hash(fn) != hash(FrozenNamespace(a=2, b=1))
+    True
+    >>> fn == FrozenNamespace(a=1, b=2)
+    True
+    >>> fn == FrozenNamespace(a=2, b=1)
+    False
+    >>> fn.__dict__
+    {'a': 1, 'b': 2, '_FrozenNamespace__hash': ...}
+    """
     
-    __slots__ = '_d',
-
-    def __init__(self, *args, **kwargs):
-        self._d = FrozenDict(*args, **kwargs)
-
-    def __setattr__(self, name: str, value: Any) -> None:
-        raise TypeError('Cannot set attribute on FrozenNamespace instance')
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.__freeze__()
     
-    def __getattribute__(self, name: str) -> Any:
-        if name in self._d:
-            return self._d[name]
-        return super(FrozenNamespace, self).__getattribute__(name)
-
+    def __freeze__(self):
+        self.__hash = hash(FrozenDict(self.__dict__.items()))+1
+    
+    def __is_frozen__(self):
+        return f"_{type(self).__name__}__hash" in self.__dict__
+    
+    def __hash__(self):
+        if self.__is_frozen__():
+            return self.__hash
+        raise TypeError(f"{type(self).__name__!r} object is not hashable yet")
+    
     def __repr__(self):
-        items = (f"{k}={v!r}" for k, v in self._d.items())
-        return "{}({})".format(type(self).__name__, ", ".join(items))
+        # repr() only consider public attributes because of ugly '_FrozenNamespace__hash' attribute.
+        content = ", ".join(f"{k}={v!r}" for k,v in self.__dict__.items() if not k.startswith('_'))
+        return f"{type(self).__name__}({content})"
 
-    def __hash__(self) -> int:
-        return hash(self._d)+1
+    def __setattr__(self, name, value):
+        if self.__is_frozen__():
+            raise AttributeError(f"{type(self).__name__!r} object is read-only")
+        else:
+            super().__setattr__(name, value)
 
-    def __eq__(self, other):
-        if isinstance(self, FrozenNamespace) and isinstance(other, FrozenNamespace):
-           return self._d == other._d
-        return NotImplemented
 
 ################# Generic Result object (inspired by Rust)
 
@@ -302,7 +373,7 @@ class _Success(CallResult):
 
 ################# Generic Indexer implementation
 
-_SeriesOfKeysT = TypeVar("_T", bound=Sequence[Hashable])
+_SeriesOfKeysT = TypeVar("_SeriesOfKeysT", bound=Sequence[Hashable])
 
 class Indexer(Generic[_SeriesOfKeysT]):
     """
@@ -389,14 +460,14 @@ class Indexer(Generic[_SeriesOfKeysT]):
     
     def add(self, key: _SeriesOfKeysT) -> None:
         # O(1)
-        for label, value in zip(self.__keys, key, strict=True):
+        for label, value in zip(self.__keys, key): # TODO: use strict=True
             if label in self.__skipKeys:
                 continue
             self.__store[label][value].add(key)
     
     def discard(self, key: _SeriesOfKeysT) -> None:
         # O(1)
-        for label, value in zip(self.__keys, key, strict=True):
+        for label, value in zip(self.__keys, key): # TODO: use strict=True
             if label in self.__skipKeys:
                 continue
             self.__store[label][value].discard(key)
@@ -428,8 +499,6 @@ class Indexer(Generic[_SeriesOfKeysT]):
         return OrderedSet(k for k,v in self.__store[key].items() if v)
 
 ################# Generic Cache implementation
-
-_VT = TypeVar('_VT')
 
 class Cache(Generic[_SeriesOfKeysT, _VT]):
     """
@@ -469,7 +538,7 @@ class Cache(Generic[_SeriesOfKeysT, _VT]):
         @param skipKeys: A collection of key names that should not be indexed.
         """
         self.__store: dict[_SeriesOfKeysT, _VT] = {}
-        self.__indexer = Indexer(keys, skipKeys)
+        self.__indexer: Indexer[_SeriesOfKeysT] = Indexer(keys, skipKeys)
     
     def set(self, key:_SeriesOfKeysT, value:_VT) -> None:
         """
@@ -509,6 +578,11 @@ class Cache(Generic[_SeriesOfKeysT, _VT]):
         Returns all distinct values for a particular key in the cache.
         """
         return self.__indexer.kvalues(key)
+    
+    def allkeys(self) -> Collection[_SeriesOfKeysT]:
+        return list(self.__store)
+
+################# Generic callable proxy
 
 class GetProxy(Generic[_T, _VT]):
     """

@@ -3,14 +3,18 @@ from __future__ import annotations
 from collections import defaultdict
 from contextlib import contextmanager
 from enum import IntEnum
-from functools import lru_cache, partial
+from functools import partial
 from inspect import signature, Parameter
 from itertools import chain
 import itertools
 from typing import (Callable, Collection, Container, Hashable, Iterable, 
-                    Iterator, Any, Literal, Mapping, NotRequired, Protocol, 
-                    Sequence, TypeAlias, TypedDict,
-                    final, overload)
+                    Iterator, Any, Literal, Mapping, Protocol, Sequence, 
+                    TYPE_CHECKING, Tuple)
+if TYPE_CHECKING:
+    from typing import NotRequired, TypeAlias, TypedDict, final
+else:
+    final = lambda f: f
+    TypedDict = object
 
 from libstatic._lib.structures import Cache, FrozenDict, FrozenNamespace, GetProxy, OrderedSet, CallResult
 
@@ -49,7 +53,6 @@ class MTree:
     def identifier(self) -> str:
         return self.__identifier
 
-    @lru_cache()
     def __hash__(self) -> int:
         return hash((self.root, self.identifier, self.attributes))
     
@@ -77,8 +80,19 @@ class Forest(Collection[MTree]):
     Mutation methods (add/remove) are private since these action should only
     be performed through the passmanager. 
 
-    >>> trees = [MTree(ast.parse(), 'mod1', filename='./mod1.py'), ...]
-    >>> passmanager = PassManager(trees)
+    >>> import ast
+    >>> astmod = ast.parse('x = 1')
+    >>> tree = MTree(astmod, 'mod1', filename='./mod1.py')
+    >>> pm = PassManager([tree])
+    >>> isinstance(pm.trees, Forest)
+    True
+    >>> 'mod1' in pm.trees
+    True
+    >>> astmod in pm.trees
+    True
+    >>> tree in pm.trees
+    True
+
     """
 
     __slots__ = '__identifier2tree', '__root2tree', '__trees'
@@ -187,7 +201,7 @@ _NODE = _ElemKind.NODE  # runs on any nodes of the tree - including the root nod
 PassLike: TypeAlias = 'PassPrototype | PassInstance'
 PreservedAnalyses: TypeAlias = 'Collection[PassLike | IPassPattern]'
 
-CastableToDict: TypeAlias = Iterable[tuple[str, Any]] | dict[str, Any]
+CastableToDict: TypeAlias = 'Iterable[tuple[str, Any]] | dict[str, Any]'
 """
 Anything that can be casted to dict. 
 
@@ -324,13 +338,24 @@ class PassPrototype:
     # TODO: Maybe this could be renamed to longlived, so that it's clear that it can be used for real
     # anbalyses that auto-updates themselves with the hooks.
     immutable: bool = False
-    
+
     # serialization stuff, only for analyses
 
     # file_cached: bool
     # # TODO: should the file caches results have a embeded version maybe?
     # encode_result: Callable[[Any], _Json]
     # decode_result: Callable[[_Json], Any]
+
+    # Desperate attempt to make it work with doctests :/ not working
+    @property
+    def __doc__(self):
+        return self.do_pass.__doc__
+    @property
+    def __name__(self):
+        return self.name
+    @property
+    def __wrapped__(self):
+        return self.do_pass
 
     def __str__(self) -> str:
         # i.e. "Node analysis 'def_use_chains'" 
@@ -397,7 +422,7 @@ class PassPrototype:
         return _ParameterizedPassPattern(
             self, **args_predicate
         )
-    
+
 # we need 2 decorators: 
 # @analysis(on=passmanager.Forest, name='structure')
 # @analysis(on=passmanager.MTree)
@@ -432,10 +457,15 @@ class PassInstance:
         return newpass
 
     def _add_args(self, *args: Hashable, **kwargs: Hashable) -> PassInstance: 
-        if len(kwargs) > len(optional_params:=self.proto.optional_params):
-            raise TypeError(f'too many keyword parmeters, expected at most {len(optional_params)} keywords')
-        if len(args) > len(params:=self.proto.params):
-            raise TypeError(f'too many positional parmeters, expected at most {len(params)} positionals')
+        params = self.proto.params
+        optional_params = self.proto.optional_params
+        len_optinals = len(optional_params)
+        len_required = len(params)
+
+        if len(kwargs) > (len_optinals + len_required):
+            raise TypeError(f'too many keyword parmeters, expected at most {len_optinals + len_required} keywords')
+        if len(args) > len_required:
+            raise TypeError(f'too many positional parmeters, expected at most {len_required} positionals')
         
         self_args = self.args
         args_dict = {}
@@ -446,10 +476,10 @@ class PassInstance:
                 args_dict[pname] = value
         
         for pname, value in tuple(kwargs.items()):
-            if pname not in params or pname not in optional_params:
-                raise TypeError(f'unexpected argument {pname}')
+            if (pname not in params) and (pname not in optional_params):
+                raise TypeError(f'unexpected argument {pname!r}')
             if pname in args_dict:
-                raise TypeError(f'got several values for parameter {pname}')
+                raise TypeError(f'got several values for parameter {pname!r}')
             if value != self_args.get(pname, _nah):
                 args_dict[pname] = value
         
@@ -609,7 +639,7 @@ def new_pass_prototype(
     # Determine the runs_on_level
     runs_on_level = _runs_on_type_2_level.get(runs_on_type, _NODE) # type: ignore[arg-type]
 
-    return PassPrototype(
+    proto =  PassPrototype(
         do_pass, 
         name=do_pass.__name__, 
         kind=kind,
@@ -622,6 +652,7 @@ def new_pass_prototype(
         immutable=immutable,
     )
     
+    return proto
 
 def _pass_decorator(**kwargs):
     """
@@ -641,7 +672,7 @@ analysis = partial(_pass_decorator, kind=_ANALYSIS)
 Main decorators to create an analysis
 """
 
-_Pointer: TypeAlias = tuple[Forest,] | tuple[Forest, MTree] | tuple[Forest, MTree, AnyNode]
+_Pointer: TypeAlias = 'tuple[Forest,] | tuple[Forest, MTree] | tuple[Forest, MTree, AnyNode]'
 """
 A "pointer" tuple stores the path of an element in the system under one of these forms: 
     
@@ -649,7 +680,7 @@ A "pointer" tuple stores the path of an element in the system under one of these
     - forest, mtree
     - forest, mtree, node
 """
-_SimplePointer: TypeAlias = tuple[()] | tuple[MTree,] | tuple[MTree, AnyNode]
+_SimplePointer: TypeAlias = 'tuple[()] | tuple[MTree,] | tuple[MTree, AnyNode]'
 """
 The "simple pointer" is what's left from the "pointer" when we remove the forest.
 """
@@ -769,14 +800,14 @@ CACHE_KEYS: frozenset[str] = OrderedSet(
      )
 )
 
-_CacheKeyT: TypeAlias = tuple[
+_CacheKeyT: TypeAlias = Tuple[
     PassInstance, 
 
     int, 
     bool, 
     
-    Hashable | None, 
-    Hashable | None
+    'Hashable | None', 
+    'Hashable | None'
     ]
 
 
@@ -848,10 +879,17 @@ class Runner:
         element: _SimplePointer = self._pointer[1:]
         pm = self._passmanager
 
-        # validate the runtime type
-        if runs_on_type:=passe_proto.runs_on_type:
-            if not isinstance(element, runs_on_type):
-                raise TypeError(f'unexpected type, got {type(element)}, should be {runs_on_type}')
+        # validate the runtime type if running on nodes
+        if passe_proto.runs_on == _NODE:
+            runs_on_type = passe_proto.runs_on_type
+            if not isinstance(element[-1], runs_on_type):
+                # This can happen when defining a pass that only runs on ast.Module and then calling
+                # it from a pass that run on a child node, expecting the framework to understand that the dependent
+                # analysis should run on the enclosing Module. It doesn't work like that at the moment; since
+                # the passmanager doesn't understand the hierarchy in between ast.Module and, ast.BinOp, let's say.
+                # If your pass requires to run on the root of the parse tree, use on=passmanager.MTree 
+                # and access the module instance with '.root' attribute.
+                raise TypeError(f'unexpected type, got {element[-1]!r}, should be of type {runs_on_type!r}')
 
         # Apply all transformations eagerly, since we use a descriptor for all analyses
         # we need to transitivsely iterate dependent tranforms and apply then now.
@@ -1147,19 +1185,16 @@ class PassManager:
         self.apply(_remove_mtree(tree))
 
     def _prepare_element(self, element: tuple[Element,...], runs_on: _ElemKind) -> tuple[Element,...]:
-        if element and not isinstance(element[0], MTree):
-            # If the first element is not a mtree, 
-            # try to fetch it from the forest.
-            module = self.trees[element[0]]
-            element = (module, ) + element[1:]
         len_element = len(element)
+        needs_to_append_root = False
         if runs_on == _NODE:
             if len_element == 1:
                 # Very important for usability!!!
                 # a NODE pass can be run on a MTree, 
                 # in this case use the root module as the node.
-                element += (element[0].root, )
-
+                # This is only true if the pass can be run on 
+                # the root no of the AST.
+                needs_to_append_root = True
             elif len_element == 0:
                 raise TypeError('a NODE pass expect at least one element argument.')
         elif runs_on == _MTREE:
@@ -1171,6 +1206,16 @@ class PassManager:
             if len_element != 0:
                 raise TypeError(f'a FOREST pass do not expect any element argument, got {len_element}.')
         
+        if element and not isinstance(element[0], MTree):
+            # If the first element is not a mtree, 
+            # try to fetch it from the forest.
+            # but first check the number of arguments...
+            module = self.trees[element[0]]
+            element = (module, ) + element[1:]
+        
+        if needs_to_append_root:
+            element += (element[0].root, )
+
         return element
 
     def _get_runner(self, passe: PassInstance, pointer: _Pointer) -> Runner:
@@ -1233,7 +1278,7 @@ class Dependencies:
 
 # Internal builtin passes
 
-@analysis(on=Forest, cache=False)
+@analysis(on=Forest, cached=False)
 def _forest_proxy_pass(c: IConnector, _: Forest, *, proxied: PassInstance) -> AnalysisReturn:
     def inner_pass(*element, **kwargs):
         if kwargs:
@@ -1243,7 +1288,7 @@ def _forest_proxy_pass(c: IConnector, _: Forest, *, proxied: PassInstance) -> An
         return c.gather(runpass, *element)
     return {'result': GetProxy(inner_pass), 'completeness': False}
 
-@analysis(on=MTree, cache=False)
+@analysis(on=MTree, cached=False)
 def _mtree_proxy_pass(c: IConnector, node: MTree, *, proxied: PassInstance) -> AnalysisReturn:
     def inner_pass(element, **kwargs):
         if kwargs:
