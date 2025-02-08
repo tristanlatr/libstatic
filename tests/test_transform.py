@@ -11,16 +11,18 @@ class TestPrepare(TestCase):
     def checkTransforms(
         self, code, ref, module=True, function=True, klass=True, method=True
     ) -> None:
-        code = dedent(code)
-        ref = dedent(ref)
+        code = unparse(ast.parse(dedent(code))) # canonicalize the code
+        ref = unparse(ast.parse(dedent(ref))) # should be already canonicalized but this doesn't heart...
 
         def check(code, ref, expect_success) -> None:
             node = ast.parse(code)
-            Transform().transform(node)
+            node = (transformer:=Transform()).transform(node)
             unparsed = '\n'.join(line for line in unparse(node).strip().splitlines() if line)
             ref = '\n'.join(line for line in ref.strip().splitlines() if line)
+            code = '\n'.join(line for line in code.strip().splitlines() if line)
             if expect_success:
                 self.assertEqual(unparsed, ref)
+                self.assertEqual(transformer.update, code != ref)
             else:
                 self.assertNotEqual(unparsed, ref)
 

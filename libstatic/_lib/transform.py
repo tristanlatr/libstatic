@@ -41,6 +41,7 @@ class Transform(ast.NodeTransformer):
     def __init__(self) -> None:
         super().__init__()
         # stack of nodes
+        self.update = False
         self._node_stack = []  # type:list[ast.AST]
         self._dead_blocks = set()  # type: set[Tuple[ast.AST , str]]
         self._control_flow_jumps = []  # type:list[Callable[[ast.AST], bool]]
@@ -52,6 +53,7 @@ class Transform(ast.NodeTransformer):
             # prevent removing dead yield and yield from statements
             # because they make the function a generator.
             if not is_Yield(node):
+                self.update = True
                 return None
 
         self._node_stack.append(node)
@@ -103,7 +105,10 @@ class Transform(ast.NodeTransformer):
         assert False
 
     def visit_scope(self, node:T) -> T:
-        return self.__class__().transform(node)
+        nested = self.__class__()
+        tnode = nested.transform(node)
+        self.update = nested.update or self.update
+        return tnode
 
     visit_AsyncFunctionDef = visit_FunctionDef = visit_ClassDef = visit_scope
 
@@ -154,6 +159,7 @@ class Transform(ast.NodeTransformer):
             isinstance(n, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
             for n in self._node_stack
         ):
+            self.update = True
             return fix_ast_location(
                 ast.Assign(
                     targets=[ast.Name(id="__all__", ctx=ast.Store())],
@@ -221,6 +227,7 @@ class Transform(ast.NodeTransformer):
                     type_comment=None,
                 )
             if aug:
+                self.update = True
                 return fix_ast_location(aug, tnode)
 
         return tnode
