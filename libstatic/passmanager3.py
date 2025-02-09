@@ -9,7 +9,7 @@ from itertools import chain
 import itertools
 from typing import (Callable, Collection, Container, Hashable, Iterable, 
                     Iterator, Any, Literal, Mapping, Protocol, Sequence, 
-                    TYPE_CHECKING, Tuple)
+                    TYPE_CHECKING, Tuple, TypeVar, overload)
 if TYPE_CHECKING:
     from typing import NotRequired, TypeAlias, TypedDict, final
 else:
@@ -20,9 +20,121 @@ from libstatic._lib.structures import Cache, FrozenDict, FrozenNamespace, GetPro
 
 import attrs
 
+############ Typing related declarations
+
 Element: TypeAlias = Any; 'Represent any element of the system: forest, mtree, or any nodes'
 RootNode: TypeAlias = object; 'Represent the root node of the module (typically ast.Module)'
 AnyNode: TypeAlias = object; "Represent any node in a module, including it's root node"
+
+PassLike: TypeAlias = 'PassPrototype | PassInstance'
+PreservedAnalyses: TypeAlias = 'Collection[PassLike | IPassPattern]'
+CastableToDict: TypeAlias = 'Iterable[tuple[str, Any]] | dict[str, Any]'
+"""
+Anything that can be casted to dict. 
+
+We accept iterables so the wrapped functions can be generators
+yielding tuples: key, value ::
+    @analysis(on=ast.AST)
+    def localsmaps(node):
+        yield 'result', _fetch_locals(node)
+
+Is equivalent to::
+    @analysis(on=ast.AST)
+    def localsmaps(node):
+        return dict(result=_fetch_locals(node))
+
+"""
+
+class IPassFunction(Protocol):
+    """
+    A pass function is a two positional argument 
+    function with optionnaly any keyword arguments.
+    """
+    def __call__(self, c: IConnector, element: Element, **kwargs: Hashable) -> CastableToDict:
+        ...
+
+class AnalysisReturn(TypedDict):
+    """
+    The expected strucutre of the mapping returned from a analysis function.
+    """
+    result: Any
+    completeness: NotRequired[bool]
+
+class TransformationReturn(TypedDict):
+    """
+    The expected strucutre of the mapping returned from a transformation function.
+    """
+    update: bool
+    preserved: NotRequired[PreservedAnalyses]
+
+class IPassPattern(Protocol):
+    """
+    A pass pattern is abstracted as any object 
+    which __eq__ method will return True
+    for any pass that matches the pattern. 
+    
+    So a pass instance implememt this interface implicitely by default.
+    """
+    def __eq__(self, other: object) -> bool: ...
+
+
+_Pointer: TypeAlias = 'tuple[Forest,] | tuple[Forest, MTree] | tuple[Forest, MTree, AnyNode]'
+"""
+A "pointer" tuple stores the path of an element in the system under one of these forms: 
+    
+    - forest
+    - forest, mtree
+    - forest, mtree, node
+"""
+_SimplePointer: TypeAlias = 'tuple[()] | tuple[MTree,] | tuple[MTree, AnyNode]'
+"""
+The "simple pointer" is what's left from the "pointer" when we remove the forest.
+"""
+
+_PassRun: TypeAlias = 'tuple[PassInstance, _Pointer]'
+"""
+A "pass run" stores a pass and on which element it has been run.
+"""
+
+class IConnector(Protocol):
+    """
+    Connector to the passmanager, from inside a pass function.
+    This is what we get as the first argument of pass functions like::
+
+        @analysis(on=AST)
+        def stuff(connector: IConnector, node): ...
+    """
+    deps: Dependencies #: Namespace containing the declared dependencies
+    gather: Callable[..., Any] #: See L{PassManager.gather}
+    
+    #: See L{PassManager.apply}. This attribute is 
+    #: defined only if it's connected to a transformation.
+    apply: Callable[..., Any] 
+
+_CacheKeyT: TypeAlias = Tuple[
+    'PassInstance', 
+
+    int, 
+    bool, 
+    
+    'Hashable | None', 
+    'Hashable | None'
+    ]
+
+class Hook(Protocol):
+    """
+    A hook is callable that is used to customize the logic just after a pass has been run. 
+    Note that the hooks won't be called when retreiving results from the cache; only when a pass actually runs.
+
+    If the hook function returns a truthy value, it'a assumed to replace the given returned dictionary. 
+    You can also mutate the dict in-place and return a falsy value.
+    """
+    def __call__(self, passe: PassInstance, pointer: _Pointer, returned: TransformationReturn | AnalysisReturn, ) -> TransformationReturn | AnalysisReturn | None:
+        ...
+
+_T = TypeVar('_T')
+
+############ Actual framework
 
 class MTree:
     """
@@ -40,6 +152,7 @@ class MTree:
         self.__root = root
         self.__identifier = identifier
         
+        # TODO: This should be a mapping instead.
         self.attributes: Any = FrozenNamespace(**attributes)
         """
         Optional hashable metadata regarding this tree. 
@@ -151,7 +264,11 @@ class Forest(Collection[MTree]):
         except KeyError as e:
             raise MTreeNotFound(__key) from e
     
-    def get(self, key: str | RootNode, default:Any=None) -> MTree | None:
+    @overload
+    def get(self, key: str | RootNode) -> MTree | None: ...
+    @overload
+    def get(self, key: str | RootNode, default:_T) -> MTree | _T: ...
+    def get(self, key: str | RootNode, default:Any=None) -> Any:
         try:
             return self[key]
         except KeyError:
@@ -171,9 +288,6 @@ class Forest(Collection[MTree]):
             other in self.__identifier2tree or \
             other in self.__root2tree
 
-PassOptions = FrozenDict
-PassArgs = FrozenDict
-
 # pass kinds
 class _PassKind(IntEnum): TRANSFORMATION = 1; ANALYSIS = 2
 # element kinds
@@ -184,71 +298,6 @@ _ANALYSIS = _PassKind.ANALYSIS
 _FOREST = _ElemKind.FOREST # runs on the entire Forest
 _MTREE = _ElemKind.MTREE # runs on MTree instances (which includes the root node, it's identifier and metadata)
 _NODE = _ElemKind.NODE  # runs on any nodes of the tree - including the root node (whithout metadata - but metadate can till be passed as pass parameters)
-
-# # For analyses:
-
-# def Result(value: Any) -> tuple[str, Any]:
-#     return Result, value
-# def Completeness(value: bool) -> tuple[str, bool]:
-#     return 'completeness', value
-# # For transformations:
-# def Preserved(value: PreservedAnalyses) -> tuple[str, PreservedAnalyses]:
-#     return 'preserved', value
-# def Update(value: bool) -> tuple[str, bool]:
-#     return 'update', value
-
-
-PassLike: TypeAlias = 'PassPrototype | PassInstance'
-PreservedAnalyses: TypeAlias = 'Collection[PassLike | IPassPattern]'
-
-CastableToDict: TypeAlias = 'Iterable[tuple[str, Any]] | dict[str, Any]'
-"""
-Anything that can be casted to dict. 
-
-We accept iterables so the wrapped functions can be generators
-yielding tuples: key, value ::
-    @analysis(on=ast.AST)
-    def localsmaps(node):
-        yield 'result', _fetch_locals(node)
-
-Is equivalent to::
-    @analysis(on=ast.AST)
-    def localsmaps(node):
-        return dict(result=_fetch_locals(node))
-
-"""
-
-class IPassFunction(Protocol):
-    """
-    A pass function is a two positional argument 
-    function with optionnaly any keyword arguments.
-    """
-    def __call__(self, c: IConnector, element: Element, **kwargs: Hashable) -> CastableToDict:
-        ...
-
-class AnalysisReturn(TypedDict):
-    """
-    The expected strucutre of the mapping returned from a analysis function.
-    """
-    result: Any
-    completeness: NotRequired[bool]
-
-class TransformationReturn(TypedDict):
-    """
-    The expected strucutre of the mapping returned from a transformation function.
-    """
-    update: bool
-    preserved: NotRequired[PreservedAnalyses]
-
-class IPassPattern(Protocol):
-    """
-    A pass pattern is abstracted as any object 
-    which __eq__ method will return True
-    for any pass that matches the pattern. 
-    
-    So a pass instance implememt this interface implicitely by default.
-    """
-    def __eq__(self, other: object) -> bool: ...
 
 class _ParameterizedPassPattern:
     """
@@ -281,7 +330,6 @@ class _ParameterizedPassPattern:
     
     __eq__ = matches
         
-
 @attrs.frozen()
 class PassPrototype:
     """
@@ -297,7 +345,7 @@ class PassPrototype:
     name: str 
     
     #: the type of pass: transformation or analysis.
-    kind: _PassKind
+    kind: Literal[_PassKind.ANALYSIS, _PassKind.TRANSFORMATION]
     # TODO: Think of using two subclasses: AnalysisProto/TransformationProto -> AnalysisInstance/TransformationInstance
 
     #: on what kind of element this pass runs on? this is conceptual.
@@ -348,20 +396,27 @@ class PassPrototype:
 
     # Desperate attempt to make it work with doctests :/ not working
     @property
-    def __doc__(self):
+    def __doc__(self) -> str | None:
         return self.do_pass.__doc__
     @property
-    def __name__(self):
+    def __name__(self) -> str:
         return self.name
     @property
-    def __wrapped__(self):
+    def __wrapped__(self) -> IPassFunction:
         return self.do_pass
 
     def __str__(self) -> str:
         # i.e. "Node analysis 'def_use_chains'" 
         return f'{self.runs_on.name.title()} {self.kind.name.lower()} {self.name!r}'
+    
+    @property
+    def proto(self) -> PassPrototype:
+        """
+        Convenience to be able to call .proto on any PassLike.
+        """
+        return self
 
-    def _replace(self, **kwargs) -> PassPrototype:
+    def _replace(self, **kwargs: Any) -> PassPrototype:
         return attrs.evolve(self, **kwargs)
     
     def get_dependencies(self) -> Collection[PassLike]:
@@ -374,11 +429,11 @@ class PassPrototype:
         """
         Transitively iterate on all dependencies of this pass.
         """
-        seen = OrderedSet()
-        def _yield_deps(c: PassLike):
-            yield from (d for d in c.get_dependencies() if d not in seen)
+        seen: set[PassLike] = OrderedSet()
+        def _yield_deps(c: PassLike) -> Iterator[PassLike]:
+            yield from (d for d in c.proto.get_dependencies() if d not in seen)
             yield from (d for d in chain.from_iterable(
-                _yield_deps(dep) for dep in c.get_dependencies()) if d not in seen)
+                _yield_deps(dep) for dep in c.proto.get_dependencies()) if d not in seen)
         seen.update(_yield_deps(self))
         return seen
 
@@ -401,7 +456,7 @@ class PassPrototype:
         return self._instanciate().missing_param()
     
     def _instanciate(self) -> PassInstance:
-        return PassInstance(self, PassArgs())
+        return PassInstance(self, FrozenDict())
 
     # Method to create a pattern from this pass.
 
@@ -423,15 +478,6 @@ class PassPrototype:
             self, **args_predicate
         )
 
-# we need 2 decorators: 
-# @analysis(on=passmanager.Forest, name='structure')
-# @analysis(on=passmanager.MTree)
-# @analysis(on=ast.Module)
-# @transformation(on=passmanager.MTree)
-# @transformation(on=ast.FunctionDef)
-
-# forest_transformation does not exist because the only two forest
-# transforms that should ever exist are adding a mtree and removing a mtree. 
 _nah = object()
 
 @attrs.frozen()
@@ -448,7 +494,7 @@ class PassInstance:
     times on several elements.
     """
     proto: PassPrototype
-    args: PassArgs
+    args: FrozenDict[str, Hashable]
     
     def __call__(self, *args: Hashable, **kwargs: Hashable) -> PassInstance:
         newpass = self
@@ -497,7 +543,7 @@ class PassInstance:
             # to run it on all applicable nodes of a module for instance. This is 
             # a task that cannot be generalized for all tree types so it doesn't belong here.
             raise TypeError('cannot proxy a transformation')
-        if runs_on:=self.proto.runs_on == _FOREST:
+        if (runs_on:=self.proto.runs_on) == _FOREST:
             raise ValueError('cannot proxy a forest analysis')
         if level < runs_on:
             raise ValueError('cannot proxy an analysis to a lower level')
@@ -524,17 +570,7 @@ class PassInstance:
             return missing
         return None
     
-    def get_dependencies(self) -> Collection[PassLike]:
-        return self.proto.get_dependencies()
-    
-    get_dependencies.__doc__ = PassPrototype.get_dependencies.__doc__
-
-    def get_all_dependencies(self) -> Collection[PassLike]:
-        return self.proto.get_all_dependencies()
-    
-    get_all_dependencies.__doc__ = PassPrototype.get_all_dependencies.__doc__
-    
-    def _replace(self, **kwargs) -> PassInstance:
+    def _replace(self, **kwargs: Any) -> PassInstance:
         return attrs.evolve(self, **kwargs)
 
 _posargs = frozenset((Parameter.POSITIONAL_OR_KEYWORD, 
@@ -654,11 +690,11 @@ def new_pass_prototype(
     
     return proto
 
-def _pass_decorator(**kwargs):
+def _pass_decorator(**kwargs: Any) -> Callable[[Callable], PassPrototype]:
     """
     Wraps L{new_pass_prototype} to be used as a decorator.
     """
-    def decorator(function):
+    def decorator(function: Callable) -> PassPrototype:
         return new_pass_prototype(function, **kwargs)
     return decorator
 
@@ -672,24 +708,6 @@ analysis = partial(_pass_decorator, kind=_ANALYSIS)
 Main decorators to create an analysis
 """
 
-_Pointer: TypeAlias = 'tuple[Forest,] | tuple[Forest, MTree] | tuple[Forest, MTree, AnyNode]'
-"""
-A "pointer" tuple stores the path of an element in the system under one of these forms: 
-    
-    - forest
-    - forest, mtree
-    - forest, mtree, node
-"""
-_SimplePointer: TypeAlias = 'tuple[()] | tuple[MTree,] | tuple[MTree, AnyNode]'
-"""
-The "simple pointer" is what's left from the "pointer" when we remove the forest.
-"""
-
-_PassRun: TypeAlias = tuple[PassInstance, _Pointer]
-"""
-A "pass run" stores a pass and on which element it has been run.
-"""
-
 class _PassRunMetadata:
     """
     Encapsulate the data passed arround in between the context and the runner. 
@@ -698,7 +716,7 @@ class _PassRunMetadata:
     """
     __slots__ = 'knowledge',
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.knowledge: _ElemKind | None = None
 
 class PassContext:
@@ -773,22 +791,7 @@ class PassContext:
             if self._knowledge_stack[curr] < pass_run_knowledge:
                 self._knowledge_stack[curr] = pass_run_knowledge
 
-class IConnector(Protocol):
-    """
-    Connector to the passmanager, from inside a pass function.
-    This is what we get as the first argument of pass functions like::
-
-        @analysis(on=AST)
-        def stuff(connector: IConnector, node): ...
-    """
-    deps: Dependencies #: Namespace containing the declared dependencies
-    gather: Callable[..., Any] #: See L{PassManager.gather}
-    
-    #: See L{PassManager.apply}. This attribute is 
-    #: defined only if it's connected to a transformation.
-    apply: Callable[..., Any] 
-
-CACHE_KEYS: frozenset[str] = OrderedSet(
+CACHE_KEYS = OrderedSet(
     (
      'passe', # PassInstance
 
@@ -799,17 +802,6 @@ CACHE_KEYS: frozenset[str] = OrderedSet(
      'node', # AnyNode or None
      )
 )
-
-_CacheKeyT: TypeAlias = Tuple[
-    PassInstance, 
-
-    int, 
-    bool, 
-    
-    'Hashable | None', 
-    'Hashable | None'
-    ]
-
 
 def _mk_cache_key_to_set_result(passe: PassInstance, 
                               pointer: _Pointer, 
@@ -825,7 +817,6 @@ def _mk_cache_key_to_set_result(passe: PassInstance,
         completeness = True
     
     return passe, int(knowledge_level), completeness, path[1], path[2]
-    
 
 def _mk_cache_keys_to_get_result(passe:PassInstance, 
                                   pointer: _Pointer, ) -> Iterator[_CacheKeyT]:     
@@ -842,7 +833,6 @@ def _mk_cache_keys_to_get_result(passe:PassInstance,
     
     # The completeness can only be False for forest knowledge analyses.
     yield passe, runs_on, False, p1, p2,
-
 
 # TODO: These classes should be generic to avoid the ugly Any...
 # typing this framework turns out more difficult that expected.
@@ -881,6 +871,8 @@ class Runner:
 
         # validate the runtime type if running on nodes
         if passe_proto.runs_on == _NODE:
+            if not element:
+                raise AssertionError
             runs_on_type = passe_proto.runs_on_type
             if not isinstance(element[-1], runs_on_type):
                 # This can happen when defining a pass that only runs on ast.Module and then calling
@@ -893,7 +885,7 @@ class Runner:
 
         # Apply all transformations eagerly, since we use a descriptor for all analyses
         # we need to transitivsely iterate dependent tranforms and apply then now.
-        for _t in p.get_all_dependencies():
+        for _t in passe_proto.get_all_dependencies():
             t_proto = _t if isinstance(_t, PassPrototype) else _t.proto
             
             if t_proto.kind != _PassKind.TRANSFORMATION:
@@ -904,7 +896,7 @@ class Runner:
                 # applies to FunctionDef for instance ? well.. then it will fail
                 # at the apply() stage with a TypeError. 
                 # TODO: we might be able to check the config to see if pass can be run
-                # on root nodes or not.
+                # on root nodes or not; but this will increase complexity.
                 if t_runs_on == _NODE and p_runs_on == _MTREE:
                     apply_on_element: _SimplePointer = element
 
@@ -930,7 +922,7 @@ class Runner:
 
         # create the analysis dependencies namespace.
         deps = Dependencies()
-        for _a in p.get_dependencies():
+        for _a in passe_proto.get_dependencies():
             a_proto = _a if isinstance(_a, PassPrototype) else _a.proto
             if a_proto.kind != _PassKind.ANALYSIS:
                 continue
@@ -1097,7 +1089,7 @@ class TransformationRunner(Runner):
                 # Clears all forest knowledge analyses that are not complete
                 k1 = cache.search(knowledge=_FOREST, completeness=False)
             else:
-                # otherwise it's acustom Forest transformation, we invalidate **everything**.
+                # otherwise it's a custom Forest transformation, we invalidate **everything**.
                 k1 = cache.allkeys()
             
             # We can't possiblily know in advance which mtree 
@@ -1117,7 +1109,7 @@ class TransformationRunner(Runner):
             k2 = cache.search(knowledge=_NODE, mtree=tree)
             k3 = cache.search(knowledge=_FOREST)
 
-        preserved: Container = tr.get('preverved') or set() # type: ignore[assignment]
+        preserved: Container = tr.get('preverved') or set()
         for key in itertools.chain(k1, k2, k3):
             analysis, *_ = key
             # TODO: might be smart to cast 'preserved' to set but need to 
@@ -1126,39 +1118,23 @@ class TransformationRunner(Runner):
                 continue
             cache_remove(key)
 
-class PassManagerConfig(Protocol):
-    root_node_type: type[Any]
-    tree_attributes: list[str]
-    child_nodes: Callable[[AnyNode], Iterable[AnyNode]]
-
-class ASTConfig(PassManagerConfig):
-    import ast
-    root_node_type = ast.Module
-    tree_attributes = ['filename', 'is_package', 'is_stub', 'code']
-    child_nodes = ast.iter_child_nodes
-
 _pass_kind_2_hook_kind: dict[_PassKind, Literal['transformation', 'analysis']] = {_ANALYSIS: 'analysis', _TRANSFORMATION: 'transformation'}
-
-class Hook(Protocol):
-    """
-    A hook is callable that is used to customize the logic just after a pass has been run. 
-    Note that the hooks won't be called when retreiving results from the cache; only when a pass actually runs.
-
-    If the hook function returns a truthy value, it'a assumed to replace the given returned dictionary. 
-    You can also mutate the dict and return None
-    """
-    def __call__(self, passe: PassInstance, pointer: _Pointer, returned: TransformationReturn | AnalysisReturn, ) -> TransformationReturn | AnalysisReturn | None:
-        ...
 
 class PassManager: 
 
-    def __init__(self, 
-                 trees: Iterable[MTree] | None = None, 
-                 *, 
-                 config: PassManagerConfig = ASTConfig()) -> None:
+    def __init__(self, trees: Iterable[MTree] | None = None) -> None:
+        
+        # self.config = config # A config option could be used by the framework to provide better results. 
+        # We might be able to increase our level of magical code by checking agains the type of the root node
+        # or by traversing nodes with configured function, but this will increase again th complexity of code
+        # that is already quite compex..
+        # class Config:
+            # root_node_type = ast.Module
+            # tree_attributes = ['filename', 'is_package', 'is_stub', 'code']
+            # get_child_nodes = ast.iter_child_nodes
 
         self.trees = Forest(trees or [])
-        self.config = config
+       
         self.cache: Cache[_CacheKeyT, CallResult] = Cache(CACHE_KEYS, ['node'])
         self.hooks: dict[Literal['transformation', 'analysis'], list[Hook]] = defaultdict(list)
         
@@ -1267,7 +1243,7 @@ class Dependencies:
     """
     Container for dependencies.
     """
-    def __getattribute__(self, name):
+    def __getattribute__(self, name: str) -> Any:
         # re-implement part of the descriptor protocol such that it
         # works dynamically at class instances level; see prepare().
         attr = super().__getattribute__(name)
@@ -1275,12 +1251,11 @@ class Dependencies:
             return attr.callback()
         return attr
 
-
 # Internal builtin passes
 
 @analysis(on=Forest, cached=False)
 def _forest_proxy_pass(c: IConnector, _: Forest, *, proxied: PassInstance) -> AnalysisReturn:
-    def inner_pass(*element, **kwargs):
+    def inner_pass(*element: Element, **kwargs: Hashable) -> Any:
         if kwargs:
             runpass = proxied(**kwargs)
         else:
@@ -1290,7 +1265,7 @@ def _forest_proxy_pass(c: IConnector, _: Forest, *, proxied: PassInstance) -> An
 
 @analysis(on=MTree, cached=False)
 def _mtree_proxy_pass(c: IConnector, node: MTree, *, proxied: PassInstance) -> AnalysisReturn:
-    def inner_pass(element, **kwargs):
+    def inner_pass(element: Element, **kwargs: Hashable) -> Any:
         if kwargs:
             runpass = proxied(**kwargs)
         else:

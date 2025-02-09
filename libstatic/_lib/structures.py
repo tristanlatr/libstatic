@@ -23,11 +23,16 @@ from typing import (
     Tuple,
     TypeVar,
     overload,
+    TYPE_CHECKING,
 )
 
 from beniget.ordered_set import ordered_set as _oset # type: ignore
 
-OrderedSet = _oset
+if TYPE_CHECKING:
+    from typing import TypeAlias
+    OrderedSet: TypeAlias = set
+else:
+    OrderedSet = _oset
 
 _T = TypeVar("_T")
 _KT = TypeVar("_KT")
