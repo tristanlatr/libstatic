@@ -17,7 +17,7 @@ else:
     TypedDict = object
 
 from libstatic._lib.structures import (Cache, FrozenDict, FrozenNamespace, 
-                                       GetProxy, OrderedSet, ChainSet)
+                                       OrderedSet, ChainSet)
 
 import attrs
 
@@ -26,7 +26,6 @@ import attrs
 # - The Pointer type seems redundant since we actually 
 # don't need the forest to be passed arround
 # because we ever operate on a single forest.
-# Remove support for proxy(), it's not worth it...
 
 ############ Typing related declarations
 
@@ -495,15 +494,6 @@ class PassPrototype:
     def __call__(self, *args: Hashable, **kwargs: Hashable) -> PassInstance:
         return self._instanciate()(*args, **kwargs)
     
-    # def proxy(self, level: _ElemKind) -> PassInstance:
-    #     """
-    #     Derive this pass to return new pass that results into a simple proxy that provide a C{get} method which trigers
-    #     the original pass on the given node.
-        
-    #     This can be used to avoid calling repetitively ``passmanager.gather(pass, ...)``.
-    #     """
-    #     return self._instanciate().proxy(level)
-
     def missing_param(self) -> str | None:
         """
         Whether this pass prototype requires any parameter.
@@ -589,31 +579,6 @@ class PassInstance:
             )
         else:
             return self
-
-    # def proxy(self, level: _ElemKind) -> PassInstance:
-    #     if self.proto.kind != _ANALYSIS:
-    #         # Client need to write their own wrapper for transformation
-    #         # to run it on all applicable nodes of a module for instance. This is 
-    #         # a task that cannot be generalized for all tree types so it doesn't belong here.
-    #         raise TypeError('cannot proxy a transformation')
-    #     if (runs_on:=self.proto.runs_on) == _FOREST:
-    #         raise ValueError('cannot proxy a forest analysis')
-    #     if level < runs_on:
-    #         raise ValueError('cannot proxy an analysis to a lower level')
-    #     if level == runs_on:
-    #         # that's a unssuported special case because... 
-    #         raise ValueError('cannot proxy an analysis to the same level')
-    #     if level == _FOREST:
-    #         # To create the proxy we need to dynamically change it's prototype
-    #         # in order to have the same name as the proxied analysis.
-    #         new_proto = _forest_proxy_pass._replace(name=self.proto.name)
-    #     elif level == _MTREE:
-    #         new_proto = _mtree_proxy_pass._replace(name=self.proto.name)
-    #     else:
-    #         assert False
-    #     return new_proto(proxied=self)
-    
-    # proxy.__doc__ = PassPrototype.proxy.__doc__ # yes this is supported by pydoctor
 
     def missing_param(self) -> str | None: 
         """
@@ -1375,26 +1340,6 @@ class PassManager:
 
 # Internal builtin passes
 
-# @analysis(on=Forest, cached=False)
-# def _forest_proxy_pass(c: Connector, _: Forest, *, proxied: PassInstance) -> AnalysisReturn:
-#     def inner_pass(*element: Element, **kwargs: Hashable) -> Any:
-#         if kwargs:
-#             runpass = proxied(**kwargs)
-#         else:
-#             runpass = proxied
-#         return c.gather(runpass, *element)
-#     return {'result': GetProxy(inner_pass), 'completeness': False}
-
-# @analysis(on=MTree, cached=False)
-# def _mtree_proxy_pass(c: Connector, node: MTree, *, proxied: PassInstance) -> AnalysisReturn:
-#     def inner_pass(element: Element, **kwargs: Hashable) -> Any:
-#         if kwargs:
-#             runpass = proxied(**kwargs)
-#         else:
-#             runpass = proxied
-#         return c.gather(runpass, node, element)
-#     return {'result': GetProxy(inner_pass), 'completeness': False}
-
 @transformation(on=Forest)
 def _add_mtree(_: Connector, forest: Forest, *, tree: MTree) -> TransformationReturn:
     if tree in forest:
@@ -1414,19 +1359,10 @@ def _remove_mtree(_: Connector, forest: Forest, *, tree: MTree) -> Transformatio
 # So the potential tables of dependency compatiblities matrix is something like
 
 # NODE pass has NODE dep
-# NODE pass has NODE dep as proxy(MTREE)
-# NODE pass has NODE dep as proxy(FOREST)
 # NODE pass has MTREE dep
-# NODE pass has MTREE dep as proxy(FOREST)
 # NODE pass has FOREST dep
-
-# MTREE pass has NODE dep as proxy(MTREE) only
 # MTREE pass has MTREE dep
-# MTREE pass has MTREE dep as proxy(FOREST)
 # MTREE pass has FOREST dep
-
-# FOREST pass has NODE dep as proxy(FOREST) only
-# FOREST pass has MTREE dep as proxy(FOREST) only
 # FOREST pass has FOREST dep
 
 # A quick view of the usage
