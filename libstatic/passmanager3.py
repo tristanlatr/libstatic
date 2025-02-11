@@ -16,9 +16,17 @@ else:
     final = lambda f: f
     TypedDict = object
 
-from libstatic._lib.structures import Cache, FrozenDict, FrozenNamespace, GetProxy, OrderedSet, CallResult
+from libstatic._lib.structures import (Cache, FrozenDict, FrozenNamespace, 
+                                       GetProxy, OrderedSet, ChainSet)
 
 import attrs
+
+# TODOs: 
+# - Rename MTree to simply Tree
+# - The Pointer type seems redundant since we actually 
+# don't need the forest to be passed arround
+# because we ever operate on a single forest.
+# Remove support for proxy(), it's not worth it...
 
 ############ Typing related declarations
 
@@ -27,7 +35,6 @@ RootNode: TypeAlias = object; 'Represent the root node of the module (typically 
 AnyNode: TypeAlias = object; "Represent any node in a module, including it's root node"
 
 PassLike: TypeAlias = 'PassPrototype | PassInstance'
-PreservedAnalyses: TypeAlias = 'Collection[PassLike | IPassPattern]'
 CastableToDict: TypeAlias = 'Iterable[tuple[str, Any]] | dict[str, Any]'
 """
 Anything that can be casted to dict. 
@@ -50,33 +57,29 @@ class IPassFunction(Protocol):
     A pass function is a two positional argument 
     function with optionnaly any keyword arguments.
     """
-    def __call__(self, c: IConnector, element: Element, **kwargs: Hashable) -> CastableToDict:
+    def __call__(self, c: Connector, element: Element, **kwargs: Hashable) -> CastableToDict:
         ...
 
 class AnalysisReturn(TypedDict):
     """
-    The expected strucutre of the mapping returned from a analysis function.
+    The expected strucutre of the mapping-ish (it can a generator of key-values pairs)
+      returned from a B{analysis} function.
+
+    @note: If you wish better type checking of your function bodies, 
+        only returns actual dict instances and use this class as 
+        return type of the function. I haven't figured out yet how to 
+        properly type-check this kind of code...
     """
     result: Any
     completeness: NotRequired[bool]
 
 class TransformationReturn(TypedDict):
     """
-    The expected strucutre of the mapping returned from a transformation function.
+    The expected strucutre of the mapping-ish (it can a generator of key-values pairs) 
+    returned from a B{transformation} function.
     """
     update: bool
-    preserved: NotRequired[PreservedAnalyses]
-
-class IPassPattern(Protocol):
-    """
-    A pass pattern is abstracted as any object 
-    which __eq__ method will return True
-    for any pass that matches the pattern. 
-    
-    So a pass instance implememt this interface implicitely by default.
-    """
-    def __eq__(self, other: object) -> bool: ...
-
+    preserved: NotRequired[list[PassLike | PassPattern]]
 
 _Pointer: TypeAlias = 'tuple[Forest,] | tuple[Forest, MTree] | tuple[Forest, MTree, AnyNode]'
 """
@@ -95,21 +98,6 @@ _PassRun: TypeAlias = 'tuple[PassInstance, _Pointer]'
 """
 A "pass run" stores a pass and on which element it has been run.
 """
-
-class IConnector(Protocol):
-    """
-    Connector to the passmanager, from inside a pass function.
-    This is what we get as the first argument of pass functions like::
-
-        @analysis(on=AST)
-        def stuff(connector: IConnector, node): ...
-    """
-    deps: Dependencies #: Namespace containing the declared dependencies
-    gather: Callable[..., Any] #: See L{PassManager.gather}
-    
-    #: See L{PassManager.apply}. This attribute is 
-    #: defined only if it's connected to a transformation.
-    apply: Callable[..., Any] 
 
 _CacheKeyT: TypeAlias = Tuple[
     'PassInstance', 
@@ -160,10 +148,28 @@ class MTree:
     
     @property
     def root(self) -> RootNode:
+        """
+        The root node of the tree.
+        
+        >>> import ast
+        >>> astmod = ast.parse('...')
+        >>> tree = MTree(astmod, 'builtins')
+        >>> assert tree.root is astmod
+        """
         return self.__root
     
     @property
     def identifier(self) -> str:
+        """
+        The identifier of the module. 
+
+        >>> import ast
+        >>> astmod = ast.parse('...')
+        >>> tree = MTree(astmod, 'builtins')
+        >>> assert tree.identifier == 'builtins'
+        >>> assert tree == MTree(astmod, 'builtins')
+        >>> assert tree != MTree(ast.parse('...'), 'builtins')
+        """
         return self.__identifier
 
     def __hash__(self) -> int:
@@ -289,9 +295,9 @@ class Forest(Collection[MTree]):
             other in self.__root2tree
 
 # pass kinds
-class _PassKind(IntEnum): TRANSFORMATION = 1; ANALYSIS = 2
+class _PassKind(IntEnum): "transformation or analysis"; TRANSFORMATION = 1; ANALYSIS = 2
 # element kinds
-class _ElemKind(IntEnum): FOREST = 3; MTREE = 2; NODE = 1
+class _ElemKind(IntEnum): "forest, tree or node"; FOREST = 3; MTREE = 2; NODE = 1
 # perf
 _TRANSFORMATION = _PassKind.TRANSFORMATION
 _ANALYSIS = _PassKind.ANALYSIS
@@ -299,15 +305,72 @@ _FOREST = _ElemKind.FOREST # runs on the entire Forest
 _MTREE = _ElemKind.MTREE # runs on MTree instances (which includes the root node, it's identifier and metadata)
 _NODE = _ElemKind.NODE  # runs on any nodes of the tree - including the root node (whithout metadata - but metadate can till be passed as pass parameters)
 
-class _ParameterizedPassPattern:
+class PassPattern:
     """
-    Represents several derivations of the same pass. See L{like()} method. 
-    """
+    Represents several derivations of the same pass prototype, 
+    with different parameters. 
+    Use the L{like()} method to create instances of this class. 
+
+    >>> import ast
+    >>> @analysis(on=ast.AST)
+    ... def count_objs(_, node: ast.AST, *, type:type=object):
+    ...     yield 'result', len(set(n for n in ast.walk(node) if isinstance(n, type)))
     
-    def __init__(self, passe: PassPrototype, **args_predicate: Callable[[object], bool]) -> None:
-        # TODO: Verify if all the parameters are given... 
-        self.__match = args_predicate
-        self.__passe = passe
+    Let's declare a few testing patterns: 
+
+    >>> like_none = count_objs.like(type=(lambda _: False)) # this pattern will never match any pass instance
+    >>> like_any = count_objs.like(type=(lambda _: True))   # this pattern will match any instances of the pass 'count_objs'
+    >>> like_any2 = count_objs.like()                       # this one idem
+    >>> like_cls = count_objs.like(type=(lambda v: v is ast.ClassDef)) # this one will match only if type=ast.ClassDef. 
+
+    The pass pattern implement C{__eq__} wich makes it suitable for 
+    checking whether a pass instance is C{in} a container with a pattern in it.
+
+    >>> count_objs() in [like_cls]
+    False
+    >>> count_objs(type=ast.AST) in [like_none]
+    False
+    >>> count_objs(type=ast.AST) in [like_any]
+    True
+    >>> count_objs(type=ast.AST) in [like_any2]
+    True
+    >>> count_objs(type=ast.AST) in [like_cls]
+    False
+    >>> count_objs(type=ast.ClassDef) in [like_cls]
+    True
+
+    A pass prototype never macthes against a pattern, 
+    only actual pass instances matches. 
+    
+    >>> count_objs in [like_none, like_any2, like_any, like_cls]
+    False
+
+    The matching is ignored for missing arguments. 
+
+    >>> @analysis(on=ast.AST)
+    ... def has_required_param(_, node, *, required):
+    ...     yield 'result', 1
+    >>> param_like_none = has_required_param.like(required=(lambda _: False))
+    >>> has_required_param() in [param_like_none]
+    True
+    >>> has_required_param('anything') in [param_like_none]
+    False
+
+    The pattern can be generic by ommiting the argument.
+
+    >>> has_required_param('anything') in [has_required_param.like()]
+    True
+    """
+
+    # This class is not hashable by nature.
+
+    __slots__ = '_match', '_passe'
+    
+    def __init__(self, passe: PassPrototype, **predicate: Callable[[object], bool]) -> None:
+        # TODO: Not all parameters might be given, 
+        # but we should still validate the name of the predicates!!!
+        self._match = predicate
+        self._passe = passe
     
     def matches(self, other: object) -> bool:
         """
@@ -316,18 +379,20 @@ class _ParameterizedPassPattern:
         if not isinstance(other, PassInstance):
             return False
         proto = other.proto
-        args = other.args
         # Two passes matches if they share the same prototype
-        if proto != self.__passe:
+        if proto != self._passe:
             return False
+        
+        args = {**proto.optional_params, **other.args}
         # And all the arguments predicates returns a truthy value,
         # for argument that are set, for the one that are eventually missing from
         # the given PassInstance, the matching is ignored.
-        for k, cb in self.__match.items():
-            if k in args and not cb(args[k]): 
+        for k, cb in self._match.items():
+            if (k in args) and (not cb(args[k])): 
                 return False
         return True
     
+    __hash__ = None
     __eq__ = matches
         
 @attrs.frozen()
@@ -341,18 +406,19 @@ class PassPrototype:
     #: The pass function
     do_pass: IPassFunction
 
-    #: A name for this pass, this will be used in the dependencies attribute name if that's a analysis.
+    #: A name for this pass, this will be used in the 
+    #: dependencies attribute name if that's a analysis.
     name: str 
     
     #: the type of pass: transformation or analysis.
     kind: Literal[_PassKind.ANALYSIS, _PassKind.TRANSFORMATION]
-    # TODO: Think of using two subclasses: AnalysisProto/TransformationProto -> AnalysisInstance/TransformationInstance
 
     #: on what kind of element this pass runs on? this is conceptual.
-    runs_on: _ElemKind
+    runs_on: Literal[_ElemKind.NODE, _ElemKind.MTREE, _ElemKind.FOREST]
 
     #: on what type of object this pass runs on? 
-    #: a isinstance check will be done and TypeError will be raised for any mismatch.
+    #: a isinstance check will be done and L{TypeError} 
+    #: will be raised for any mismatch.
     runs_on_type: type | tuple[type, ...]
 
     # required parameters names declaration
@@ -364,18 +430,7 @@ class PassPrototype:
     # a sequence of dependecies that will be bound to variable inside the 'deps' of the connector.
     dependencies: Sequence[PassLike] = attrs.field(default=(), converter=tuple) # at least an empty tuple
     
-    """
-    I could implement hooks instead. The four resonnable hooks
-    to implement are 'addition', 'removal', 'analysis', 'transformation'. 
-
-    Where 'addition' and 'removal' are just special cases of the 'transformation' hook.
-
-    The transformations that whishes to preserve inter modules 
-    analyses should do the mutating job themselve on the hooks 
-    'addition' and 'removal' at least.
-    """
-
-    # whether to cache the result of this pass in memory
+    #: whether to cache the result of this pass in memory
     cached: bool = True
     
     # whether the result of this pass is always the same, 
@@ -440,14 +495,14 @@ class PassPrototype:
     def __call__(self, *args: Hashable, **kwargs: Hashable) -> PassInstance:
         return self._instanciate()(*args, **kwargs)
     
-    def proxy(self, level: _ElemKind) -> PassInstance:
-        """
-        Derive this pass to return new pass that results into a simple proxy that provide a C{get} method which trigers
-        the original pass on the given node.
+    # def proxy(self, level: _ElemKind) -> PassInstance:
+    #     """
+    #     Derive this pass to return new pass that results into a simple proxy that provide a C{get} method which trigers
+    #     the original pass on the given node.
         
-        This can be used to avoid calling repetitively ``passmanager.gather(pass, ...)``.
-        """
-        return self._instanciate().proxy(level)
+    #     This can be used to avoid calling repetitively ``passmanager.gather(pass, ...)``.
+    #     """
+    #     return self._instanciate().proxy(level)
 
     def missing_param(self) -> str | None:
         """
@@ -460,23 +515,18 @@ class PassPrototype:
 
     # Method to create a pattern from this pass.
 
-    def like(self, **args_predicate: Callable[[object], bool]) -> IPassPattern:
+    def like(self, **predicate: Callable[[object], bool]) -> PassPattern:
         """
         Create a pattern representing several possible derivations of 
         the pass to be matched against other passes. 
 
         Designed to be used for preserved analyses.
 
-        When creating a "like" pattern, a patterm for every parameters
-        (required or optionals) must be given.
-
-        @param kwargs: The analysis parameters names to the match function. 
+        @param predicate: The analysis parameters names to the match function. 
             A match function is a one-argument
             callable that returne whether the value for the parameter matches.
         """
-        return _ParameterizedPassPattern(
-            self, **args_predicate
-        )
+        return PassPattern(self, **predicate)
 
 _nah = object()
 
@@ -511,14 +561,17 @@ class PassInstance:
         if len(kwargs) > (len_optinals + len_required):
             raise TypeError(f'too many keyword parmeters, expected at most {len_optinals + len_required} keywords')
         if len(args) > len_required:
-            raise TypeError(f'too many positional parmeters, expected at most {len_required} positionals')
+            raise TypeError(f'too many positional parmeters, expected at most {len_required} positionals and {len_required} keywords')
         
         self_args = self.args
+        self_args_get = self_args.get
         args_dict = {}
-        # support positional parameters
+        
+        # support passing required parameters as positionals
         for pname, value in zip(params, args):
-            # This prevents the creation of new instance of PassInstance whith the same params values.
-            if value != (self_args.get(pname, _nah)):
+            # This prevents the creation of new instance of 
+            # PassInstance whith the same params values.
+            if value != (self_args_get(pname, _nah)):
                 args_dict[pname] = value
         
         for pname, value in tuple(kwargs.items()):
@@ -526,7 +579,7 @@ class PassInstance:
                 raise TypeError(f'unexpected argument {pname!r}')
             if pname in args_dict:
                 raise TypeError(f'got several values for parameter {pname!r}')
-            if value != self_args.get(pname, _nah):
+            if value != self_args_get(pname, _nah):
                 args_dict[pname] = value
         
         if args_dict:
@@ -537,30 +590,30 @@ class PassInstance:
         else:
             return self
 
-    def proxy(self, level: _ElemKind) -> PassInstance:
-        if self.proto.kind != _ANALYSIS:
-            # Client need to write their own wrapper for transformation
-            # to run it on all applicable nodes of a module for instance. This is 
-            # a task that cannot be generalized for all tree types so it doesn't belong here.
-            raise TypeError('cannot proxy a transformation')
-        if (runs_on:=self.proto.runs_on) == _FOREST:
-            raise ValueError('cannot proxy a forest analysis')
-        if level < runs_on:
-            raise ValueError('cannot proxy an analysis to a lower level')
-        if level == runs_on:
-            # that's a unssuported special case because... 
-            raise ValueError('cannot proxy an analysis to the same level')
-        if level == _FOREST:
-            # To create the proxy we need to dynamically change it's prototype
-            # in order to have the same name as the proxied analysis.
-            new_proto = _forest_proxy_pass._replace(name=self.proto.name)
-        elif level == _MTREE:
-            new_proto = _mtree_proxy_pass._replace(name=self.proto.name)
-        else:
-            assert False
-        return new_proto(proxied=self)
+    # def proxy(self, level: _ElemKind) -> PassInstance:
+    #     if self.proto.kind != _ANALYSIS:
+    #         # Client need to write their own wrapper for transformation
+    #         # to run it on all applicable nodes of a module for instance. This is 
+    #         # a task that cannot be generalized for all tree types so it doesn't belong here.
+    #         raise TypeError('cannot proxy a transformation')
+    #     if (runs_on:=self.proto.runs_on) == _FOREST:
+    #         raise ValueError('cannot proxy a forest analysis')
+    #     if level < runs_on:
+    #         raise ValueError('cannot proxy an analysis to a lower level')
+    #     if level == runs_on:
+    #         # that's a unssuported special case because... 
+    #         raise ValueError('cannot proxy an analysis to the same level')
+    #     if level == _FOREST:
+    #         # To create the proxy we need to dynamically change it's prototype
+    #         # in order to have the same name as the proxied analysis.
+    #         new_proto = _forest_proxy_pass._replace(name=self.proto.name)
+    #     elif level == _MTREE:
+    #         new_proto = _mtree_proxy_pass._replace(name=self.proto.name)
+    #     else:
+    #         assert False
+    #     return new_proto(proxied=self)
     
-    proxy.__doc__ = PassPrototype.proxy.__doc__ # yes this is supported by pydoctor
+    # proxy.__doc__ = PassPrototype.proxy.__doc__ # yes this is supported by pydoctor
 
     def missing_param(self) -> str | None: 
         """
@@ -594,8 +647,10 @@ def new_pass_prototype(
     Create a pass prototype from a given callable and a handful of options.
     
     @param do_pass: A callable that contains the driving logic of your pass.
-      By convention, the callable should be a generator function yielding tuples: (key, value). 
-      But the
+      By convention, the callable should be either
+       
+       - a generator function yielding tuples: (key, value)
+       - a function returning a dict
       
       A passe can provide metadata that are not directly
       meant to be presented to the users but rather use to internally optimize runs.
@@ -717,7 +772,8 @@ class _PassRunMetadata:
     __slots__ = 'knowledge',
 
     def __init__(self) -> None:
-        self.knowledge: _ElemKind | None = None
+
+        self.knowledge: int = 0
 
 class PassContext:
     """
@@ -734,7 +790,7 @@ class PassContext:
     # the stack is implemented as dict because it stores the knowledge
     # level of the pass run as well.
     def __init__(self) -> None:
-        self._knowledge_stack: dict[_PassRun, _ElemKind] = {}
+        self._knowledge_stack: dict[_PassRun, int] = {}
     
     @property
     def _current_passrun(self) -> _PassRun:
@@ -742,10 +798,6 @@ class PassContext:
             return next(reversed(self._knowledge_stack))
         except StopIteration:
             raise RuntimeError('no pass is currently running')
-
-    @property
-    def current(self) -> Forest | MTree | AnyNode:
-        return self._current_passrun[1][-1]
 
     @contextmanager
     def _push_pass(self, passe: PassInstance, pointer: _Pointer) -> Iterator[_PassRunMetadata]:
@@ -757,7 +809,9 @@ class PassContext:
             # use another pass instead to break the cycle.
             raise RuntimeError(f'cycle detected with pass: {key}')
 
-        self._knowledge_stack[key] = passe.proto.runs_on
+                                     # cast it to int to internalize the int, 
+                                     # TODO: is this necessary?
+        self._knowledge_stack[key] = int(passe.proto.runs_on)
        
         # TODO: Might be interesting to optimize the remove mtree transformation: 
         # Yield a context tracker that is able to say which knowledge 
@@ -803,63 +857,73 @@ CACHE_KEYS = OrderedSet(
      )
 )
 
-def _mk_cache_key_to_set_result(passe: PassInstance, 
-                              pointer: _Pointer, 
-                              analysis_result: CallResult[AnalysisReturn], 
-                              knowledge_level: _ElemKind) -> _CacheKeyT:
-    
-    # we do not use the forest part of the pointer here
-    path = pointer + (None, ) * (3 - len(pointer))
-        
-    if knowledge_level == _FOREST:
-        completeness = analysis_result.result.get('completeness', False)
-    else:
-        completeness = True
-    
-    return passe, int(knowledge_level), completeness, path[1], path[2]
+@attrs.frozen(slots=True)
+class CompletedPass:
+    """
+    The object that is returned from L{PassManager.run} function.
+    """
+    passe: PassInstance
+    pointer: tuple[()] | tuple[MTree] | tuple[MTree, Any]
+    result: Any
+    completeness: bool
+    update: bool
+    preserved: Container[PassInstance]
+    knowledge: int
 
-def _mk_cache_keys_to_get_result(passe:PassInstance, 
-                                  pointer: _Pointer, ) -> Iterator[_CacheKeyT]:     
-    path = pointer + (None, ) * (3 - len(pointer))
-    p1 = path[1]
-    p2 = path[2]
-    runs_on = int(passe.proto.runs_on)
-    
-    yield passe, runs_on, True, p1, p2,
+class _PassDependencyDescriptor:
+    """
+    Simple container for a callback. 
+    We kinda re-implement part of the descriptor protocol here.
 
-    while runs_on < _ElemKind.FOREST:
-        runs_on += 1
-        yield passe, runs_on, True, p1, p2,
-    
-    # The completeness can only be False for forest knowledge analyses.
-    yield passe, runs_on, False, p1, p2,
+    @see: L{Dependencies.__getattribute__}
+    """
+    def __init__(self, callback: Callable[[], Any]) -> None:
+        self.callback = callback
+
+# TODO: Optimize me with __slots__
+class Dependencies:
+    """
+    Container for dependencies.
+    """
+    def __getattribute__(self, name: str) -> Any:
+        # re-implement part of the descriptor protocol such that it
+        # works dynamically at class instances level; see prepare().
+        attr = super().__getattribute__(name)
+        if isinstance(attr, _PassDependencyDescriptor):
+            return attr.callback()
+        return attr
+
+@attrs.frozen(slots=True)
+class Connector:
+    """
+    Connector to the passmanager, from inside a pass function.
+    This is what we get as the first argument of pass functions like::
+
+        @analysis(on=AST)
+        def stuff(connector: Connector, node): ...
+    """
+    deps: Dependencies #: Namespace containing the declared dependencies
+    gather: Callable[..., Any] #: See L{PassManager.gather}
+    apply: Callable[..., bool] #: See L{PassManager.apply}
+    run: Callable[..., CompletedPass] #: See L{PassManager.run}
 
 # TODO: These classes should be generic to avoid the ugly Any...
 # typing this framework turns out more difficult that expected.
+@attrs.frozen(slots=True)
 class Runner:
     """
     The runner and subclasses do the heavy lifting... 
     """
+    _passmanager: PassManager
+    _passe: PassInstance
+    _pointer: _Pointer
 
-    __slots__ = '_passmanager', '_passe', '_pointer', 
-    
-    @final
-    def __init__(self, 
-                 passmanager: PassManager, 
-                 passe: PassInstance, 
-                 pointer: _Pointer) -> None:
-        self._passmanager = passmanager
-        self._passe = passe
-        self._pointer = pointer
-
-    @final
     @contextmanager
     def push(self) -> Iterator[_PassRunMetadata]:
         with self._passmanager._ctx._push_pass(self._passe, self._pointer) as meta:
             yield meta
 
-    @final
-    def prepare(self) -> IConnector:
+    def prepare(self) -> Connector:
         """
         Prepare the pass connector namespace before running a pass.
         """
@@ -923,32 +987,23 @@ class Runner:
         # create the analysis dependencies namespace.
         deps = Dependencies()
         for _a in passe_proto.get_dependencies():
-            a_proto = _a if isinstance(_a, PassPrototype) else _a.proto
+            a_proto = _a.proto
             if a_proto.kind != _PassKind.ANALYSIS:
                 continue
             if _missing:=_a.missing_param():
                 # dependency is missing a required parameter and cannot be presented as a descriptor. 
-                # Instead of trying to do something smart and complex, we fail early and propose the user
-                # to use proxy() which supports passing the pass arguments as .get() keywords.
+                # Instead of trying to do something smart and complex, we fail early.
 
-                raise TypeError(f'{p} cannot depend on {_a} because it is missing '
-                                f'a required parameter {_missing!r} '
-                                'try using proxy() and pass that parameter value as keyword.')
+                raise TypeError(f'{p} cannot list {_a} in dependencies because it is missing '
+                                f'a required parameter {_missing!r}')
                
                 # So for instance a NODE analysis 'attribute' which require a 'name' parameter 
-                # can be included in the dependency list like that::
-                # @analysis(deps=[attribute.proxy(Forest/MTree)])
-                # def my_pass(c, node):
-                #   c.deps.attribute('some_module_name', name='some_name')
-                #   c.deps.attribute('some_module_name', class_def, name='some_name')
-                # Which is a little bit nicer than using gather() direclty, but pass args
-                # needs to be supplied by keyword.
-                # @analysis()
+                # @analysis(on=ast.AST)
                 # def my_pass(c, node):
                 #   c.gather(attribute('some_name'), 'some_other_module_name')
                 #   c.gather(attribute('some_name'), 'some_other_module_name', class_def)
 
-            #TODO: More code should be shared with the first for loop up there...
+            # TODO: More code should be shared with the first for loop up there...
             if (a_runs_on:=a_proto.runs_on) < (p_runs_on:=passe_proto.runs_on):
                 # the dependency runs on a lower scope level
                 if a_runs_on == _NODE and p_runs_on == _MTREE:
@@ -958,11 +1013,10 @@ class Runner:
                 else:
                     # this is true because we have only 3 levels of elements.
                     if __debug__: 
-                        assert a_runs_on == _FOREST 
-                    raise TypeError(f'{p} cannot depend on {_a}, '
-                                    'a pass can only depend on analyses '
-                                    'that runs on a compatible or enclosing level, '
-                                    'try using proxy().')
+                        assert p_runs_on == _FOREST 
+                    raise TypeError(f'{p} cannot list {_a} in dependencies. '
+                                    'A pass can only depend on analyses '
+                                    'that runs on a compatible or enclosing level.')
             elif a_runs_on > p_runs_on:
                 # the dependency runs on a upper scope level, trim what's required 
                 lvldiff = a_runs_on - p_runs_on
@@ -978,22 +1032,23 @@ class Runner:
         
         # create the namespace
         if passe_proto.kind == _ANALYSIS:
-            connector = FrozenNamespace(
+            connector = Connector(
                 deps = deps, 
-                gather = pm.gather
-                # no apply() for analyses.
+                gather = pm.gather, 
+                apply = None, # no apply() for analyses.
+                run = pm.run, # but run() is unrestricted :/
             )
         else:
-            connector = FrozenNamespace(
+            connector = Connector(
                 deps = deps, 
                 gather = pm.gather, 
                 apply = pm.apply,
+                run = pm.run, 
             )
 
         return connector
 
-    @final
-    def do_pass(self, c: IConnector) -> TransformationReturn | AnalysisReturn:
+    def do_pass(self, c: Connector) -> TransformationReturn | AnalysisReturn:
         # call the pass function
         p = self._passe
         _res = p.proto.do_pass(c, self._pointer[-1], **p.args)
@@ -1010,64 +1065,146 @@ class Runner:
                 result = h(p, self._pointer, result) or result
         return result
 
-    def run(self) -> Any:
+    def run(self) -> CompletedPass:
         raise NotImplementedError()
 
+@attrs.frozen(slots=True)
+class PassManagerCache:
+    """
+    Wraps the generic L{Cache} to offer 
+    helpers based on L{CompletedPass}.
+    """
+    _cache: Cache[_CacheKeyT, CompletedPass]
+
+    def get(self, passe: PassInstance, pointer) -> CompletedPass | None:
+        for k in self._mk_cache_keys_to_get_result(passe, pointer):
+            if result:=self._cache.get(k): 
+                # the result is cached :)
+                return result
+        return None
+    
+    def set(self, result: CompletedPass):
+        key = self._mk_cache_key_to_set_result(result)
+        self._cache.set(key, result)
+    
+    def remove(self, key: _CacheKeyT) -> None:
+        self._cache.remove(key)
+    
+    def search(self, **key) -> Collection:
+        return self._cache.search(**key)
+
+    def allkeys(self) -> Collection:
+        return self._cache.allkeys()
+
+    @staticmethod
+    def _mk_cache_key_to_set_result(result: CompletedPass) -> _CacheKeyT:
+        pointer: _Pointer = result.pointer
+        # we do not use the forest part of the pointer here
+        path = pointer + (None, ) * (3 - len(pointer))
+        completeness = True
+        return result.passe, result.knowledge, completeness, path[1], path[2]
+
+    @staticmethod
+    def _mk_cache_keys_to_get_result(passe:PassInstance, 
+                                    pointer: _Pointer, ) -> Iterator[_CacheKeyT]:     
+        # we do not use the forest part of the pointer here
+        path = pointer + (None, ) * (3 - len(pointer))
+        p1 = path[1]
+        p2 = path[2]
+        runs_on = int(passe.proto.runs_on)
+        
+        yield passe, runs_on, True, p1, p2,
+        while runs_on < _ElemKind.FOREST:
+            runs_on += 1
+            yield passe, runs_on, True, p1, p2,
+        # The completeness can only be False for forest knowledge analyses.
+        yield passe, runs_on, False, p1, p2,
+
+@attrs.frozen(slots=True)
 class AnalysisRunner(Runner):
     
-    def run(self) -> Any:
-        p = self._passe
+    def run(self) -> CompletedPass:
+        passe = self._passe
         pointer = self._pointer
-        actually_ran = False # whether the analysis actually ran (not fetched from cache)
-        ar: CallResult[AnalysisReturn] | None = None # analysis result
+        cache = self._passmanager.cache
         
-        try:
-            with self.push() as meta:
-                
-                if p.proto.cached:
-                    for k in _mk_cache_keys_to_get_result(p, pointer):
-                        ar = self._passmanager.cache.get(k)
-                        if ar is not None:
-                            break
-                if ar is not None:  # the result is cached
-                    # will raise an error if the initial analysis raised
-                    return ar.result['result'] 
+        with self.push() as meta:
+            if passe.proto.cached:
+                # Try to fetch value from cache
+                if result:=cache.get(passe, pointer): 
+                    # The result is cached :)
+                    return result
 
-                try:
-                    # TODO: More code should be shared with TransformationRunner
-                    r: AnalysisReturn = self.do_pass(self.prepare()) # type: ignore[assignment]
-                    ar = CallResult.new(r)
-                    actually_ran = True
-                    return r['result']
-                
-                except Exception as e:
-                    ar = CallResult.new(e)
-                    raise
- 
-        finally:
+            # TODO: More code should be shared with TransformationRunner
+            # run the analysis 
+            ret: AnalysisReturn = self.do_pass(self.prepare()) # type: ignore[assignment]
+
+        # by default all forest knowledge analyses are incomplete and other are complete. 
+        # TODO: We currently do not validate if a tree or node analysis is ever marked as incomplete.
+        #   in which case that would be an error of the developers.   
+        knowledge = meta.knowledge
+        ret.setdefault('completeness', knowledge != _FOREST)
+        
+        result = CompletedPass(
+            passe, pointer[1:], 
+            result=ret['result'], 
+            completeness=ret['completeness'], 
+            update=False, knowledge=knowledge, preserved=())
+        
+        if passe.proto.cached:
             # Set the analysis result in the cache once we have left the with: block.
-            if actually_ran and p.proto.cached:
-                level = meta.knowledge # 'meta' is not unbound, otherwise we have a bug in push()
-                
-                assert level is not None
-                assert ar is not None
-                k = _mk_cache_key_to_set_result(p, self._pointer, ar, level)
-                self._passmanager.cache.set(k, ar)
+            cache.set(result)
+        
+        return result
 
+@attrs.frozen(slots=True)
 class TransformationRunner(Runner):
     
-    def run(self) -> Any:
-
-        runs_on = self._passe.proto.runs_on
+    def run(self) -> CompletedPass:
         
-        with self.push(): # we don't care about the meta here.
-            tr: TransformationReturn =  self.do_pass(self.prepare()) # type:ignore[assignment]
-            
-        if not tr['update']:
+        pointer = self._pointer
+        passe = self._passe
+        runs_on = passe.proto.runs_on
+        
+        with self.push() as meta:
+            ret: TransformationReturn =  self.do_pass(self.prepare()) # type:ignore[assignment]
+        
+        if 'preserved' in ret:
+            # process preserved analyses so instances are 
+            # in a fast track compared to patterns, because the way 
+            # it works patterns must be checked with __eq__
+            # and pass instance can be checking with __hash__ making 
+            # it much more efficient, so leverage this by using ChainSet.
+            pure_passes: list[PassInstance] = []
+            patterns: list[PassPattern] = []
+            for a in ret['preserved']:
+                if isinstance(a, PassPrototype):
+                    pure_passes.append(a())
+                elif isinstance(a, PassInstance):
+                    pure_passes.append(a)
+                else:
+                    patterns.append(a)
+            if patterns:
+                preserved: Container[PassInstance] = ChainSet((frozenset(pure_passes), 
+                                                           tuple(patterns)))
+            else:
+                preserved = frozenset(pure_passes)
+        else:
+            preserved = frozenset()
+        
+        knowledge = meta.knowledge       
+        result = CompletedPass(
+            passe, pointer[1:],
+            update=ret['update'], 
+            preserved=preserved, 
+            completeness=False, result=None, 
+            knowledge=knowledge, )
+        
+        if not ret['update']:
             # If the transformation did not affected the AST, return directly.
             # TODO: It would be good to cache this fact and not have to rerun the transform
             # again and again if we know it won't apply an update...
-            return
+            return result
         
         cache = self._passmanager.cache
         cache_remove = cache.remove
@@ -1078,7 +1215,7 @@ class TransformationRunner(Runner):
         if runs_on == _FOREST:
             # This block is very special because FOREST transformations can only two kind of things:
             # an addition or a removal of a tree. 
-            _proto = self._passe.proto
+            _proto = passe.proto
             
             if _proto is _remove_mtree:
                 # Clears all forest knowledge analyses
@@ -1109,14 +1246,13 @@ class TransformationRunner(Runner):
             k2 = cache.search(knowledge=_NODE, mtree=tree)
             k3 = cache.search(knowledge=_FOREST)
 
-        preserved: Container = tr.get('preverved') or set()
         for key in itertools.chain(k1, k2, k3):
             analysis, *_ = key
-            # TODO: might be smart to cast 'preserved' to set but need to 
-            # see if the analysis like patterns will still work.
             if analysis in preserved: 
                 continue
             cache_remove(key)
+        
+        return result
 
 _pass_kind_2_hook_kind: dict[_PassKind, Literal['transformation', 'analysis']] = {_ANALYSIS: 'analysis', _TRANSFORMATION: 'transformation'}
 
@@ -1126,79 +1262,41 @@ class PassManager:
         
         # self.config = config # A config option could be used by the framework to provide better results. 
         # We might be able to increase our level of magical code by checking agains the type of the root node
-        # or by traversing nodes with configured function, but this will increase again th complexity of code
-        # that is already quite compex..
+        # or by traversing nodes with configured function, but this will increase again the complexity of code
+        # that is already quite compex. Currently the core of the PassManager is library agnostic, and should stay.
         # class Config:
             # root_node_type = ast.Module
             # tree_attributes = ['filename', 'is_package', 'is_stub', 'code']
             # get_child_nodes = ast.iter_child_nodes
 
         self.trees = Forest(trees or [])
-       
-        self.cache: Cache[_CacheKeyT, CallResult] = Cache(CACHE_KEYS, ['node'])
+        self.cache = PassManagerCache(Cache(CACHE_KEYS, ['node']))
         self.hooks: dict[Literal['transformation', 'analysis'], list[Hook]] = defaultdict(list)
         
         self._ctx = PassContext()
         self._runners = {_ANALYSIS: AnalysisRunner, 
                          _TRANSFORMATION: TransformationRunner}
 
-    def apply(self, transform: PassLike, *element: Element) -> None:
-        proto = transform if isinstance(transform, PassPrototype) else transform.proto
-        if proto.kind != _TRANSFORMATION:
-            raise TypeError
-        self._run(transform, *element)
-
-    def gather(self, analysis: PassLike, *element: Element,) -> Any:
-        proto = analysis if isinstance(analysis, PassPrototype) else analysis.proto
-        if proto.kind != _ANALYSIS:
-            raise TypeError
-        return self._run(analysis, *element)
-    
-    def add(self, tree: MTree) -> None:
-        self.apply(_add_mtree(tree))
-    
-    def remove(self, tree: MTree) -> None:
-        self.apply(_remove_mtree(tree))
-
-    def _prepare_element(self, element: tuple[Element,...], runs_on: _ElemKind) -> tuple[Element,...]:
-        len_element = len(element)
-        needs_to_append_root = False
-        if runs_on == _NODE:
-            if len_element == 1:
-                # Very important for usability!!!
-                # a NODE pass can be run on a MTree, 
-                # in this case use the root module as the node.
-                # This is only true if the pass can be run on 
-                # the root no of the AST.
-                needs_to_append_root = True
-            elif len_element == 0:
-                raise TypeError('a NODE pass expect at least one element argument.')
-        elif runs_on == _MTREE:
-            if len_element == 0:
-                raise TypeError('a MTREE pass expect one element argument.')
-            elif len_element == 2:
-                raise TypeError('a MTREE pass expect exactly one element argument, got 2.')
-        elif runs_on == _FOREST:
-            if len_element != 0:
-                raise TypeError(f'a FOREST pass do not expect any element argument, got {len_element}.')
-        
-        if element and not isinstance(element[0], MTree):
-            # If the first element is not a mtree, 
-            # try to fetch it from the forest.
-            # but first check the number of arguments...
-            module = self.trees[element[0]]
-            element = (module, ) + element[1:]
-        
-        if needs_to_append_root:
-            element += (element[0].root, )
-
-        return element
-
-    def _get_runner(self, passe: PassInstance, pointer: _Pointer) -> Runner:
-        return self._runners[passe.proto.kind](self, passe, pointer)
-
-    def _run(self, passe: PassLike, *element: Element) -> Any:
+    def apply(self, transform: PassLike, *element: str | Element) -> bool:
         """
+        High level method to run a tansformation.
+        
+        """
+        if transform.proto.kind is not _TRANSFORMATION:
+            raise TypeError
+        return self.run(transform, *element).update
+
+    def gather(self, analysis: PassLike, *element: str | Element) -> Any:
+        """
+        High level method to run an analysis.
+        """
+        if analysis.proto.kind is not _ANALYSIS:
+            raise TypeError
+        return self.run(analysis, *element).result
+
+    def run(self, passe: PassLike, *element: str | Element) -> CompletedPass:
+        """
+        Lower level method to run any kind of pass and get a L{CompletedPass} instance in return.
         
         :param passe: A Pass instance or a pass prototype.
         :param element: The element on which to run the pass.
@@ -1210,78 +1308,102 @@ class PassManager:
         """
         if len(element) > 2:
             raise TypeError('this method takes at most 3 positional arguments')
-        
-        # this method is ment to be higher level so we accept prototypes as well for easy of use
-        # so we need to instanciate them manually now if needed.
-        if isinstance(passe, PassPrototype):
-            p = passe._instanciate() 
-        elif isinstance(passe, PassInstance):
-            p = passe
-        else: 
-            raise TypeError(f'unexpected type {type(passe)}')
 
         # create the pointer
-        element = self._prepare_element(element, p.proto.runs_on)
+        element = self._prepare_element(element, passe.proto.runs_on)
         pointer: _Pointer = (self.trees, ) + element # type: ignore
+        runner = self._get_runner(passe(), pointer)
+        return runner.run()
+    
+    # TODO: Would be good to be able to pass the tree attribute directly.   
+    # @overload
+    # def add(self, root: RootNode, identifier: str, **attributes: Hashable): ...
+    # @overload
+    # def add(self, tree: MTree): ...
+    
+    def add(self, tree: MTree) -> None:
+        """
+        Add a tree to the passmanager.
+        """
+        self.apply(_add_mtree(tree))
+    
+    def remove(self, tree: MTree) -> None:
+        """
+        Remove a tree from the passmanager,
+        """
+        self.apply(_remove_mtree(tree))
 
-        runner = self._get_runner(p, pointer)
-        r = runner.run()
-        return r
+    def _prepare_element(self, element: tuple[str | Element,...], runs_on: _ElemKind) -> tuple[Element,...]:
+        len_element = len(element)
+        needs_to_append_root = False
+        if runs_on == _NODE:
+            if len_element == 1:
+                # Very important for usability!!!
+                # a NODE pass can be run on a MTree, 
+                # in this case use the root module as the node.
+                # This is only true if the pass can be run on 
+                # the root no of the AST.
+                needs_to_append_root = True
+            elif len_element == 0:
+                raise TypeError('a NODE pass expect at least one element argument (up to two), got 0')
+        elif runs_on == _MTREE:
+            if len_element != 1:
+                raise TypeError(f'a MTREE pass expect exactly one element argument, got {len_element}')
+        elif runs_on == _FOREST:
+            if len_element != 0:
+                raise TypeError(f'a FOREST pass expect exactly zero element argument, got {len_element}')
+        
+        if element:
+            first_element = element[0]
+            if not isinstance(first_element, MTree):
+                # If the first element is not a mtree, 
+                # try to fetch it from the forest, 
+                # it can be either a identifier string
+                # or the root node of the tree.
+                module = self.trees[first_element]
+                element = (module, ) + element[1:]
+            elif first_element not in self.trees:
+                # the tree is not in the system, so add it now.
+                self.add(first_element)
+            if needs_to_append_root:
+                element += (element[0].root, )
 
-class _PassDependencyDescriptor:
-    """
-    Simple container for a callback. 
-    We kinda re-implement part of the descriptor protocol here.
+        return element
 
-    @see: L{Dependencies.__getattribute__}
-    """
-    def __init__(self, callback: Callable[[], Any]) -> None:
-        self.callback = callback
-
-# TODO: Optimize me with __slots__
-class Dependencies:
-    """
-    Container for dependencies.
-    """
-    def __getattribute__(self, name: str) -> Any:
-        # re-implement part of the descriptor protocol such that it
-        # works dynamically at class instances level; see prepare().
-        attr = super().__getattribute__(name)
-        if isinstance(attr, _PassDependencyDescriptor):
-            return attr.callback()
-        return attr
+    def _get_runner(self, passe: PassInstance, pointer: _Pointer) -> Runner:
+        return self._runners[passe.proto.kind](self, passe, pointer)
 
 # Internal builtin passes
 
-@analysis(on=Forest, cached=False)
-def _forest_proxy_pass(c: IConnector, _: Forest, *, proxied: PassInstance) -> AnalysisReturn:
-    def inner_pass(*element: Element, **kwargs: Hashable) -> Any:
-        if kwargs:
-            runpass = proxied(**kwargs)
-        else:
-            runpass = proxied
-        return c.gather(runpass, *element)
-    return {'result': GetProxy(inner_pass), 'completeness': False}
+# @analysis(on=Forest, cached=False)
+# def _forest_proxy_pass(c: Connector, _: Forest, *, proxied: PassInstance) -> AnalysisReturn:
+#     def inner_pass(*element: Element, **kwargs: Hashable) -> Any:
+#         if kwargs:
+#             runpass = proxied(**kwargs)
+#         else:
+#             runpass = proxied
+#         return c.gather(runpass, *element)
+#     return {'result': GetProxy(inner_pass), 'completeness': False}
 
-@analysis(on=MTree, cached=False)
-def _mtree_proxy_pass(c: IConnector, node: MTree, *, proxied: PassInstance) -> AnalysisReturn:
-    def inner_pass(element: Element, **kwargs: Hashable) -> Any:
-        if kwargs:
-            runpass = proxied(**kwargs)
-        else:
-            runpass = proxied
-        return c.gather(runpass, node, element)
-    return {'result': GetProxy(inner_pass), 'completeness': False}
+# @analysis(on=MTree, cached=False)
+# def _mtree_proxy_pass(c: Connector, node: MTree, *, proxied: PassInstance) -> AnalysisReturn:
+#     def inner_pass(element: Element, **kwargs: Hashable) -> Any:
+#         if kwargs:
+#             runpass = proxied(**kwargs)
+#         else:
+#             runpass = proxied
+#         return c.gather(runpass, node, element)
+#     return {'result': GetProxy(inner_pass), 'completeness': False}
 
 @transformation(on=Forest)
-def _add_mtree(_: IConnector, forest: Forest, *, tree: MTree) -> TransformationReturn:
+def _add_mtree(_: Connector, forest: Forest, *, tree: MTree) -> TransformationReturn:
     if tree in forest:
-        return {'update': False, 'preserved': []}
+        return {'update': False}
     forest._add(tree)
     return {'update': True, 'preserved': []}
 
 @transformation(on=Forest)
-def _remove_mtree(_: IConnector, forest: Forest, *, tree: MTree) -> TransformationReturn:
+def _remove_mtree(_: Connector, forest: Forest, *, tree: MTree) -> TransformationReturn:
     if tree not in forest:
         return {'update': False, 'preserved': []}
     forest._remove(tree)

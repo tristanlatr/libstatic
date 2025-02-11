@@ -22,6 +22,7 @@ from typing import (
     Sequence,
     Tuple,
     TypeVar,
+    Container, 
     overload,
     TYPE_CHECKING,
 )
@@ -200,6 +201,31 @@ class ChainMap(Mapping['_KT', '_VT']):
         d = {}
         for mapping in reversed(self._maps):
             d.update(dict.fromkeys(mapping))    # reuses stored hash values if possible
+        return iter(d)
+
+class ChainSet:
+    """
+    Combine multiple containers for sequential lookup.
+    """
+
+    __slots__ = '_sets',
+
+    def __init__(self, sets: Sequence[Container]) -> None:
+        self._sets = sets
+
+    def __contains__(self, key: object):
+        for container in self._sets:
+            if key in container:
+                return True
+        return False
+    
+    def __len__(self) -> int:
+        return len(set().union(*self._sets))     # reuses stored hash values if possible
+
+    def __iter__(self) -> Iterator[object]:
+        d = {}
+        for container in reversed(self._sets):
+            d.update(dict.fromkeys(container))    # reuses stored hash values if possible
         return iter(d)
 
 ################# Generic immuatble mapping
