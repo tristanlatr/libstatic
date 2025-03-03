@@ -7,11 +7,9 @@ build:
     - pip install pydoctor
     - | 
       pydoctor \
-      --project-name=(projectname) \
       --project-version=${READTHEDOCS_GIT_IDENTIFIER} \
       --project-url=${READTHEDOCS_GIT_CLONE_URL%*.git} \
       --html-viewsource-base=${READTHEDOCS_GIT_CLONE_URL%*.git}/tree/${READTHEDOCS_GIT_COMMIT_HASH} \
       --html-base-url=${READTHEDOCS_CANONICAL_URL} \
       --html-output $READTHEDOCS_OUTPUT/html/ \
-  
       ./libstatic
