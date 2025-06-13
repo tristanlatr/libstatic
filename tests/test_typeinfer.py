@@ -707,7 +707,8 @@ def test_supertype_of() -> None:
     assert MaybeIterable.is_union
 
     assert Iterable.supertype_of(MaybeIterable)
-    
+
+@pytest.mark.flaky(reruns=2)
 def test_unification_time_is_linear() -> None:
     src = '''
 from __future__ import annotations

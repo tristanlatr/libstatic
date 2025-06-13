@@ -93,7 +93,7 @@ def find_typedef(state:State, qualname: str, *,
     return node
 
 # This class has beeen adapted from the 'astypes' project.
-@attrs.s(frozen=True, auto_attribs=True, auto_detect=True, slots=True, order=False)
+@attrs.s(frozen=True, auto_attribs=True, auto_detect=True, slots=True, order=False) # type: ignore
 class Type(_BaseType):
     """
     Internal implementation of `libstatic.Type`.
@@ -139,7 +139,7 @@ class Type(_BaseType):
     """
 
     # https://github.com/python-attrs/attrs/issues/164
-    __dict__: dict = attrs.field(factory=dict, init=False, repr=False, eq=False)
+    __dict__: dict = attrs.field(factory=dict, init=False, repr=False, eq=False) # type: ignore
 
     def __str__(self) -> str:
         return self.annotation

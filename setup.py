@@ -1,9 +1,9 @@
 from setuptools import setup, find_packages
 setup( 
     name = "libstatic",
-    version = "0.2.0.dev3",
-    description = "Static analysis library based on beginet",
-    author = "Various Developers",
+    version = "0.2.0.dev4",
+    description = "Static analysis framework",
+    maintainer = "tristanlatr",
     url = "https://github.com/tristanlatr/libstatic",
     packages = find_packages(exclude=['tests']),
     install_requires = [
