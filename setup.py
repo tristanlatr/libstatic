@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 setup( 
     name = "libstatic",
-    version = "0.2.0.dev3",
+    version = "0.2.0.dev4",
     description = "Static analysis framework",
     maintainer = "tristanlatr",
     url = "https://github.com/tristanlatr/libstatic",
