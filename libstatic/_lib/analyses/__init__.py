@@ -145,7 +145,7 @@ class _Beniget(passmanager.ModuleAnalysis[DefUseChains]):
     """
     A wrapper for U{https://github.com/pyforks/beniget-ng}
 
-    Until U{https://github.com/serge-sans-paille/beniget/pull/93} is merged we can't use upstream version.
+    Until U{https://github.com/serge-sans-paille/beniget/pull/110} is merged we can't use upstream version.
     """
     def doPass(self, node:ast.Module) -> DefUseChains:
         mod: passmanager.Module = self.ctx.module

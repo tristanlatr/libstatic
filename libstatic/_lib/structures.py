@@ -358,50 +358,6 @@ class FrozenNamespace(types.SimpleNamespace):
             super().__setattr__(name, value)
 
 
-################# Generic Result object (inspired by Rust)
-
-class CallResult(Generic[_T]):
-    # TODO: Add proper typing
-    """
-    Simple wrapper for the result of a function call. 
-
-    The result can either be a success, in which case the C{result} attribute will give the return value of the function.
-    Or the result can be an error, in which case the C{error} property returns an expection instance accessing the C{result} attribute
-    will raise the exception.
-    """
-    
-    @property
-    def result(self) -> _T:
-        raise NotImplementedError(self.result)
-    
-    @property
-    def error(self) -> Exception | None:
-        if isinstance(self, _Error):
-            return self._error
-        return None
-
-    @classmethod
-    def new(cls, obj: _T | Exception) -> CallResult:
-        if isinstance(obj, Exception):
-            return _Error(obj)
-        return _Success(obj)
-
-@dataclass(frozen=True)
-class _Error(CallResult):
-    _error: Exception
-
-    @property
-    def result(self) -> object:
-        raise self._error
-
-@dataclass(frozen=True)
-class _Success(CallResult):
-    _result: object
-
-    @property
-    def result(self) -> object:
-        return self._result
-
 ################# Generic Indexer implementation
 
 _SeriesOfKeysT = TypeVar("_SeriesOfKeysT", bound=Sequence[Hashable])
@@ -478,7 +434,7 @@ class Indexer(Generic[_SeriesOfKeysT]):
     ...
     TypeError: Unexpected keyword: nonexistent
     """
-    def __init__(self, keys: Collection[str], skipKeys: Collection[str]) -> None:
+    def __init__(self, keys: Collection[str], skipKeys: Collection[str] = ()) -> None:
         """
         @param keys: An ordered collection of the names of the chache keys.
         @param skipKeys: A collection of key names that should not be indexed.
@@ -498,36 +454,37 @@ class Indexer(Generic[_SeriesOfKeysT]):
     
     def discard(self, key: _SeriesOfKeysT) -> None:
         # O(1)
+        store = self.__store
         for label, value in zip(self.__keys, key): # TODO: use strict=True
             if label in self.__skipKeys:
                 continue
-            self.__store[label][value].discard(key)
-            # TODO: Is it worth it to delete empty sets from the structure ?
-            # This would optimize kvalues() so tat we don't have to return a new set
-            # but kvalues is only used in the tests at this time...
+                    # this code is little bit intricate because we use the first part 
+                    # of the binary 'or' as a regular assignment because it returns None
+                    # so the 'not valuset' condition will always be executed.
+            if (valueset:=store[label][value]).discard(key) or not valueset:
+                # delete empty sets from the structure
+                del store[label][value]
 
-    def search(self, **key: Hashable) -> Collection[_SeriesOfKeysT]: # typed as Collection so it cannot be mutated.
-            # O(min(len(s) for s in set of keys)) or O(1) if only one key is provided
-            # Verify no junk parmeters.
-            if not key:
-                raise TypeError(f'Excepted at least one keyword argument')
-            if not all(invalid:=(k in self.__keys) and (invalid:=k not in self.__skipKeys) for k in key):
-                raise TypeError(f'Unexpected keyword: {invalid}')
-            
-            sets = [self.__store[label][value] for label, value in key.items()]
-            # Fast track if only one key is provided
-            if len(sets) == 1:
-                return sets[0]
-            # Create the intersection of sets starting with the smallest for performance reasons.
-            sets.sort(key=len)
-            return reduce(operator.and_, sets)
+    def search(self, **key: Hashable) -> Collection[_SeriesOfKeysT]:
+        """
+        Look for keys that matches the given partial key(s).
+        """
+        # O(min(len(s) for s in set of keys)) or O(1) if only one key is provided
+        # Verify no junk parmeters.
+        if not key:
+            raise TypeError(f'Excepted at least one keyword argument')
+        if not all(invalid:=(k in self.__keys) and 
+                   (invalid:=k not in self.__skipKeys) for k in key):
+            raise TypeError(f'Unexpected keyword: {invalid}')
+        sets = (self.__store[label][value] for label, value in key.items())
+        return reduce(operator.and_, sorted(sets, key=len))
 
     def kvalues(self, key: str) -> Collection[Hashable]:
+        # O(1)
         # Verify no junk parmeters.
         if key not in self.__keys or key in self.__skipKeys:
             raise TypeError(f'Unexpected key: {key}')
-        # Ignore empty sets.
-        return OrderedSet(k for k,v in self.__store[key].items() if v)
+        return self.__store[key].keys()
 
 ################# Generic Cache implementation
 
@@ -563,7 +520,7 @@ class Cache(Generic[_SeriesOfKeysT, _VT]):
     []
     """
 
-    def __init__(self, keys: Collection[str], skipKeys: Collection[str]) -> None:
+    def __init__(self, keys: Collection[str], skipKeys: Collection[str]= ()) -> None:
         """
         @param keys: An ordered collection of the names of the chache keys.
         @param skipKeys: A collection of key names that should not be indexed.
@@ -602,33 +559,17 @@ class Cache(Generic[_SeriesOfKeysT, _VT]):
         """
         Searches the cache for entries matching the given partial key(s).
         """
+        # O(min(len(s) for s in set of keys)) or O(1) if only one key is provided
         return self.__indexer.search(**key)
     
     def kvalues(self, key: str) -> Collection[Hashable]:
         """
         Returns all distinct values for a particular key in the cache.
         """
+        # O(1)
         return self.__indexer.kvalues(key)
     
     def allkeys(self) -> Collection[_SeriesOfKeysT]:
+        # O(1)
         return list(self.__store)
 
-################# Generic callable proxy
-
-class GetProxy(Generic[_T, _VT]):
-    """
-    Provide L{get} and L{__cal__} methods that defers to an underlying callable 
-    taking any number of positional or keywords arguments . 
-    """
-    def __init__(self, factory: Callable[..., _VT]):
-        self._factory = factory
-
-    def get(self, 
-            *element: _T,
-            **kwargs: Hashable) -> _VT:
-        """
-        Request a value from this proxy. 
-        """
-        return self._factory(*element, **kwargs)
-
-    __call__ = get
