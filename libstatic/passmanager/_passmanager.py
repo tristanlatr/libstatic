@@ -4,30 +4,20 @@ Core of the machinery.
 from __future__ import annotations
 
 import abc
-from collections import deque
 from contextlib import contextmanager
 from enum import IntEnum
 from functools import partial
-from inspect import signature, Parameter
-from itertools import chain, product
-import weakref
+from itertools import product
 
 from typing import (
     Callable,
-    Collection,
-    Container,
-    Final,
     Generic,
     Hashable,
     Iterable,
     Iterator,
     Any,
-    Literal,
     Mapping,
     Protocol,
-    Sequence,
-    TYPE_CHECKING,
-    Tuple,
     TypeVar,
     TypedDict,
     overload,
@@ -35,19 +25,15 @@ from typing import (
 
 import attrs
 
-from libstatic._lib.structures import (
-    Cache,
-    Indexer,
-    FrozenDict,
-    OrderedSet,
-)
-
-
+from libstatic._lib.structures import Indexer
 
 from ._model import Forest, Tree, Node, Level, PassKind, Element, Node, RootNode
-from ._passe import PassInstance, PassPrototype, PassKind, PassLike, transformation
+from ._passe import PassInstance, PassKind, PassLike, transformation
 
 
+# TODO (phase-two): The whole 'pointer' concept is redundant and unclear.
+# we should just explicitely mention three attributes:
+# - forest, tree and node.
 type _ElementPath = (
     tuple[Forest,] | tuple[Forest, Tree] | tuple[Forest, Tree, Node]
 )
@@ -114,15 +100,14 @@ class PassContext:
         key: _PassRun = (passe, pointer)
 
         if key in self._metadata_stack:
-            # TODO: Use a exception subclass in order to potentially catch and
+            # TODO (pahse-one): Use a exception subclass in order to potentially catch and
             # use another pass instead to break the cycle.
             raise RuntimeError(f"cycle detected with pass: {key}")
 
-            # cast it to int to internalize the int,
-            # TODO: is this necessary?
+            # cast it to int to internalize the int, is this necessary?
         self._metadata_stack[key] = (int(passe.proto.runs_on), set([pointer]))
 
-        # TODO: Might be interesting to optimize the transformations:
+        # TODO (pahse-two) (Not clear): Might be interesting to optimize the transformations:
         # Yield a context tracker that is able to say which knowledge
         # the pass accessed as well as the complete list of dependent trees
         # in the case of a forest knowledge analysis.
@@ -165,21 +150,17 @@ class UnpreparedPass:
     """
     The object represents a pass not yet prepared to run.
     """
-    passe: PassInstance
-    pointer: _ElementPath
+    passe: PassInstance;    pointer: _ElementPath;    
     passmanager: PassManager
-    run_keywords: Mapping[str, Any]
+    run_options: Mapping[str, Any]
 
 @attrs.frozen(slots=True)
 class PreparedPass:
     """
     The object represents a pass ready to run.
     """
-
-    passe: PassInstance
-    pointer: _ElementPath
-    connector: Connector
-    run_keywords: Mapping[str, Any]
+    passe: PassInstance;    pointer: _ElementPath;    connector: Connector
+    run_options: Mapping[str, Any]
 
 @attrs.frozen(slots=True)
 class CompletedPass:
@@ -188,39 +169,33 @@ class CompletedPass:
     It is returned from L{PassManager.run} method.
     """
 
-    passe: PassInstance
-    connector: Connector
-    """
-    Strores the connector so subsequent analyses can be run from inside hooks applied
-    a pass has been run (with the `COMPLETED` kind of hooks).
-    
-    Attention: great care should be taken not to create situation where 
-    infinite recuresion is possible, i.e. it's safe to call any analyses from within
-    a hook applied to transformations. wait is it ? cannot analyses depend on transformations?
-    """
-
-    # TODO: The whole 'pointer' concept is redundant and unclear.
-    # we should just explicitely mention three attributes:
-    # - forest, tree and node.
-    pointer: _ElementPath
-    result: Any
-    completeness: bool
-    update: bool
-    preserved: Container[PassInstance]
+    passe: PassInstance;    pointer: _ElementPath;    connector: Connector
+    # Strores the connector so subsequent analyses can be run from inside hooks applied
+    # a pass has been run (with the `COMPLETED` kind of hooks).
+    # # TODO (phase-one): Rephrase and precise.
+    # Attention: great care should be taken not to create situation where 
+    # infinite recuresion is possible, i.e. it's safe to call any analyses from within
+    # a hook applied to transformations. wait is it ? cannot analyses depend on transformations?
+    run_options: Mapping[str, Any]
     knowledge: int
-    run_keywords: Mapping[str, Any]
+    result: Any
+    update: bool
+    
+    # Optionals
+    attributes: Mapping[str, Any]
+    """
+    Including completeness, preserved, etc...
+    """
 
 @attrs.frozen(slots=True)
 class FailedPass:
     """
     The object represents a pass that raised an exception while running.
     """
-
-    passe: PassInstance
-    pointer: _ElementPath
-    connector: Connector
+    passe: PassInstance;    pointer: _ElementPath;    connector: Connector
+    run_options: Mapping[str, Any]
     failure: Exception
-    run_keywords: Mapping[str, Any]
+    
 
 class _PassDependencyDescriptor:
     """
@@ -269,13 +244,16 @@ class Connector:
     apply: Callable[..., bool]  #: See L{PassManager.apply}
     run: Callable[..., CompletedPass]  #: See L{PassManager.run}
 
+# TODO (phase-one): Create a hook that patches the connector methods to enabled
+# resticted mode selectively. This will improve performance by not restict anything 
+# outside of the tests for isntance. 
+
     # def gather():...
         # TODO: Verify that the mentioned tree is the current one, othwerwise
         # make this pass forest-wide. 
     
     # TODO: Disallow transformations from analyses
-    # TODO: Disallow outer level transformations from transformations
-    # TODO:
+    # TODO: Disallow outer level transformations from transformations (because of the quadratic nature of the operation)
     # TODO: Disallow implicitely adding a new tree 
     #   from within a non-forest-wide-transfortmation.
 
@@ -336,7 +314,7 @@ class Runner(abc.ABC, Generic[_Trdict]):
         """
         Prepare the pass connector and apply dependent transforms before running a pass.
         """
-        # TODO: Like in LLVM, we DO impose some restriction about what pass can be run under
+        # TODO (phase-one): Like in LLVM, we DO impose some restriction about what pass can be run under
         # what context, BUT there is one thing we do not do at the moment: that is to
         # disalow NODE transformations to run outer lever analyses. 
         # It should only be able to access cached results though the "deps" (or gather() cached results). 
@@ -387,7 +365,7 @@ class Runner(abc.ABC, Generic[_Trdict]):
         # Apply all transformations eagerly, since we use a descriptor for all analyses results
         # within themseft inside analysis, 
         # we need to transitivsely iterate dependent tranforms and apply then now.
-        # TODO: this will run transitive transformations many times, 
+        # TODO (phase-one): this will run transitive transformations many times, 
         # so we should really cache the no-op transformation facts...
         
         passe_proto_kind = passe_proto.kind
@@ -397,7 +375,7 @@ class Runner(abc.ABC, Generic[_Trdict]):
             if t_proto.kind != PassKind.TRANSFORMATION:
                 continue
 
-            # TODO: Should analyses be allowed to depend on transformations at all? NO!
+            # TODO (phase-one): Should analyses be allowed to depend on transformations at all? NO!
             # We should be able to assume that analyses won't change the analyzed code!
             # At the same time, we should still be able to list transformation as dependencies
             # of analyses, BUT, these transformations dependencies serves only to validate 
@@ -406,13 +384,13 @@ class Runner(abc.ABC, Generic[_Trdict]):
             # mean that a analysis can only "depend" on a single transformation since once transforantion
             # will invalidate the cached result of any other transformation applied earlier, if not 
             # explicitely marked as preserved. This is probably a ok compromise if it's well documented.
+            # (phase-one) Implementing this.
+            # Since the cache is just a plugin/series of hooks, we need to put that logic inside 
+            # an unrpepared pass hook that will validate that all trasitively depending transformations
+            # are cached as "no-op id run again".
             
             if (t_runs_on := t_proto.runs_on) < (p_runs_on := passe_proto.runs_on):
-                # Since a NODE pass can be run on a Tree, we should explicitely
-                # accept if we hit this case. BUT what if the transformation only
-                # applies to FunctionDef for instance ? well.. then it will fail
-                # at the apply() stage with a TypeError.
-                # TODO: we might be able to check the config to see if pass can be run
+                # We might be able to check the config to see if pass can be run
                 # on root nodes or not; but this will increase complexity
                 # EDIT: Actually this wouldn't be a good change since different tree
                 # implementation might use the root object CompilationUnit several times
@@ -435,11 +413,11 @@ class Runner(abc.ABC, Generic[_Trdict]):
             elif t_runs_on > p_runs_on:
                 if passe_proto_kind == PassKind.TRANSFORMATION:
                     raise TypeError(
-                        # TODO: this limitation might be lifted in the future IF we can
+                        # TODO (phase-one): this limitation might be lifted in the future IF we can
                         # ignore the transformation because we KNOW it's not going to
                         # update the content. 
                      "transformations cannot depend on enclosing level transformations")
-                    # TODO: Enforce this though the connector run() as well.
+                        # TODO (phase-one): Enforce this though the connector run() as well.
                 
                 # the dependency runs on a upper scope level, trim what's required
                 lvldiff = t_runs_on - p_runs_on
@@ -474,7 +452,7 @@ class Runner(abc.ABC, Generic[_Trdict]):
                 #   c.gather(attribute('some_other_name'), 'some_other_module_name', class_def)
             
             cache_only_sub = False
-            # TODO: More code should be shared with the first for loop up there...
+            # TODO (phase-two): More code should be shared with the first for loop up there...
             if (a_runs_on := a_proto.runs_on) < (p_runs_on := passe_proto.runs_on):
                 # the dependency runs on a lower scope level
                 if a_runs_on == Level.NODE and p_runs_on == Level.TREE:
@@ -495,14 +473,19 @@ class Runner(abc.ABC, Generic[_Trdict]):
                 lvldiff = a_runs_on - p_runs_on
                 dep_element = element[:-lvldiff]  # type:ignore[assignment]
 
-                # TODO: Enforce this thru the connector run() as well.
+                # TODO (phase-one): Enforce this thru the connector run() as well (
+                #   in a hook of course).
                 cache_only_sub |= passe_proto_kind == PassKind.TRANSFORMATION 
             else:
                 # same level
                 dep_element = element
 
             if passe_proto_kind == PassKind.TRANSFORMATION:
-                # For transformations, the analyses MUST be computed eagerly
+                # TODO (phase-one): That's good stuff but we need to move it to the caching.py
+                # module inside some hook. How to... -> Simply with a prepared-pass
+                # hook that calculates the value of cache_only_sub and call 
+                # the connector'deps with object.__getattribute__() to pass 
+                # For transformations, the depending analyses MUST be computed eagerly
                 # because it could cause undefined behavior if it's lazily 
                 # bound like for analyses since the transformation might or 
                 # might not affect the tree before/after using an analysis result.
@@ -511,8 +494,8 @@ class Runner(abc.ABC, Generic[_Trdict]):
                                                       # dealing with a transformation.
                                                       cache_only=cache_only_sub))
             else:
-                # the dependency can be converted to a descriptor
-                # TODO: I'm sure there is a faster way to do it
+                # Convert the dependency to a descriptor. 
+                # I'm sure there is a faster way to do it...
                 callback: Callable[[], Any] = partial(pm.gather, _a, *dep_element, 
                                                       cache_only=cache_only_sub)
                 setattr(deps, a_proto.name, _PassDependencyDescriptor(callback))
@@ -552,22 +535,20 @@ class Runner(abc.ABC, Generic[_Trdict]):
         when: Trigger,
         knowledge: Level | _HookedNotApplicable,
         ) -> THookObj:
-        # TODO: Like in requests.Request object, the Pass themselve might want to carry over some
+        # TODO (phase-two): Like in requests.Request object, the Pass themselve might want to carry over some
         # hooks, so this method will need to adjust.
 
         for h in hooks.get(when, obj.passe.proto.kind, obj.passe.proto.runs_on, knowledge):
             obj = h(obj) or obj
         return obj
 
-    def run(self, **keywords) -> CompletedPass:
+    def run(self, **options) -> CompletedPass:
         """
-        :param cache_only: Only use the cache. Do not actually run anything.
+        # :param cache_only: Only use the cache. Do not actually run anything.
         """
-        # TODO: Validate options
-
         with self.push() as meta:
             unprepared = UnpreparedPass(self._passe, self._pointer, self._passmanager, 
-                                        run_keywords=keywords)
+                                        run_options=options)
             unprepared = self._apply_hooks(unprepared, when=Trigger.UNPREPARED, 
                                        knowledge=_HookedNotApplicable.NA)
             
@@ -578,26 +559,28 @@ class Runner(abc.ABC, Generic[_Trdict]):
                 return unprepared
             assert isinstance(unprepared, UnpreparedPass), f'hook returned unsupported object type: {unprepared}'
             
+            # TODO (phase-one) Move this to caching.py inside an unprepared pass hook.
             # if completed:=self.from_cache():
             #     return completed
             # elif cache_only:
             #     raise ValueError(
             #         f'result for {(self._passe, self._pointer)!r} not found in cache and cache_only=True')
 
-            prepared: PreparedPass = self.prepare(unprepared) #TODO: should be unprepared.prepare()
+            prepared: PreparedPass = self.prepare(unprepared)
             prepared = self._apply_hooks(prepared, when=Trigger.PREPARED, 
                                        knowledge=_HookedNotApplicable.NA)
             
             try:
-                rdict = self.do_pass(prepared)  # TODO: should be prepared.do_pass()
+                rdict = self.do_pass(prepared)
             except Exception as failure:
                 failed = FailedPass(prepared.passe, prepared.pointer, 
                                     prepared.connector, failure, 
-                                    run_keywords=prepared.run_keywords)
+                                    run_options=prepared.run_options)
                 maybe_failed = self._apply_hooks(failed, when=Trigger.FAILED,
                     knowledge=_HookedNotApplicable.NA)
                 # FAILED hooks can either return None, another FailedPass instance or 
-                # a CompletedPass instance, in which case the instance is returned as-is.
+                # a CompletedPass instance, in which case the instance is returned as-is
+                # (skipping completed passes hooks!).
                 # This is a special case of the hook logic to accomodate error handling. 
                 if isinstance(maybe_failed, CompletedPass):
                     return maybe_failed
@@ -607,6 +590,8 @@ class Runner(abc.ABC, Generic[_Trdict]):
         result: CompletedPass = self.make_completed_pass(rdict, meta)
         result = self._apply_hooks(result, when=Trigger.COMPLETED, 
                                    knowledge=Level(result.knowledge))
+        # TODO (phase-one) Move this to caching.py inside an completed pass hook that 
+        # increase the revision of the tree that transformation changed somthing if applicable.
         # self.maintain_cache(result)
         return result
 
@@ -617,11 +602,9 @@ class Runner(abc.ABC, Generic[_Trdict]):
 @attrs.frozen(slots=True)
 class AnalysisRunner(Runner[AnalysisReturnMap]):
 
-
-    
     def make_completed_pass(self, rdict: _Trdict, meta: _PassRunMetadata) -> CompletedPass:
         # by default all forest knowledge analyses are incomplete and other are complete.
-        # TODO: We currently do not validate if a tree or 
+        # TODO (phase-one): We currently do not validate if a tree or 
         #   node analysis is ever marked as incomplete.
         #   in which case that would be an error of the developers.
         knowledge = meta.knowledge
@@ -636,14 +619,13 @@ class AnalysisRunner(Runner[AnalysisReturnMap]):
             preserved=(),
         )
 
-
-
 @attrs.frozen(slots=True)
 class TransformationRunner(Runner[TransformationReturnMap]):
     
 
     def make_completed_pass(self, rdict: _Trdict, meta: _PassRunMetadata) -> CompletedPass:
-
+        
+        # TODO (phase-one): Move this to the caching hook in caching.py
         preserved = PreservedAnalyses(self._passmanager.get_passe, 
                                       rdict.get('preserved', []))
 
@@ -669,47 +651,43 @@ class PassManager:
     One L{PassManager} can be used for the analysis of a collection of trees.
     """
 
-    def __init__(self, config: Config = default_config, 
+    def __init__(self, plugins: Iterable[IPluginFactory] = (),
                 # Currently the core of the PassManager 
-                # is library agnostic, and should stay that way.
-                 ) -> None:
-        self.config = config
+                # is library agnostic, and should stay that way. 
+                ) -> None:
+
         self.hooks = Hooks()
         self.trees = Forest()
         
         self._preconfigured: dict[str, PassLike] = {}
-        
-        # The cache should be just an instrumentation like others.
-        # self.cache = PassManagerCache(Cache(CACHE_KEYS, ["node"]), 
-        #                               RevisionsTracker())
-
         self._ctx = PassContext()
         self._runners = {
             PassKind.ANALYSIS: AnalysisRunner,
             PassKind.TRANSFORMATION: TransformationRunner,
         }
 
-        self._supported_run_keywords = set()
-        self._supported_pass_keywords = set()
-        for i in map(_call, config.plugins):
+        # NOTE: The cache is just a plugin like others.
+        for i in map(lambda _: _(), plugins):
             for plugin in i.register(self):
                 if hasattr(self, name:=plugin.name):
                     raise ValueError(f'The PassManager already has an attribute named {name!r},'
-                                     f' please use another name for the plugin {plugin!r}')
+                                        f' please use another name for the plugin {plugin!r}')
                 setattr(self, name, plugin)
-            self._supported_run_keywords.update(i.run_keywords)
-            self._supported_pass_keywords.update(i.pass_keywords)
-        
-        # def _validate_required_tree_attributes(pp: PreparedPass):
-        #     tree = pp.passe.args['tree']
-
-        # self.hooks.install(_validate_required_tree_attributes, when='before', 
-        #                    kind='transformation', level='forest')
 
     def configure(self, passe: PassLike, name: str) -> None:
+        """
+        Configure a string alias for a pass.
+        
+        :see: `get_passe`
+        """
         self._preconfigured[name] = passe._replace(name=name)
     
     def get_passe(self, name: str) -> PassLike:
+        """
+        Get a pass from it's pre-configured name.
+
+        :see: `configure`
+        """
         return self._preconfigured[name]
 
     def apply(self, transform: PassLike | str, *element: str | Element, **kwargs: Any) -> bool:
@@ -740,20 +718,9 @@ class PassManager:
     # is that for a given node, the passmanger has no direct knowledge of which tree
     # this node lives in. This is why in order to run a NODE analysis on anything else than the root
     # node of a tree, users of the library need to pass (at least) the tree identifer as 
-    # the second argument AND the actual node instance as the third. This is why we
-    # might add a simple NamedTuple class like this: 
-    # class TreeNode(NamedTuple):
-    #     """
-    #     A class that wraps a node and under which tree it lives::
-    #       tree, node = TreeNode(tree, node)
-    #     """
-    #     tree: Tree | RootNode | str
-    #     node: AnyNode
-    # This object might be returned from analyses 
-    # such that is can be used like c.gather(analysis_name, *tn)
+    # the second argument AND the actual node instance as the third.
 
-
-    def run(self, passe: PassLike | str, *element: str | Element, **kwargs:Any) -> CompletedPass:
+    def run(self, passe: PassLike | str, *element: str | Element, **options:Any) -> CompletedPass:
         """
         Method to run any kind of pass 
         and get a L{CompletedPass} instance in return.
@@ -786,7 +753,7 @@ class PassManager:
         # We do not validate the keywords because we might use the passmanager with unsupported
         # keywords in test cases for instance. A plugin might be written to trigger warnings
         # when issuing unsupported keywords.
-        return runner.run(**kwargs)
+        return runner.run(**options)
 
     @overload
     def add(self, tree: RootNode, identifier: str, **attributes: Hashable): ...
@@ -908,3 +875,176 @@ def remove_tree(_: Connector, forest: Forest, *,
         tree = forest[tree]
     forest._remove(tree)
     yield "update", True
+
+THookObj = TypeVar('THookObj', 'UnpreparedPass', 'PreparedPass', 'CompletedPass', 'FailedPass')
+type Hook = Callable[[THookObj], THookObj | None]
+"""
+A hook is callable that is used to customize the logic 
+just before or after a pass runs. 
+Note that the hooks won't be called when retreiving 
+results from the cache; only when a pass actually runs.
+
+If the hook function returns a value, it'a assumed to replace 
+the given object in parameter; this should be of the same type.
+
+If the hook runs at the 'unprepared' step, the object type will be an L{UnpreparedPass}
+instance, at 'prepared' the object type will be L{PreparedPass} instance, and,
+at 'completed' the object type will be a L{CompletedPass} isntance.
+
+You cannot mutate the object in-place since it's a frozen class. But you can replace
+the given object by returning a non-None value.
+
+Use the `Hooks.install()` method to add a new hook. The supported
+parameters are: 
+    - hook: Hook - the callable
+    - when: 'unprepared' or 'prepared' or 'completed'
+    - kind: 'analysis' or 'transformation'
+    - level:  'node', 'tree' or 'forest'
+    - knowledge: 'node',  'tree',  'forest' - only for 'completed' hooks.
+"""
+
+class IPluginRegistrar(Protocol):
+    hooks: Hooks
+    def configure(passe: PassLike, name: str) -> None: ...
+
+class IPluginFactory(Protocol):
+    def __call__(self) -> IPlugin: ...
+
+class IPlugin(Protocol):
+    """
+    An plugin class:
+        - has a name
+        - can support a variety of different parsers, use 'all' special word to indicate 
+            a plugin supports all kind of parsers.
+        - can handle gather()/apply()/run() keywords, aka "run options"
+        - can handle analysis()/transformation() keywords, aka "pass options"
+        - can handle passe yield points keywords, aka "completed passe's attributes"
+        - can installs hooks
+        - can configure a pass alias as string
+        - register method MUST at least return self, 
+            - Returned instance of the plugin will be stored in the PassManager locals 
+              as a attribute of the given `name`. 
+            - A plugin can register other plugins and yield their instances
+              from the register() method such that they will be stored 
+              in the PassManager locals as well.
+        
+    The PassManager only handled zero-argument callabled returning an instance of IPlugin.
+    """
+    name: str
+    def register(self, r: IPluginRegistrar) -> Iterable[IPlugin]:...
+
+
+class Trigger(IntEnum):
+    UNPREPARED = 24
+    PREPARED = 23
+    COMPLETED = 22
+    FAILED = 21
+
+
+class _HookedAll(IntEnum):
+    # for Hooks.install() method
+    ALL = 99
+class _HookedNotApplicable(IntEnum):
+    # for Hooks.install() method
+    NA = 0
+
+
+def _upper_if_string(v: object):
+    if isinstance(v, str):
+        return v.upper()
+    return v
+
+@attrs.frozen(slots=True)
+class Hooks:
+    """
+    Container for the customization hooks. 
+    The hooks are a manner to customize the process of running a pass.
+    
+    >>> my_cb = lambda o: print(o)
+    >>> h = Hooks()
+    >>> h.install(my_cb, when='after', kind='analysis', 
+    ... level='tree', knowledge='all')
+    >>> cbs = h.get(_AFTER, _ANALYSIS, _TREE, _TREE)
+    >>> len(cbs)
+    1
+    >>> cbs[0](2)
+    2
+    """
+
+    _hooks: Indexer[tuple[Hook, int, int, int, int]] = attrs.field(default_factory=lambda: Indexer(
+        ['hook', 'when', 'kind', 'level', 'knowledge']))
+
+    @staticmethod
+    def _cast_string_values(when: str | int, 
+                kind: str | int, 
+                level: str | int, 
+                knowledge: str | int) -> tuple[int, int, int, int]:
+        # Cast everything to instances of integers.
+
+        def _cast(v: str | int, maps: Iterable[type[IntEnum]]) -> int:
+            if isinstance(v, int):
+                return v
+            for m in maps:
+                try: return m[v]
+                except KeyError: continue
+            raise KeyError(v)
+        
+        return (
+            _cast(when, [Trigger]), 
+            _cast(kind, [PassKind, _HookedAll]),
+            _cast(level, [Level, _HookedAll]), 
+            _cast(knowledge, [_HookedNotApplicable, Level, _HookedAll])
+        )
+        
+    def install(self, hook: Hook, *, 
+        when: str | Trigger,
+        kind: str | PassKind | _HookedAll,
+        level: str | Level | _HookedAll,
+        knowledge: str | Level | _HookedAll | _HookedNotApplicable = _HookedNotApplicable.NA, 
+                ) -> None:  
+        """
+        Add a hook to the system.
+        """
+        # TODO: Use a priority-based order to apply hooks like we do for pydoctor's post-processing.
+        # indtroduce the parameter priority. 
+
+        when, kind, level, knowledge = self._cast_string_values(
+            *map(_upper_if_string, [when, kind, level, knowledge]))
+
+        # NA must always be used when the hooks runs before the pass, so validate that
+        # the only trigger that run after the pass run is the COMPLETED.
+        # TODO: Write nice error messages.
+        if when != Trigger.COMPLETED: 
+            if knowledge != _HookedNotApplicable.NA: 
+                raise TypeError
+        elif knowledge == _HookedNotApplicable.NA: 
+            raise TypeError
+
+        # Some combinaison of level/knowledge makes no sens: 
+        # when the 'knowledge' is lower than the 'level'.
+        if knowledge < level: 
+            raise ValueError
+
+        kinds = list(PassKind) if kind == _HookedAll.ALL else [kind]
+        levels = list(Level) if level == _HookedAll.ALL else [level]
+        knowledges = list(Level) if knowledge == _HookedAll.ALL else [knowledge]
+        
+        for combo in product(kinds, levels, knowledges):
+            self._hooks.add((hook, when, *combo))
+
+    def get(self, 
+        when: Trigger,
+        kind: PassKind,
+        level: Level,
+        knowledge: Level | _HookedNotApplicable.NA = _HookedNotApplicable.NA, 
+                ) -> Iterable[Hook]:
+        # This method doesn't support passing string values like install() for performance reason.
+        return (k[0] for k in self._hooks.search(when=when, 
+                                                 kind=kind, 
+                                                 level=level, 
+                                                 knowledge=knowledge))
+
+    def uninstall(self, hook: Hook) -> None:
+        hooks = self._hooks
+        for k in hooks.search(hook=hook):
+            hooks.discard(k)

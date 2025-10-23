@@ -4,54 +4,17 @@ Provides a simple and advanced stategies.
 """
 from __future__ import annotations
 
-import abc
 from collections import deque
-from contextlib import contextmanager
-from enum import IntEnum
-from functools import partial
-from inspect import signature, Parameter
-from itertools import chain, product
+from itertools import chain
 import weakref
 
 from typing import (
     Callable,
-    Collection,
-    Container,
-    Final,
-    Generic,
-    Hashable,
     Iterable,
-    Iterator,
-    Any,
-    Literal,
-    Mapping,
-    Protocol,
-    Sequence,
-    TYPE_CHECKING,
-    Tuple,
-    TypeVar,
-    overload,
 )
 
-if TYPE_CHECKING:
-    from typing import NotRequired, TypeAlias, TypedDict
-else:
-    final = lambda f: f
-    TypedDict = object
-
-from libstatic._lib.structures import (
-    Cache,
-    Indexer,
-    FrozenDict,
-    OrderedSet,
-)
-
-import attrs
-
-
-type _CacheKeyT = tuple[
-    PassInstance, int, bool, "Hashable | None", "Hashable | None"
-]
+from ._passe import PassInstance, PassPrototype, PassLike
+from ._model import Tree, Forest, Element, Node
 
 class PassPattern:
     """
@@ -146,6 +109,21 @@ class PassPattern:
     __hash__ = None # This class is not hashable by nature.
     __eq__ = matches
 
+    # Method to create a pattern from this pass.
+    @classmethod
+    def like(cls, passe: PassPrototype,  **predicate: Callable[[object], bool]) -> PassPattern:
+        """
+        Create a pattern representing several possible derivations of
+        the pass to be matched against other passes.
+
+        Designed to be used for preserved analyses.
+
+        @param predicate: The analysis parameters names to the match function.
+            A match function is a one-argument
+            callable that returne whether the value for the parameter matches.
+        """
+        return PassPattern(passe, **predicate)
+
 class PreservedAnalyses:
     """
     Container for checking whether a given analyse is preserved after a
@@ -186,14 +164,11 @@ class PreservedAnalyses:
                 (p:=other.proto) in self.__patterns 
                 and other in self.__patterns[p])
 
-CACHE_KEYS = OrderedSet(
-    (   "passe",  # PassInstance
-        "knowledge",  # integer: FOREST / TREE / NODE
-        "completeness",  # boolean
-        "tree",  # Tree or None
-        "node",  # AnyNode or None
-    ))
+# For a **phase one** caching strategy
+# TODO: Make a SimpleRevTracker that do not need to understand the node hierarchy,
+# simply incrementing the module revision anytime anything changes in that module. 
 
+# For a **phase-two** caching strategy 
 # TODO: The revision tracker should follow the import graph so we can preserve more
 # forest-knowledge analyses. We can even automate this by using the used_paths combined 
 # with a regular import analysis in order to detect wether the analyses followed the
@@ -306,61 +281,84 @@ class RevTracker:
         
         return f"{forest_rev}", f"{tree_rev}", '/'.join(map(str, chain(parents_rev, node_rev)))
 
-@attrs.frozen(slots=True)
-class PassManagerCache:
-    """
-    Wraps the generic L{Cache} class for caching L{CompletedPass} instances.
-    """
+# This code implemented a key-value based caching where the key is a tuple with a bunch 
+# of meta informations including: 
+#  the pass instance, 
+#  the knowledge of the pass, 
+#  whether the pass is complete
+#  the three wheren that pass has been run
+#  the node onto which the pass has been run
+#  
+#  the problem with that strategy is that we had to search different
+#  cahed results based on meta-informations-based filters, and that complexified
+#  the code...
 
-    _cache: Cache[_CacheKeyT, CompletedPass]
-    tracker: RevTracker
+# CACHE_KEYS = OrderedSet(
+#     (   "passe",  # PassInstance
+#         "knowledge",  # integer: FOREST / TREE / NODE
+#         "completeness",  # boolean
+#         "tree",  # Tree or None
+#         "node",  # AnyNode or None
+#     ))
 
-    def get(self, passe: PassInstance, pointer: _ElementPath) -> CompletedPass | None:
-        for k in self._mk_cache_keys_to_get_result(passe, pointer):
-            if result := self._cache.get(k):
-                # the result is cached :)
-                return result
-        return None
+# type _CacheKeyT = tuple[
+#     PassInstance, int, bool, "Hashable | None", "Hashable | None"
+# ]
+# @attrs.frozen(slots=True)
+# class PassManagerCache:
+#     """
+#     Wraps the generic L{Cache} class for caching L{CompletedPass} instances.
+#     """
 
-    def set(self, result: CompletedPass):
-        key = self._mk_cache_key_to_set_result(result)
-        self._cache.set(key, result)
+#     _cache: Cache[_CacheKeyT, CompletedPass]
+#     tracker: RevTracker
 
-    @staticmethod
-    def _mk_cache_key_to_set_result(result: CompletedPass) -> _CacheKeyT:
-        pointer: _ElementPath = result.pointer
-        # we do not use the forest part of the pointer here
-        path = pointer + (None,) * (3 - len(pointer))
-        completeness = True
-        return result.passe, result.knowledge, completeness, path[1], path[2]
+#     def get(self, passe: PassInstance, pointer: _ElementPath) -> CompletedPass | None:
+#         for k in self._mk_cache_keys_to_get_result(passe, pointer):
+#             if result := self._cache.get(k):
+#                 # the result is cached :)
+#                 return result
+#         return None
 
-    @staticmethod
-    def _mk_cache_keys_to_get_result(
-        passe: PassInstance,
-        pointer: _ElementPath,
-    ) -> Iterator[_CacheKeyT]:
-        # we do not use the forest part of the pointer here
-        path = pointer + (None,) * (3 - len(pointer))
-        p1 = path[1]
-        p2 = path[2]
-        runs_on = int(passe.proto.runs_on)
+#     def set(self, result: CompletedPass):
+#         key = self._mk_cache_key_to_set_result(result)
+#         self._cache.set(key, result)
 
-        yield passe, runs_on, True, p1, p2,
-        while runs_on < Level.FOREST:
-            runs_on += 1
-            yield passe, runs_on, True, p1, p2,
-        # The completeness can only be False for forest knowledge analyses.
-        yield passe, runs_on, False, p1, p2,
+#     @staticmethod
+#     def _mk_cache_key_to_set_result(result: CompletedPass) -> _CacheKeyT:
+#         pointer: _ElementPath = result.pointer
+#         # we do not use the forest part of the pointer here
+#         path = pointer + (None,) * (3 - len(pointer))
+#         completeness = True
+#         return result.passe, result.knowledge, completeness, path[1], path[2]
 
-    # TODO: There is too much boilerplate code around the cache management...
-    def remove(self, key: _CacheKeyT) -> None:
-        self._cache.remove(key)
-    remove.__doc__ = Cache.remove.__doc__
+#     @staticmethod
+#     def _mk_cache_keys_to_get_result(
+#         passe: PassInstance,
+#         pointer: _ElementPath,
+#     ) -> Iterator[_CacheKeyT]:
+#         # we do not use the forest part of the pointer here
+#         path = pointer + (None,) * (3 - len(pointer))
+#         p1 = path[1]
+#         p2 = path[2]
+#         runs_on = int(passe.proto.runs_on)
+
+#         yield passe, runs_on, True, p1, p2,
+#         while runs_on < Level.FOREST:
+#             runs_on += 1
+#             yield passe, runs_on, True, p1, p2,
+#         # The completeness can only be False for forest knowledge analyses.
+#         yield passe, runs_on, False, p1, p2,
+
+#     # There is too much boilerplate code around the cache management...
+#     def remove(self, key: _CacheKeyT) -> None:
+#         self._cache.remove(key)
+#     remove.__doc__ = Cache.remove.__doc__
     
-    def search(self, **key) -> Collection:
-        return self._cache.search(**key)
-    search.__doc__ = Cache.search.__doc__
+#     def search(self, **key) -> Collection:
+#         return self._cache.search(**key)
+#     search.__doc__ = Cache.search.__doc__
     
-    def allkeys(self) -> Collection: # used for testing
-        return self._cache.allkeys()
-    allkeys.__doc__ = Cache.allkeys.__doc__
+#     def allkeys(self) -> Collection: # used for testing
+#         return self._cache.allkeys()
+#     allkeys.__doc__ = Cache.allkeys.__doc__

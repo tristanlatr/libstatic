@@ -3,14 +3,9 @@ Declares the passe objects and related tools.
 """
 from __future__ import annotations
 
-import abc
-from collections import deque
-from contextlib import contextmanager
-from enum import IntEnum
 from functools import partial
 from inspect import signature, Parameter
-from itertools import chain, product
-import weakref
+from itertools import chain
 
 from typing import (
     Callable,
@@ -49,7 +44,8 @@ type PassLike = PassPrototype | PassInstance
 class IPassFunction(Protocol):
     """
     A pass function is a two positional argument
-    function with optionnaly any keyword arguments.
+    function with optionnaly any keyword arguments (aka "run options") 
+    that returns something that can be converted to a dict.
     """
 
     def __call__(
@@ -73,6 +69,7 @@ class PassPrototype:
 
     #: the type of pass: transformation or analysis.
     kind: PassKind
+    
     #: on what kind of element this pass runs on? this is conceptual.
     runs_on: Level
 
@@ -81,23 +78,27 @@ class PassPrototype:
     #: will be raised for any mismatch.
     runs_on_type: type | tuple[type, ...]
 
-    # required parameters names declaration
+    #: required parameters names declaration
     params: tuple[str, ...] = attrs.field(
         default=(), converter=tuple
     )  # at least an empty tuple
 
-    # options names to their default values declaration
+    #: options names to their default values declaration
     optional_params: Mapping[str, Hashable] = attrs.field(
         default=FrozenDict(), converter=FrozenDict
     )  # at least an empty map
 
-    # a sequence of dependecies that will be bound to 
-    # variable inside the 'deps' of the connector.
+    #: a sequence of dependecies that will be (lazily) bound to 
+    #: attributes inside the 'deps' property of the connector.
     dependencies: Sequence[PassLike | str] = attrs.field(
         default=(), converter=tuple
     )  # at least an empty tuple
 
-    keywords: Mapping[str, Any]
+    #: keyword arguments passed to the pass decorator, these keywords
+    #: are used a options for the plugins. 
+    pass_options: Mapping[str, Any] = attrs.field(
+        default=FrozenDict(), converter=FrozenDict
+    )  # at least an empty map
 
     # Desperate attempt to make it work with doctests :/ not working
     @property
@@ -156,27 +157,12 @@ class PassPrototype:
 
     def missing_param(self) -> str | None:
         """
-        Whether this pass prototype requires any parameter.
+        Whether this pass prototype requires any parameter. 
         """
         return self._instanciate().missing_param()
 
     def _instanciate(self) -> PassInstance:
         return PassInstance(self, FrozenDict())
-
-    # Method to create a pattern from this pass.
-    # TODO: Move this to caching.py
-    # def like(self, **predicate: Callable[[object], bool]) -> PassPattern:
-    #     """
-    #     Create a pattern representing several possible derivations of
-    #     the pass to be matched against other passes.
-
-    #     Designed to be used for preserved analyses.
-
-    #     @param predicate: The analysis parameters names to the match function.
-    #         A match function is a one-argument
-    #         callable that returne whether the value for the parameter matches.
-    #     """
-    #     return PassPattern(self, **predicate)
 
 
 _nah = object()
@@ -281,7 +267,7 @@ def new_pass_prototype(
     kind: PassKind,
     on: type | Iterable[type],
     dependencies: Sequence[PassLike] | None = None,
-    **kwargs: Any, 
+    **options: Any, 
     # memoize: bool = True,  # for analyses only
     # immutable: bool = False,  # for analyses only
     # file_cached: bool = False,
@@ -389,9 +375,8 @@ def new_pass_prototype(
         params=params,  # type: ignore[arg-type]
         optional_params=optional_params,
         dependencies=dependencies or (),  # type: ignore[arg-type]
-        # cached=memoize,
-        # immutable=immutable,
-        keywords=kwargs, 
+       
+        pass_options=options,  # including cached, immutable, etc...
     )
 
     return proto
