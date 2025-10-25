@@ -11,6 +11,7 @@ import weakref
 from typing import (
     Callable,
     Iterable,
+    MutableMapping,
 )
 
 from ._passe import PassInstance, PassPrototype, PassLike
@@ -198,7 +199,7 @@ class RevTracker:
         self._get_anscestors = get_anscestors # dependency injection
 
         # We abuse the complex type as a two dimentional vector of ints.
-        self._revisions: dict[Element, complex] = weakref.WeakKeyDictionary()
+        self._revisions: MutableMapping[Element, complex] = weakref.WeakKeyDictionary()
     
     def _elements(self, 
                   tree: Tree | None = None, 
@@ -279,7 +280,7 @@ class RevTracker:
         node_rev = rev.get(elements.popleft(), 0j)
         parents_rev = (rev.get(e, 0j).real for e in elements)
         
-        return f"{forest_rev}", f"{tree_rev}", '/'.join(map(str, chain(parents_rev, node_rev)))
+        return f"{forest_rev}", f"{tree_rev}", '/'.join(map(str, chain(parents_rev, [node_rev])))
 
 # This code implemented a key-value based caching where the key is a tuple with a bunch 
 # of meta informations including: 

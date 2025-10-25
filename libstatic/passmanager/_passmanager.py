@@ -4,6 +4,7 @@ Core of the machinery.
 from __future__ import annotations
 
 import abc
+from collections.abc import Set
 from contextlib import contextmanager
 from enum import IntEnum
 from functools import partial
@@ -16,6 +17,7 @@ from typing import (
     Iterable,
     Iterator,
     Any,
+    Literal,
     Mapping,
     Protocol,
     TypeVar,
@@ -31,9 +33,6 @@ from ._model import Forest, Tree, Node, Level, PassKind, Element, Node, RootNode
 from ._passe import PassInstance, PassKind, PassLike, transformation
 
 
-# TODO (phase-two): The whole 'pointer' concept is redundant and unclear.
-# we should just explicitely mention three attributes:
-# - forest, tree and node.
 type _ElementPath = (
     tuple[Forest,] | tuple[Forest, Tree] | tuple[Forest, Tree, Node]
 )
@@ -49,23 +48,26 @@ type _SimpleElementPath = tuple[()] | tuple[Tree,] | tuple[Tree, Node]
 What's left from the element path when the forest is trimmed.
 """
 
-type _PassRun = tuple[PassInstance, _ElementPath]
+type _PassRun = tuple[PassInstance, _ElementPath, Mapping[str, Any]]
 """
-A "pass run" stores a pass and on which element it has been run.
+A "pass run" more or less encapsulate information 
+passed to the PassManager.run method: 
+
+    - pass, 
+    - the element path,
+    - and the run options
 """
 
-class _PassRunMetadata:
+class PassRunMeta:
     """
     Encapsulate the data passed arround in between the context and the runner.
-
-    Currently this only includes the knowledge level of the pass.
     """
 
     __slots__ = ("knowledge", "used_paths")
 
     def __init__(self) -> None:
-        self.knowledge: int = None
-        self.used_paths: set[_ElementPath] = None
+        self.knowledge: Level | Literal[0] = 0
+        self.used_paths: Set[_ElementPath] = set()
 
 
 class PassContext:
@@ -77,13 +79,13 @@ class PassContext:
     the knowledge can only be one of these three values: forest, tree or node.
     """
 
-    __slots__ = ("_knowledge_stack",)
+    __slots__ = ("_metadata_stack",)
 
     # maintains a "stack" of running passes and on which element
     # the stack is implemented as dict because it stores the knowledge
     # level of the pass run as well.
-    def __init__(self) -> None:
-        self._metadata_stack: dict[_PassRun, tuple[int, set[_ElementPath]]] = {}
+    def __init__(self) -> None:                    # knownledge, used_paths
+        self._metadata_stack: dict[_PassRun, tuple[Level, set[_ElementPath]]] = {}
 
     @property
     def _current_passrun(self) -> _PassRun:
@@ -93,19 +95,15 @@ class PassContext:
             raise RuntimeError("no pass is currently running")
 
     @contextmanager
-    def _push_pass(
-        self, passe: PassInstance, pointer: _ElementPath
-    ) -> Iterator[_PassRunMetadata]:
+    def _push_pass(self, passrun: _PassRun) -> Iterator[PassRunMeta]:
 
-        key: _PassRun = (passe, pointer)
-
-        if key in self._metadata_stack:
+        if passrun in self._metadata_stack:
             # TODO (pahse-one): Use a exception subclass in order to potentially catch and
             # use another pass instead to break the cycle.
-            raise RuntimeError(f"cycle detected with pass: {key}")
+            raise RuntimeError(f"cycle detected with pass: {passrun}")
 
-            # cast it to int to internalize the int, is this necessary?
-        self._metadata_stack[key] = (int(passe.proto.runs_on), set([pointer]))
+        passe, epath, options = passrun
+        self._metadata_stack[passrun] = (passe.proto.runs_on, set([epath]))
 
         # TODO (pahse-two) (Not clear): Might be interesting to optimize the transformations:
         # Yield a context tracker that is able to say which knowledge
@@ -114,7 +112,7 @@ class PassContext:
         # We can do this safely only if no direct access to the forest is done
         # from within the pass. We can do this  by calling gather with a different 
         # tree identifier but the pass should never directly read the content of the Forest.
-        meta = _PassRunMetadata()
+        meta = PassRunMeta()
 
         # enter context managed code
         yield meta
@@ -122,27 +120,27 @@ class PassContext:
         # This is just in case someone does something stupid
         if __debug__:
             e = next(reversed(self._metadata_stack))
-            if e is not key:
-                raise RuntimeError(f"pass context is confused: {e} is not {key}")
+            if e is not passrun:
+                raise RuntimeError(f"pass context is confused: {e} is not {passrun}")
             del e
 
         # pop element from "stack" and record knowledge level in 'meta'.
-        pass_run_metadata = self._metadata_stack[key]
-        del self._metadata_stack[key]
+        pass_run_metadata = self._metadata_stack[passrun]
+        del self._metadata_stack[passrun]
 
         meta.knowledge, meta.used_paths = pass_run_metadata[0], frozenset(pass_run_metadata[1])
         # so at this point pass_run_metadata[0] contains the maximum 
         # runs_on level of the "passe"
         # and all it's **ran** dependencies.
 
-        # propagate the knowledge of the dependency
-        # pass towards the calling pass if any.
         if self._metadata_stack:
             curr = self._current_passrun
+            # propagate the knowledge of the dependency
             if self._metadata_stack[curr][0] < pass_run_metadata[0]:
-                self._metadata_stack[curr][0] = pass_run_metadata[0]
+                self._metadata_stack[curr] = (pass_run_metadata[0], 
+                                              self._metadata_stack[curr][1])
             
-            # propagate the used pointers
+            # propagate the used paths
             self._metadata_stack[curr][1].update(pass_run_metadata[1])
 
 @attrs.frozen(slots=True)
@@ -177,8 +175,11 @@ class CompletedPass:
     # infinite recuresion is possible, i.e. it's safe to call any analyses from within
     # a hook applied to transformations. wait is it ? cannot analyses depend on transformations?
     run_options: Mapping[str, Any]
-    knowledge: int
+    meta: PassRunMeta
+    #: 
+    #: None for transformations.
     result: Any
+    #: Always False for analyses.
     update: bool
     
     # Optionals
@@ -298,15 +299,18 @@ class Runner(abc.ABC, Generic[_Trdict]):
     -> maintain cache.
     """
 
-    _passmanager: PassManager # TODO: Instead of the PassManager, the runner
-                              # should receive the methods run() and push() 
-                              # as well as the cache, but nothing more.
+    _passmanager: PassManager # TODO (phase-two): Instead of the PassManager, the runner
+                              # should receive the required methods/interfaces from
+                              # the passmanager. This mean that the unprepared pass instances
+                              # can't have a direct reference to the passmanager neither.
     _passe: PassInstance
     _pointer: _ElementPath
+    _options: Mapping[str, Any]
 
     @contextmanager
-    def push(self) -> Iterator[_PassRunMetadata]:
-        with self._passmanager._ctx._push_pass(self._passe, self._pointer) as meta:
+    def push(self) -> Iterator[PassRunMeta]:
+        with self._passmanager._ctx._push_pass(
+            (self._passe, self._pointer, self._options)) as meta:
             yield meta
 
     @staticmethod
@@ -363,7 +367,7 @@ class Runner(abc.ABC, Generic[_Trdict]):
                 )
 
         # Apply all transformations eagerly, since we use a descriptor for all analyses results
-        # within themseft inside analysis, 
+        # within themself inside analysis, 
         # we need to transitivsely iterate dependent tranforms and apply then now.
         # TODO (phase-one): this will run transitive transformations many times, 
         # so we should really cache the no-op transformation facts...
@@ -512,6 +516,7 @@ class Runner(abc.ABC, Generic[_Trdict]):
             passe=unprepared.passe,
             pointer=unprepared.pointer,
             connector=connector, 
+            run_options=unprepared.run_options,
         )
 
     # It's a static method to ensure the prepared pass
@@ -530,7 +535,8 @@ class Runner(abc.ABC, Generic[_Trdict]):
         return _res
     
     @staticmethod
-    def _apply_hooks(hooks: Hooks, 
+    def _apply_hooks(
+        hooks: Hooks, 
         obj: THookObj, 
         when: Trigger,
         knowledge: Level | _HookedNotApplicable,
@@ -549,8 +555,9 @@ class Runner(abc.ABC, Generic[_Trdict]):
         with self.push() as meta:
             unprepared = UnpreparedPass(self._passe, self._pointer, self._passmanager, 
                                         run_options=options)
-            unprepared = self._apply_hooks(unprepared, when=Trigger.UNPREPARED, 
-                                       knowledge=_HookedNotApplicable.NA)
+            unprepared = self._apply_hooks(self._passmanager.hooks, 
+                                           unprepared, when=Trigger.UNPREPARED, 
+                                           knowledge=_HookedNotApplicable.NA)
             
             # UNPREPARED hooks can either return None, another UnpreparedPass instance or 
             # directly a CompletedPass instance, in which case the instance is returned as-is.
@@ -567,16 +574,19 @@ class Runner(abc.ABC, Generic[_Trdict]):
             #         f'result for {(self._passe, self._pointer)!r} not found in cache and cache_only=True')
 
             prepared: PreparedPass = self.prepare(unprepared)
-            prepared = self._apply_hooks(prepared, when=Trigger.PREPARED, 
-                                       knowledge=_HookedNotApplicable.NA)
+            prepared = self._apply_hooks(self._passmanager.hooks, 
+                                         prepared, when=Trigger.PREPARED, 
+                                         knowledge=_HookedNotApplicable.NA)
             
             try:
                 rdict = self.do_pass(prepared)
             except Exception as failure:
                 failed = FailedPass(prepared.passe, prepared.pointer, 
-                                    prepared.connector, failure, 
-                                    run_options=prepared.run_options)
-                maybe_failed = self._apply_hooks(failed, when=Trigger.FAILED,
+                                    prepared.connector, 
+                                    run_options=prepared.run_options,
+                                    failure=failure)
+                maybe_failed = self._apply_hooks(self._passmanager.hooks,
+                                                 failed, when=Trigger.FAILED,
                     knowledge=_HookedNotApplicable.NA)
                 # FAILED hooks can either return None, another FailedPass instance or 
                 # a CompletedPass instance, in which case the instance is returned as-is
@@ -587,61 +597,65 @@ class Runner(abc.ABC, Generic[_Trdict]):
                 assert isinstance(maybe_failed, FailedPass), f'hook returned unsupported object type: {maybe_failed}'
                 raise maybe_failed.failure
 
-        result: CompletedPass = self.make_completed_pass(rdict, meta)
-        result = self._apply_hooks(result, when=Trigger.COMPLETED, 
-                                   knowledge=Level(result.knowledge))
+        result: CompletedPass = self.make_completed_pass(rdict, meta, prepared)
+        result = self._apply_hooks(self._passmanager.hooks,
+                                   result, when=Trigger.COMPLETED, 
+                                   knowledge=Level(result.meta.knowledge))
         # TODO (phase-one) Move this to caching.py inside an completed pass hook that 
         # increase the revision of the tree that transformation changed somthing if applicable.
         # self.maintain_cache(result)
         return result
 
     @abc.abstractmethod
-    def make_completed_pass(self, rdict: _Trdict, meta: _PassRunMetadata) -> CompletedPass:
+    def make_completed_pass(self, rdict: _Trdict, 
+                            meta: PassRunMeta,
+                            prepared: PreparedPass) -> CompletedPass:
         ...
 
 @attrs.frozen(slots=True)
 class AnalysisRunner(Runner[AnalysisReturnMap]):
 
-    def make_completed_pass(self, rdict: _Trdict, meta: _PassRunMetadata) -> CompletedPass:
+    def make_completed_pass(self, rdict: AnalysisReturnMap, 
+                            meta: PassRunMeta, 
+                            prepared: PreparedPass) -> CompletedPass:
         # by default all forest knowledge analyses are incomplete and other are complete.
         # TODO (phase-one): We currently do not validate if a tree or 
         #   node analysis is ever marked as incomplete.
         #   in which case that would be an error of the developers.
-        knowledge = meta.knowledge
-        rdict.setdefault("completeness", knowledge != Level.FOREST)
+        # rdict.setdefault("completeness", knowledge != Level.FOREST)
+        # 
         return CompletedPass(
             self._passe,
             self._pointer,
-            result=rdict["result"],
-            completeness=rdict["completeness"],
+            prepared.connector, 
+            run_options=prepared.run_options,
+            
+            meta=meta,
+            result=rdict.pop("result"),
             update=False,
-            knowledge=knowledge,
-            preserved=(),
+            attributes=rdict
         )
 
 @attrs.frozen(slots=True)
 class TransformationRunner(Runner[TransformationReturnMap]):
     
-
-    def make_completed_pass(self, rdict: _Trdict, meta: _PassRunMetadata) -> CompletedPass:
+    def make_completed_pass(self, rdict: TransformationReturnMap, 
+                            meta: PassRunMeta,
+                            prepared: PreparedPass) -> CompletedPass:
         
         # TODO (phase-one): Move this to the caching hook in caching.py
-        preserved = PreservedAnalyses(self._passmanager.get_passe, 
-                                      rdict.get('preserved', []))
-
-        pointer = self._pointer
-        passe = self._passe
-        runs_on = passe.proto.runs_on
-        knowledge = meta.knowledge
-        
+        # preserved = PreservedAnalyses(self._passmanager.get_passe, 
+        #                               rdict.get('preserved', []))        
         return CompletedPass(
-            passe,
-            pointer,
-            update=rdict["update"],
-            preserved=preserved,
-            completeness=False,
+            self._passe,
+            self._pointer,
+            prepared.connector, 
+            run_options=prepared.run_options,
+
+            meta=meta,
+            update=rdict.pop("update"),
             result=None,
-            knowledge=knowledge,
+            attributes=rdict,
         )
 
 
@@ -661,22 +675,28 @@ class PassManager:
         
         self._preconfigured: dict[str, PassLike] = {}
         self._ctx = PassContext()
-        self._runners = {
-            PassKind.ANALYSIS: AnalysisRunner,
-            PassKind.TRANSFORMATION: TransformationRunner,
-        }
+        self._install_plugins(plugins)
 
+    def _install_plugins(self, plugins: Iterable[IPluginFactory]) -> None:
         # NOTE: The cache is just a plugin like others.
         for i in map(lambda _: _(), plugins):
             for plugin in i.register(self):
                 if hasattr(self, name:=plugin.name):
                     raise ValueError(f'The PassManager already has an attribute named {name!r},'
                                         f' please use another name for the plugin {plugin!r}')
+                # this makes the PassManager class impossible to type correctly; 
+                # an idea to workaround the issue would be to provide type-hint-only mixin classes
+                # that would be used under a TYPE_CHECKING block to annotate the PassManager 
+                # in use in the code. Of course that works only when we known in advance
+                # the list of plugins we're gonna be end up using.
                 setattr(self, name, plugin)
 
     def configure(self, passe: PassLike, name: str) -> None:
         """
-        Configure a string alias for a pass.
+        Configure a string alias for a pass. A common use case such feature is to provide
+        different kind of the same analyses that are registed under the same name by 
+        several plugins. This allows distinction in between the implementation of an
+        analyses and the kind of information it compiutes
         
         :see: `get_passe`
         """
@@ -745,15 +765,18 @@ class PassManager:
             raise TypeError("this method takes at most 3 positional arguments")
         if isinstance(passe, str):
             passe = self.get_passe(passe)
+        
         # create the pointer
         element = self._prepare_element(element, passe.proto.runs_on)
         pointer: _ElementPath = (self.trees,) + element  # type: ignore
-        runner = self._get_runner(passe(), pointer)
+        
+        # create the runner
+        runner = self._get_runner(passe(), pointer, options)
 
         # We do not validate the keywords because we might use the passmanager with unsupported
         # keywords in test cases for instance. A plugin might be written to trigger warnings
         # when issuing unsupported keywords.
-        return runner.run(**options)
+        return runner.run()
 
     @overload
     def add(self, tree: RootNode, identifier: str, **attributes: Hashable): ...
@@ -778,14 +801,14 @@ class PassManager:
             raise TypeError('keywords not supported '
                                 'when the Tree instance is directly passed')
         
-        self.apply(add_tree(tree))
+        self.apply(_add_tree(tree))
 
     def remove(self, tree: Tree | RootNode | str) -> None:
         """
         Remove a tree from the passmanager, 
         does nothing if the given tree is not in the system.
         """
-        self.apply(remove_tree(tree))
+        self.apply(_remove_tree(tree))
 
     def _prepare_element(
         self, element: tuple[str | Element, ...], 
@@ -843,14 +866,19 @@ class PassManager:
 
         return element
 
-    def _get_runner(self, passe: PassInstance, pointer: _ElementPath) -> Runner:
-        return self._runners[passe.proto.kind](self, passe, pointer)
+    def _get_runner(self, passe: PassInstance, 
+                    pointer: _ElementPath, 
+                    options: Mapping[str, Any]) -> Runner:
+        return {
+            PassKind.ANALYSIS: AnalysisRunner,
+            PassKind.TRANSFORMATION: TransformationRunner,
+        }[passe.proto.kind](self, passe, pointer, options)
 
 
 # Internal builtin passes
 
 @transformation(on=Forest)
-def add_tree(_: Connector, forest: Forest, *, 
+def _add_tree(_: Connector, forest: Forest, *, 
                tree: Tree) -> CastableToDict:
     """
     A forest transformation that adds the given tree.
@@ -863,7 +891,7 @@ def add_tree(_: Connector, forest: Forest, *,
 
 
 @transformation(on=Forest)
-def remove_tree(_: Connector, forest: Forest, *, 
+def _remove_tree(_: Connector, forest: Forest, *, 
                   tree: Tree | RootNode | str) -> CastableToDict:
     """
     A forest transformation that removes the given tree.
@@ -905,7 +933,7 @@ parameters are:
 
 class IPluginRegistrar(Protocol):
     hooks: Hooks
-    def configure(passe: PassLike, name: str) -> None: ...
+    def configure(self, passe: PassLike, name: str) -> None: ...
 
 class IPluginFactory(Protocol):
     def __call__(self) -> IPlugin: ...
@@ -914,24 +942,26 @@ class IPlugin(Protocol):
     """
     An plugin class:
         - has a name
-        - can support a variety of different parsers, use 'all' special word to indicate 
-            a plugin supports all kind of parsers.
-        - can handle gather()/apply()/run() keywords, aka "run options"
-        - can handle analysis()/transformation() keywords, aka "pass options"
-        - can handle passe yield points keywords, aka "completed passe's attributes"
-        - can installs hooks
+        - can install hooks, which can: 
+            - handle gather()/apply()/run() keywords, aka "run options"
+            - handle analysis()/transformation() keywords, aka "pass options"
+            - handle passe yield points keywords, aka "extra completed pass attributes"
         - can configure a pass alias as string
-        - register method MUST at least return self, 
-            - Returned instance of the plugin will be stored in the PassManager locals 
-              as a attribute of the given `name`. 
-            - A plugin can register other plugins and yield their instances
-              from the register() method such that they will be stored 
-              in the PassManager locals as well.
+        - can install other plugins
         
     The PassManager only handled zero-argument callabled returning an instance of IPlugin.
     """
     name: str
-    def register(self, r: IPluginRegistrar) -> Iterable[IPlugin]:...
+    def register(self, r: IPluginRegistrar) -> Iterable[IPlugin]:
+        """
+        This method MUST at least return self. 
+        Returned instance(s) of the plugin will be stored in the PassManager locals 
+        as a attributes matching their `name`. 
+        
+        A plugin can register other plugins and yield their instances
+        from the register() method such that they will be stored in the 
+        PassManager locals as well.
+        """
 
 
 class Trigger(IntEnum):
@@ -954,6 +984,9 @@ def _upper_if_string(v: object):
         return v.upper()
     return v
 
+def _hooks_indexer() -> Indexer[tuple[Hook, int, int, int, int]]:
+    return Indexer(['hook', 'when', 'kind', 'level', 'knowledge'])
+
 @attrs.frozen(slots=True)
 class Hooks:
     """
@@ -971,17 +1004,19 @@ class Hooks:
     2
     """
 
-    _hooks: Indexer[tuple[Hook, int, int, int, int]] = attrs.field(default_factory=lambda: Indexer(
-        ['hook', 'when', 'kind', 'level', 'knowledge']))
+    _hooks: Indexer[tuple[Hook, int, int, int, int]] = attrs.field(factory=_hooks_indexer)
 
     @staticmethod
-    def _cast_string_values(when: str | int, 
-                kind: str | int, 
-                level: str | int, 
-                knowledge: str | int) -> tuple[int, int, int, int]:
+    def _cast_string_values(when: str | Trigger, 
+                kind: str | PassKind | _HookedAll, 
+                level: str | Level | _HookedAll, 
+                knowledge: str | Level | _HookedAll | _HookedNotApplicable) -> tuple[Trigger, 
+                                               PassKind|_HookedAll, 
+                                               Level|_HookedAll, 
+                                               Level|_HookedAll|_HookedNotApplicable]:
         # Cast everything to instances of integers.
 
-        def _cast(v: str | int, maps: Iterable[type[IntEnum]]) -> int:
+        def _cast(v: str | int, maps: Iterable[type[IntEnum]]) -> Any:
             if isinstance(v, int):
                 return v
             for m in maps:
@@ -1036,7 +1071,7 @@ class Hooks:
         when: Trigger,
         kind: PassKind,
         level: Level,
-        knowledge: Level | _HookedNotApplicable.NA = _HookedNotApplicable.NA, 
+        knowledge: Level | _HookedNotApplicable = _HookedNotApplicable.NA, 
                 ) -> Iterable[Hook]:
         # This method doesn't support passing string values like install() for performance reason.
         return (k[0] for k in self._hooks.search(when=when, 

@@ -7,19 +7,14 @@ from enum import IntEnum
 
 from typing import (
     Collection,
-    Container,
     Hashable,
     Iterable,
     Iterator,
     Any,
     Mapping,
-    TYPE_CHECKING,
     TypeVar,
     overload,
 )
-
-if TYPE_CHECKING:
-    from typing import TypedDict
 
 from libstatic._lib.structures import (
     FrozenDict,
@@ -36,9 +31,10 @@ An element must be weak referenciable: a tuple, a string or any
 other primitive types are NOT elements.
 """
 type RootNode = object
-"Represent the root node of the module (typically ast.Module)"
+"Represent the root node of the tree (i.e. ast.Module)"
+
 type Node = object
-"Represent any node in a module, including it's root node"
+"Represent any node in a tree, including it's root node"
 
 _T = TypeVar("_T")
 
@@ -122,7 +118,7 @@ class TreeNotFound(KeyError):
     """
 
 
-class Forest(Collection[Tree], Container[Tree | RootNode | str]):
+class Forest(Collection[Tree]):
     """
     A collection of trees.
 
