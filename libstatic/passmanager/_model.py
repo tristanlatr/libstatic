@@ -23,17 +23,17 @@ from libstatic._lib.structures import (
 
 ############ Typing related declarations
 
-type Element = object
+type Element = Any
 """
 Represent any element of the system: forest, tree, or any nodes.
 
 An element must be weak referenciable: a tuple, a string or any 
 other primitive types are NOT elements.
 """
-type RootNode = object
+type RootNode = Any
 "Represent the root node of the tree (i.e. ast.Module)"
 
-type Node = object
+type Node = Any
 "Represent any node in a tree, including it's root node"
 
 _T = TypeVar("_T")
