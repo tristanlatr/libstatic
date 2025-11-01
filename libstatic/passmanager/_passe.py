@@ -90,7 +90,7 @@ class PassPrototype:
 
     #: a sequence of dependecies that will be (lazily) bound to 
     #: attributes inside the 'deps' property of the connector.
-    dependencies: Sequence[PassLike | str] = attrs.field(
+    dependencies: tuple[PassLike | str, ...] = attrs.field(
         default=(), converter=tuple
     )  # at least an empty tuple
 
