@@ -4,8 +4,6 @@ Provides a simple and advanced stategies.
 """
 from __future__ import annotations
 
-from collections import deque
-from itertools import chain
 import weakref
 
 from typing import (
@@ -14,8 +12,10 @@ from typing import (
     MutableMapping,
 )
 
+import attrs
+
 from ._passe import PassInstance, PassPrototype, PassLike
-from ._model import Tree, Forest, Element, Node
+from ._model import Level, Tree, Forest, Element, Node
 
 class PassPattern:
     """
@@ -169,118 +169,261 @@ class PreservedAnalyses:
 # TODO: Make a SimpleRevTracker that do not need to understand the node hierarchy,
 # simply incrementing the module revision anytime anything changes in that module. 
 
+# Revision based caching should still allow some transforamtions to PRESERVE other
+# results in cache. This is implemented by: for each result in cache, remembering the revision
+# of the tree it has been run onto. When a transformation preserves results, we store that
+# informations in another structure that says that result is still valid for that revision
+# eventho it has been ran in a older revision. 
+from ._passmanager import _PassRun, CompletedPass
+
+@attrs.frozen(slots=True)
+class PassManagerCache:
+    """
+    Wraps the generic L{Cache} class for caching L{CompletedPass} instances.
+    """
+
+    tracker: SimplerRevTracker
+    results_store: dict[_PassRun, CompletedPass]
+    results_revision: dict[CompletedPass, SimplerRevision]
+    results_preservation: dict[Tree | None, dict[int, PreservedAnalyses]]
+
+    def purge(self) -> None:
+        """
+        Erase all stale data from the cache.
+        """
+        for passerun in tuple(self.results_store):
+            self.get(passerun)
+
+    def clear(self) -> None:
+        """
+        Erase all data from the cache. 
+        """
+        self.results_preservation.clear()
+        self.results_revision.clear()
+        self.results_store.clear()
+
+    def get(self, passerun: _PassRun) -> CompletedPass | None:
+        """
+        Request the cached result for this passerun. 
+
+        If the cache contains the result but the result is stale, it will be cleared. 
+        """
+        # check if we have the result in cache
+        result = self.results_store.get(passerun)
+        if not result:
+            # we don't ahve this pass run in the cache, so return early 
+            return None
+
+        passe_instance, pointer, _ = passerun
+        # ask for the revision of the element in the pass run. 
+        tree = pointer[1] if len(pointer)>1 else None
+        current_revision = self.tracker.rev(tree)
+        cached_revision = self.results_revision[result]
+
+        # check if it matches the revision of the result we have in cache
+        matches_revision_in_cache = current_revision == cached_revision
+
+        if not matches_revision_in_cache:
+            # if it does not match, we need to have one matching preserve analysis
+            # for each revision in between the one we have in cache and the current one.
+
+            result_knowledge = result.meta.knowledge
+            assert result_knowledge != 0
+            # if the result has a forest knowledge, use the forest revision
+            # otherwise use the tree revision
+            rev_index = _result_knowledge_to_revision_index[result_knowledge]
+            check_revisions_preserved_to = current_revision[rev_index]
+            check_revisions_preserved_from = cached_revision[rev_index]
+            
+            preservations = self.results_preservation[tree]
+            for revision_to_check in range(check_revisions_preserved_from+1,
+                                           check_revisions_preserved_to+1):
+                if passe_instance not in preservations[revision_to_check]:
+                    # the revision we have in cache is not valid anymore, 
+                    # remove it we don't have to compute this again.
+                    del self.results_store[passerun]
+                    del self.results_revision[result]
+                    result = None
+                    break
+            else:
+                matches_revision_in_cache = True
+                # store the current revision as beeing valid for the result
+                # so we don't need to re-do this computing next time the result
+                # is requested. 
+                self.results_revision[result] = current_revision
+        
+        return result
+        
+    def set(self, result: CompletedPass):
+        """
+        Store the result in the cache.
+        """
+        passerun = (result.passe, result.pointer, result.run_options)
+        self.results_store[passerun] = result
+        tree = result.pointer[1] if len(result.pointer)>1 else None
+        self.results_revision[result] = self.tracker.rev(tree)
+
+_result_knowledge_to_revision_index = {Level.FOREST: 0, 
+                                      Level.TREE: 1,
+                                      Level.NODE: 1}
+
+type SimplerRevision = tuple[int, int]
+
+class SimplerRevTracker:
+    def __init__(self):
+        self._forest_sentinel = object() # the forest object version
+        self._revisions: MutableMapping[Element, int] = weakref.WeakKeyDictionary()
+
+    def increment_rev(self, tree: Tree | None) -> None:
+        """
+        Signals that the given tree has been transformed 
+        and increment it's revision. 
+
+        If tree is None, it increments the revision of the forest. 
+        """
+        rev = self._revisions
+        elements = [*((tree,) or ()), self._forest_sentinel]
+        for e in elements:
+            rev.setdefault(e, 0)
+            rev[e] += 1
+    
+    def rev(self, tree: Tree | None) -> SimplerRevision:
+        """
+        Computes the revision of the tree. 
+
+        When no tree or node are given the revision of the whole 
+        forest will be returned.
+        """
+        rev = self._revisions
+        elements = [*((tree,) or ()), self._forest_sentinel]
+
+        forest_rev = rev.get(elements.pop(), 0)
+        if not elements:
+            return forest_rev, 0
+        
+        tree_rev = rev.get(elements.pop(), 0)
+        return forest_rev, tree_rev
+
 # For a **phase-two** caching strategy 
 # TODO: The revision tracker should follow the import graph so we can preserve more
 # forest-knowledge analyses. We can even automate this by using the used_paths combined 
 # with a regular import analysis in order to detect wether the analyses followed the
 # imports or not, and a flag can be added to the cache. This manner we can significantly
 # reduce the overhead introduced by the multiplication of forest-knowledge analyses
-class RevTracker:
-    """
-    The revision tracker is a part of the advanced caching features.
+type Revision = tuple[tuple[int, int], tuple[int, int]]
 
-    Tracks the revision of all elements: the forest itself, trees and nodes.
-    It MUST be informed with method `increment_rev` when a transformation occurs.
-    Then it increments the relevant revisions hierachically in order to keep unrelated 
-    nodes' revision unchanged. 
+# TODO (phase-two) the two dimentionnal vector approach might not be suited to the 
+# preserved analyses feature since we need to be able to determine all precedent 
+# revisions of a given element, which is impossible if the revisions are not linear. 
+# class RevTracker:
+#     """
+#     The revision tracker is a part of the advanced caching features.
 
-    One instance of this class can only be used to track revisions of elements 
-    in single forest, it's also assumed that the tree instances are not shared across 
-    multiple forests and all transformation are duly signaled to the instance of this class.
-    """
+#     Tracks the revision of all elements: the forest itself, trees and nodes.
+#     It MUST be informed with method `increment_rev` when a transformation occurs.
+#     Then it increments the relevant revisions hierachically in order to keep unrelated 
+#     nodes' revision unchanged. 
+
+#     One instance of this class can only be used to track revisions of elements 
+#     in single forest, it's also assumed that the tree instances are not shared across 
+#     multiple forests and all transformation are duly signaled to the instance of this class.
+#     """
     
-    def __init__(self, get_anscestors: Callable[[Tree, Node], Iterable[Node]]):
-        """
-        :param get_anscestors: A callable that, given a tree and a 
-            node that lives inside it, returns the ancestors nodes
-            as a sequence from the root to the node's direct parent. 
-        """
-        self._forest_sentinel = object() # the forest object version
-        self._get_anscestors = get_anscestors # dependency injection
+#     def __init__(self, get_anscestors: Callable[[Tree, Node], Iterable[Node]]):
+#         """
+#         :param get_anscestors: A callable that, given a tree and a 
+#             node that lives inside it, returns the ancestors nodes
+#             as a sequence from the root to the node's direct parent. 
+#         """
+#         self._forest_sentinel = object() # the forest object version
+#         self._get_anscestors = get_anscestors # dependency injection
 
-        # We abuse the complex type as a two dimentional vector of ints.
-        self._revisions: MutableMapping[Element, complex] = weakref.WeakKeyDictionary()
+#         # We abuse the complex type as a two dimentional vector of ints.
+#         self._revisions: MutableMapping[Element, complex] = weakref.WeakKeyDictionary()
     
-    def _elements(self, 
-                  tree: Tree | None = None, 
-                  node: Node | None = None) -> deque[object]:
-        """
-        Elements in this order: 
+#     def _elements(self, 
+#                   tree: Tree | None = None, 
+#                   node: Node | None = None) -> deque[object]:
+#         """
+#         Elements in this order: 
 
-            - Node
-            - Node ancestors up to the Module
-            - Tree the node lives in
-            - Forest (sentinel). 
+#             - Node
+#             - Node ancestors up to the Module
+#             - Tree the node lives in
+#             - Forest (sentinel). 
 
-        The returned deque will always at least contain the fores instance. 
-        """
-        elements = deque()
-        if node:
-            assert tree is not None
-            # if there are nodes in between tree and node, add them to the stack
-            elements.extendleft(self._get_anscestors(tree, node))
-            elements.appendleft(node)
-            # elements now contains the 
-            # affected node first, then all it's ancestors.
+#         The returned deque will always at least contain the fores instance. 
+#         """
+#         elements = deque()
+#         if node:
+#             assert tree is not None
+#             # if there are nodes in between tree and node, add them to the stack
+#             elements.extendleft(self._get_anscestors(tree, node))
+#             elements.appendleft(node)
+#             # elements now contains the 
+#             # affected node first, then all it's ancestors.
         
-        if tree:
-            elements.append(tree)
-        elements.append(self._forest_sentinel)
-        return elements
+#         if tree:
+#             elements.append(tree)
+#         elements.append(self._forest_sentinel)
+#         return elements
 
-    def increment_rev(self, 
-                    tree: Tree | None = None, 
-                    node: Node | None = None) -> None:
-        """
-        Signals that the given tree/node has been transformed 
-        and increment it's revision hierachically. 
+#     def increment_rev(self, 
+#                     tree: Tree | None = None, 
+#                     node: Node | None = None) -> None:
+#         """
+#         Signals that the given tree/node has been transformed 
+#         and increment it's revision hierachically. 
         
-        It's illegal to give a node without a tree. 
-        When no tree or node are given it wil be 
-        interpreted as a forest transformation.
-        """
-        rev = self._revisions
-        elements = self._elements(tree, node)
+#         It's illegal to give a node without a tree. 
+#         When no tree or node are given it wil be 
+#         interpreted as a forest transformation.
+#         """
+#         rev = self._revisions
+#         elements = self._elements(tree, node)
         
-        def _incr(key: object, value: complex) -> None:
-            rev.setdefault(key, 0j)
-            rev[key] += value
+#         def _incr(key: object, value: complex) -> None:
+#             rev.setdefault(key, 0j)
+#             rev[key] += value
 
-        # the verion incrementation happends bottom-up, first we increment REAL part
-        # of the directly affected element, then we increment the IMAGINARY part
-        # of indirectly affected elements, up the global element version.
-        _incr(elements.popleft(), 1)
-        for e in elements:
-            _incr(e, 1j)
+#         # the verion incrementation happends bottom-up, first we increment REAL part
+#         # of the directly affected element, then we increment the IMAGINARY part
+#         # of indirectly affected elements, up the global element version.
+#         _incr(elements.popleft(), 1)
+#         for e in elements:
+#             _incr(e, 1j)
     
-    def rev(self, 
-                 tree: Tree | None = None, 
-                 node: Node | None = None, ) -> tuple[str, str, str]:
-        """
-        Computes the revision of the element at tree/.../node. 
-        The revision is a three layered element.
-        It's illegal to give a node without a tree. 
-        When no tree or node are given the revision of the whole 
-        forest will be returned.
-        """
-        rev = self._revisions
-        elements = self._elements(tree, node)
+#     def rev(self, 
+#                  tree: Tree | None = None, 
+#                  node: Node | None = None, ) -> tuple[str, str, str]:
+#         """
+#         Computes the revision of the element at tree/.../node. 
+#         The revision is a three layered element.
+#         It's illegal to give a node without a tree. 
+#         When no tree or node are given the revision of the whole 
+#         forest will be returned.
+#         """
+#         rev = self._revisions
+#         elements = self._elements(tree, node)
 
-        forest_rev = rev.get(elements.pop(), 0j)
-        if not elements:
-            return f"{forest_rev}", '0', '0'
+#         forest_rev = rev.get(elements.pop(), 0j)
+#         if not elements:
+#             return f"{forest_rev}", '0', '0'
         
-        tree_rev = rev.get(elements.pop(), 0j)
-        if not elements:
-            return f"{forest_rev}", f"{tree_rev}", '0'
+#         tree_rev = rev.get(elements.pop(), 0j)
+#         if not elements:
+#             return f"{forest_rev}", f"{tree_rev}", '0'
         
-        # The version of a node is defined by the hash of it's own two dimentionned
-        # vector (IMAGINARY and REAL) combined to the REAL dimention of the enclosing
-        # elements. 
-        node_rev = rev.get(elements.popleft(), 0j)
-        parents_rev = (rev.get(e, 0j).real for e in elements)
+#         # The version of a node is defined by the hash of it's own two dimentionned
+#         # vector (IMAGINARY and REAL) combined to the REAL dimention of the enclosing
+#         # elements. 
+#         node_rev = rev.get(elements.popleft(), 0j)
+#         parents_rev = (rev.get(e, 0j).real for e in elements)
         
-        return f"{forest_rev}", f"{tree_rev}", '/'.join(map(str, chain(parents_rev, [node_rev])))
+#         return f"{forest_rev}", f"{tree_rev}", '/'.join(map(str, chain(parents_rev, [node_rev])))
+
+
+# OLD CODE BELOW
 
 # This code implemented a key-value based caching where the key is a tuple with a bunch 
 # of meta informations including: 
