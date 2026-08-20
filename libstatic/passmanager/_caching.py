@@ -181,12 +181,12 @@ from ._passmanager import _PassRun, CompletedPass
 @attrs.frozen(slots=True)
 class PassManagerCache:
     """
-    Wraps the generic L{Cache} class for caching L{CompletedPass} instances.
+    Caching L{CompletedPass} instances.
     """
 
-    tracker: SimplerRevTracker
+    tracker: RevisonTracker
     results_store: dict[_PassRun, CompletedPass]
-    results_revision: dict[CompletedPass, SimplerRevision]
+    results_revision: dict[CompletedPass, Revision]
     results_preservation: dict[Tree | None, dict[int, PreservedAnalyses]]
 
     def purge(self) -> None:
@@ -213,7 +213,7 @@ class PassManagerCache:
         # check if we have the result in cache
         result = self.results_store.get(passerun)
         if not result:
-            # we don't ahve this pass run in the cache, so return early 
+            # we don't have this pass run in the cache, so return early 
             return None
 
         passe_instance, pointer, _ = passerun
@@ -229,11 +229,13 @@ class PassManagerCache:
             # if it does not match, we need to have one matching preserve analysis
             # for each revision in between the one we have in cache and the current one.
 
-            result_knowledge = result.meta.knowledge
-            assert result_knowledge != 0
-            # if the result has a forest knowledge, use the forest revision
+            result_knowledge = Level(result.meta.knowledge) # If this line fails it means that the resutls has not
+                                    # been properly populated or the pass has not finished cleanly.
+                                    # Because the knowledge should only be a valid Level.
+
+            # If the result has a forest knowledge, use the forest revision
             # otherwise use the tree revision
-            rev_index = _result_knowledge_to_revision_index[result_knowledge]
+            rev_index = 0 if result_knowledge is Level.FOREST else 1
             check_revisions_preserved_to = current_revision[rev_index]
             check_revisions_preserved_from = cached_revision[rev_index]
             
@@ -265,13 +267,9 @@ class PassManagerCache:
         tree = result.pointer[1] if len(result.pointer)>1 else None
         self.results_revision[result] = self.tracker.rev(tree)
 
-_result_knowledge_to_revision_index = {Level.FOREST: 0, 
-                                      Level.TREE: 1,
-                                      Level.NODE: 1}
+type Revision = tuple[int, int]
 
-type SimplerRevision = tuple[int, int]
-
-class SimplerRevTracker:
+class RevisonTracker:
     def __init__(self):
         self._forest_sentinel = object() # the forest object version
         self._revisions: MutableMapping[Element, int] = weakref.WeakKeyDictionary()
@@ -281,30 +279,30 @@ class SimplerRevTracker:
         Signals that the given tree has been transformed 
         and increment it's revision. 
 
-        If tree is None, it increments the revision of the forest. 
+        If tree is None, it only increments the revision of the forest. 
+        Incrementing the revision of a tree will always increment the revision
+        of the forest as well. 
         """
         rev = self._revisions
-        elements = [*((tree,) or ()), self._forest_sentinel]
+        elements = [self._forest_sentinel]
+        if tree is not None:
+            elements.append(tree)
         for e in elements:
             rev.setdefault(e, 0)
             rev[e] += 1
     
-    def rev(self, tree: Tree | None) -> SimplerRevision:
+    def rev(self, tree: Tree | None) -> Revision:
         """
         Computes the revision of the tree. 
 
-        When no tree or node are given the revision of the whole 
+        When no tree are given the revision of the whole 
         forest will be returned.
         """
         rev = self._revisions
-        elements = [*((tree,) or ()), self._forest_sentinel]
-
-        forest_rev = rev.get(elements.pop(), 0)
-        if not elements:
+        forest_rev = rev.get(self._forest_sentinel, 0)
+        if tree is None:
             return forest_rev, 0
-        
-        tree_rev = rev.get(elements.pop(), 0)
-        return forest_rev, tree_rev
+        return forest_rev, rev.get(tree, 0)
 
 # For a **phase-two** caching strategy 
 # TODO: The revision tracker should follow the import graph so we can preserve more
@@ -312,9 +310,8 @@ class SimplerRevTracker:
 # with a regular import analysis in order to detect wether the analyses followed the
 # imports or not, and a flag can be added to the cache. This manner we can significantly
 # reduce the overhead introduced by the multiplication of forest-knowledge analyses
-type Revision = tuple[tuple[int, int], tuple[int, int]]
 
-# TODO (phase-two) the two dimentionnal vector approach might not be suited to the 
+# NOTE the multi-dimentionnal strings vector approach might not be suited to the 
 # preserved analyses feature since we need to be able to determine all precedent 
 # revisions of a given element, which is impossible if the revisions are not linear. 
 # class RevTracker:
