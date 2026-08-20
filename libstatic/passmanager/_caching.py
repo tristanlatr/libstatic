@@ -176,6 +176,8 @@ class PreservedAnalyses:
 # eventho it has been ran in a older revision. 
 from ._passmanager import _PassRun, CompletedPass
 
+# TODO (phase-one) Impement a Plugin for the cache. 
+
 @attrs.frozen(slots=True)
 class PassManagerCache:
     """
