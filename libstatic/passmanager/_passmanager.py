@@ -216,7 +216,7 @@ class Dependencies:
     Container for dependencies.
     """
     # This class is untypable by nature since it is highly dynamic...
-    # the attributes names depend en the listed dependencies, this
+    # the attributes names depend on the listed dependencies, this
     # would require a mypy plugin/custom transformer to be understandable.
 
     def __getattribute__(self, name: str) -> Any:
@@ -226,7 +226,8 @@ class Dependencies:
         if isinstance(attr, _PassDependencyDescriptor):
             attr = attr.callback()
             # setattr(self, name, attr) # act like a cached_property?
-                                      # TODO: Think of the implications of doing so
+            # TODO (phase-three): Think of the implications of doing so regarding the caching...
+            # might interfere with the invalidation of some analysis in the cache.
         return attr
 
 
@@ -245,18 +246,14 @@ class Connector:
     apply: Callable[..., bool]  #: See L{PassManager.apply}
     run: Callable[..., CompletedPass]  #: See L{PassManager.run}
 
-# TODO (phase-one): Create a hook that patches the connector methods to enabled
-# resticted mode selectively. This will improve performance by not restict anything 
-# outside of the tests for isntance. 
-
-    # def gather():...
-        # TODO: Verify that the mentioned tree is the current one, othwerwise
-        # make this pass forest-wide. 
-    
-    # TODO: Disallow transformations from analyses
-    # TODO: Disallow outer level transformations from transformations (because of the quadratic nature of the operation)
-    # TODO: Disallow implicitely adding a new tree 
-    #   from within a non-forest-wide-transfortmation.
+# TODO (phase-one): Create a hook that patches or replace the connector to enabled
+# a restrictive - testing mode. This will improve performance by not restict anything 
+# outside of the tests for isntance: 
+    # - Verify that the trees passed to run-gather-apply is the current one, othwerwise
+    # make this pass forest-wide. 
+    # - Disallow transformations from analyses
+    # - Disallow outer level transformations from transformations (because of the quadratic nature of the operation)
+    # - Disallow implicitely adding a new tree from within a non-forest-wide-transfortmation.
 
 type CastableToDict = Iterable[tuple[str, Any]] | dict[str, Any]
 
@@ -321,7 +318,7 @@ class Runner(abc.ABC, Generic[_Trdict]):
         # TODO (phase-one): Like in LLVM, we DO impose some restriction about what pass can be run under
         # what context, BUT there is one thing we do not do at the moment: that is to
         # disalow NODE transformations to run outer lever analyses. 
-        # It should only be able to access cached results though the "deps" (or gather() cached results). 
+        # It should only be able to access cached results (through the "deps" or gather() cached results). 
         # For the simple reason that 
         # if a NODE transformation is being run on all function in the module, and let's say 
         # it always uses a TREE pass and always updates the function ast without
@@ -336,7 +333,8 @@ class Runner(abc.ABC, Generic[_Trdict]):
         # (I did not say "analyses results they might use", but 
         # "pass result", becasue a transformation results might, in the future, end up stored 
         # in cache as well when it's a no-op - but for now it just means
-        # that NODE or TREE Transformation simply cannot depend on outer scope transformations.)
+        # that NODE or TREE Transformation simply cannot depend on outer scope transformations AND
+        # MUST preserve all outer scope analysis results they might use!!!.)
 
         p = unprepared.passe
         passe_proto = p.proto
@@ -369,7 +367,7 @@ class Runner(abc.ABC, Generic[_Trdict]):
         # Apply all transformations eagerly, since we use a descriptor for all analyses results
         # within themself inside analysis, 
         # we need to transitivsely iterate dependent tranforms and apply then now.
-        # TODO (phase-one): this will run transitive transformations many times, 
+        # TODO (phase-one): this might run transitive transformations many times, 
         # so we should really cache the no-op transformation facts...
         
         passe_proto_kind = passe_proto.kind
@@ -387,11 +385,11 @@ class Runner(abc.ABC, Generic[_Trdict]):
             # would not change the analysed code). If implemented, this restriction will likely 
             # mean that a analysis can only "depend" on a single transformation since once transforantion
             # will invalidate the cached result of any other transformation applied earlier, if not 
-            # explicitely marked as preserved. This is probably a ok compromise if it's well documented.
+            # explicitely marked as preserved. This is an OK compromise if it's well documented.
             # (phase-one) Implementing this.
             # Since the cache is just a plugin/series of hooks, we need to put that logic inside 
             # an unrpepared pass hook that will validate that all trasitively depending transformations
-            # are cached as "no-op id run again".
+            # are cached as "no-op if run again".
             
             if (t_runs_on := t_proto.runs_on) < (p_runs_on := passe_proto.runs_on):
                 # We might be able to check the config to see if pass can be run
@@ -421,7 +419,7 @@ class Runner(abc.ABC, Generic[_Trdict]):
                         # ignore the transformation because we KNOW it's not going to
                         # update the content. 
                      "transformations cannot depend on enclosing level transformations")
-                        # TODO (phase-one): Enforce this though the connector run() as well.
+                        # TODO (phase-one): Enforce this through the connector run() as well.
                 
                 # the dependency runs on a upper scope level, trim what's required
                 lvldiff = t_runs_on - p_runs_on
@@ -498,8 +496,7 @@ class Runner(abc.ABC, Generic[_Trdict]):
                                                       # dealing with a transformation.
                                                       cache_only=cache_only_sub))
             else:
-                # Convert the dependency to a descriptor. 
-                # I'm sure there is a faster way to do it...
+                # Convert the dependency to a lazy descriptor. 
                 callback: Callable[[], Any] = partial(pm.gather, _a, *dep_element, 
                                                       cache_only=cache_only_sub)
                 setattr(deps, a_proto.name, _PassDependencyDescriptor(callback))
@@ -622,7 +619,6 @@ class AnalysisRunner(Runner[AnalysisReturnMap]):
         # TODO (phase-one): We currently do not validate if a tree or 
         #   node analysis is ever marked as incomplete.
         #   in which case that would be an error of the developers.
-        # rdict.setdefault("completeness", knowledge != Level.FOREST)
         # 
         return CompletedPass(
             self._passe,
@@ -633,7 +629,7 @@ class AnalysisRunner(Runner[AnalysisReturnMap]):
             meta=meta,
             result=rdict.pop("result"),
             update=False,
-            attributes=rdict
+            attributes=rdict # the completeness is stored here
         )
 
 @attrs.frozen(slots=True)
@@ -643,7 +639,7 @@ class TransformationRunner(Runner[TransformationReturnMap]):
                             meta: PassRunMeta,
                             prepared: PreparedPass) -> CompletedPass:
         
-        # TODO (phase-one): Move this to the caching hook in caching.py
+        # TODO (phase-one): Implement the PreservedAnalyses checks to the caching hook in caching.py
         # preserved = PreservedAnalyses(self._passmanager.get_passe, 
         #                               rdict.get('preserved', []))        
         return CompletedPass(
@@ -696,7 +692,7 @@ class PassManager:
         Configure a string alias for a pass. A common use case such feature is to provide
         different kind of the same analyses that are registed under the same name by 
         several plugins. This allows distinction in between the implementation of an
-        analyses and the kind of information it compiutes
+        analyses and the kind of information it computes
         
         :see: `get_passe`
         """
@@ -850,7 +846,7 @@ class PassManager:
                 # it can be either a identifier string
                 # or the root node of the tree.
                 # TODO: Attention: This SHOULD implicitely promotes the passe to the forest-wide
-                # level when used thought the connector and the first element is not the current
+                # level when used throught the connector and the first element is not the current
                 # tree . This is an intended behavior.
                 module = self.trees[first_element]
                 element = (module,) + element[1:]
@@ -954,7 +950,7 @@ class IPlugin(Protocol):
     name: str
     def register(self, r: IPluginRegistrar) -> Iterable[IPlugin]:
         """
-        This method MUST at least return self. 
+        This method MUST at least yield self. 
         Returned instance(s) of the plugin will be stored in the PassManager locals 
         as a attributes matching their `name`. 
         
