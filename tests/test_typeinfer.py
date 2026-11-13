@@ -589,7 +589,7 @@ class TestReveal(TestCase):
                     return
                 if f.id == 'reveal_type':
                     expr, expected = v.args
-                    assert isinstance(expected, (ast.Constant, ast.Str, ast.NameConstant))
+                    assert isinstance(expected, (ast.Constant, ))
                     typ = p.state.get_type(expr)
                     expected_value = getattr(expected, 'value', 
                                             getattr(expected, 's', object))

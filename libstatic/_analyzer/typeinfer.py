@@ -724,12 +724,13 @@ class _AnnotationToType(ast.NodeVisitor):
     def visit_Constant(
         self, node: Union[ast.Constant, ast.Str, ast.NameConstant, ast.Bytes, ast.Num]
     ) -> Type:
-        if isinstance(node, (ast.Str, ast.Bytes)):
-            value: object = node.s
-        elif isinstance(node, ast.Num):
-            value = node.n
-        else:
-            value = node.value
+        # Legacy: 
+        # if isinstance(node, (ast.Str, ast.Bytes)):
+        #     value: object = node.s
+        # elif isinstance(node, ast.Num):
+        #     value = node.n
+        # else:
+        value = node.value
         if value is None:
             return Type("None").add_meta(
                 location=self.state.get_location(node))
@@ -819,12 +820,13 @@ class _TypeInference(_EvalBaseVisitor["Type|None"]):
                           ast.Bytes, ast.Num],
         path: set[object],
     ) -> Type:
-        if isinstance(node, (ast.Str, ast.Bytes)):
-            value: object = node.s
-        elif isinstance(node, ast.Num):
-            value = node.n
-        else:
-            value = node.value
+        # Legacy: 
+        # if isinstance(node, (ast.Str, ast.Bytes)):
+        #     value: object = node.s
+        # elif isinstance(node, ast.Num):
+        #     value = node.n
+        # else:
+        value = node.value
         if value is None:
             return self.builtin("None").add_meta(
                 location=self._state.get_location(node))
