@@ -3,6 +3,7 @@
 import ast
 
 import pytest
+from attr.exceptions import FrozenInstanceError
 
 from libstatic.passmanager._model import Forest, Level, PassKind, Tree
 from libstatic.passmanager._passe import (
@@ -280,6 +281,8 @@ def test_prototype_exposes_wrapped_function_metadata():
     )
 
     assert proto.__doc__ == documented_pass.__doc__
+    with pytest.raises(FrozenInstanceError):
+        proto.__doc__ = 'new docstring'
     assert proto.__name__ == 'documented_pass'
     assert proto.__wrapped__ is documented_pass
     assert proto.proto is proto

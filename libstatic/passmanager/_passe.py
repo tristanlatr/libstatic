@@ -37,7 +37,7 @@ from libstatic._lib.structures import (
 from ._model import Tree, Forest, Level, PassKind, Element
 
 if TYPE_CHECKING:
-    from _passmanager import Connector, CastableToDict
+    from ._passmanager import Connector, CastableToDict
 
 type PassLike = PassPrototype | PassInstance
 
@@ -100,9 +100,8 @@ class PassPrototype:
         default=FrozenDict(), converter=FrozenDict
     )  # at least an empty map
 
-    # Desperate attempt to make it work with doctests :/ not working
     @property
-    def __doc__(self) -> str | None:
+    def __doc__(self) -> str | None: # type: ignore 
         return self.do_pass.__doc__
 
     @property
@@ -364,7 +363,11 @@ def new_pass_prototype(
             (runs_on_type,) = runs_on_type
 
     # Determine the runs_on_level
-    runs_on_level = _on_cls_2_level.get(runs_on_type, Level.NODE)
+    if isinstance(runs_on_type, type):
+        runs_on_level = _on_cls_2_level.get(runs_on_type, Level.NODE)
+    else:
+        # A tuple of node classes is always a node-level pass.
+        runs_on_level = Level.NODE
 
     proto = PassPrototype(
         do_pass,

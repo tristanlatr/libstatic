@@ -22,6 +22,7 @@ from typing import (
     Protocol,
     TypeVar,
     TypedDict,
+    cast,
     overload,
 )
 
@@ -539,8 +540,8 @@ class Runner(abc.ABC, Generic[_Trdict]):
         if not isinstance(_res, dict):
             # cast the result to dict if it's not already a dict, 
             # like a generator
-            return dict(_res)
-        return _res
+            return cast(_Trdict, dict(_res))
+        return cast(_Trdict, _res)
     
     @staticmethod
     def _apply_hooks(
@@ -635,7 +636,7 @@ class AnalysisRunner(Runner[AnalysisReturnMap]):
             run_options=prepared.run_options,
             
             meta=meta,
-            result=rdict.pop("result"),
+            result=rdict.pop("result"), # type: ignore
             update=False,
             attributes=rdict # the completeness is stored here
         )
@@ -657,7 +658,7 @@ class TransformationRunner(Runner[TransformationReturnMap]):
             run_options=prepared.run_options,
 
             meta=meta,
-            update=rdict.pop("update"),
+            update=rdict.pop("update"), # type: ignore
             result=None,
             attributes=rdict,
         )
@@ -866,17 +867,18 @@ class PassManager:
                 # TODO: Or maybe run raise an error ?
                 self.add(first_element)
             if needs_to_append_root:
-                element += (element[0].root,)
+                element += (element[0].root,) # type: ignore
 
         return element
 
     def _get_runner(self, passe: PassInstance, 
                     pointer: _ElementPath, 
                     options: Mapping[str, Any]) -> Runner:
-        return {
+        map: dict[PassKind, type[Runner]] = {
             PassKind.ANALYSIS: AnalysisRunner,
             PassKind.TRANSFORMATION: TransformationRunner,
-        }[passe.proto.kind](self, passe, pointer, options)
+        }
+        return map[passe.proto.kind](self, passe, pointer, options)
 
 
 # Internal builtin passes
@@ -885,7 +887,7 @@ class PassManager:
 # membership only, so the cache can advance the forest revision without walking trees.
 @transformation(on=Forest, _cache_membership_only=True)
 def _add_tree(_: Connector, forest: Forest, *, 
-               tree: Tree) -> CastableToDict:
+               tree: Tree) -> Iterator[tuple[str, Any]]:
     """
     A forest transformation that adds the given tree.
     """
@@ -898,7 +900,7 @@ def _add_tree(_: Connector, forest: Forest, *,
 
 @transformation(on=Forest, _cache_membership_only=True)
 def _remove_tree(_: Connector, forest: Forest, *, 
-                  tree: Tree | RootNode | str) -> CastableToDict:
+                  tree: Tree | RootNode | str) -> Iterator[tuple[str, Any]]:
     """
     A forest transformation that removes the given tree.
     """
@@ -910,8 +912,9 @@ def _remove_tree(_: Connector, forest: Forest, *,
     forest._remove(tree)
     yield "update", True
 
-THookObj = TypeVar('THookObj', 'UnpreparedPass', 'PreparedPass', 'CompletedPass', 'FailedPass')
-type Hook = Callable[[THookObj], THookObj | None]
+type _PassState = UnpreparedPass | PreparedPass | CompletedPass | FailedPass
+THookObj = TypeVar('THookObj', bound=_PassState)
+type Hook[T: _PassState] = Callable[[T], T | None]
 """
 A hook is callable that is used to customize the logic 
 just before or after a pass runs. 
@@ -990,7 +993,7 @@ def _upper_if_string(v: object):
         return v.upper()
     return v
 
-def _hooks_indexer() -> Indexer[tuple[Hook, int, int, int, int]]:
+def _hooks_indexer() -> Indexer[tuple[Hook[Any], int, int, int, int]]:
     return Indexer(['hook', 'when', 'kind', 'level', 'knowledge'])
 
 @attrs.frozen(slots=True)
@@ -1010,7 +1013,7 @@ class Hooks:
     2
     """
 
-    _hooks: Indexer[tuple[Hook, int, int, int, int]] = attrs.field(factory=_hooks_indexer)
+    _hooks: Indexer[tuple[Hook[Any], int, int, int, int]] = attrs.field(factory=_hooks_indexer)
 
     @staticmethod
     def _cast_string_values(when: str | Trigger, 
@@ -1037,7 +1040,7 @@ class Hooks:
             _cast(knowledge, [_HookedNotApplicable, Level, _HookedAll])
         )
         
-    def install(self, hook: Hook, *, 
+    def install(self, hook: Hook[Any], *,
         when: str | Trigger,
         kind: str | PassKind | _HookedAll,
         level: str | Level | _HookedAll,
@@ -1081,14 +1084,14 @@ class Hooks:
         kind: PassKind,
         level: Level,
         knowledge: Level | _HookedNotApplicable = _HookedNotApplicable.NA, 
-                ) -> Iterable[Hook]:
+                ) -> Iterable[Hook[Any]]:
         # This method doesn't support passing string values like install() for performance reason.
         return (k[0] for k in self._hooks.search(when=when, 
                                                  kind=kind, 
                                                  level=level, 
                                                  knowledge=knowledge))
 
-    def uninstall(self, hook: Hook) -> None:
+    def uninstall(self, hook: Hook[Any]) -> None:
         hooks = self._hooks
         for k in list(hooks.search(hook=hook)):
             hooks.discard(k)
