@@ -785,6 +785,10 @@ def test_cache_plugin_preserves_declared_tree_analyses():
     assert pm.gather(inspect_tree, tree) == 1
     assert pm.apply(change_tree, tree) is True
     assert pm.gather(inspect_tree, tree) == 1
+    assert pm.apply(change_tree, tree) is True
+    assert pm.apply(change_tree, tree) is True
+    assert pm.apply(change_tree, tree) is True
+    assert pm.gather(inspect_tree, tree) == 1
     assert calls == [None]
 
 

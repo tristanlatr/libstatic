@@ -348,20 +348,26 @@ class PassManagerCache:
         )
 
     def _purge_preservations(self) -> None:
-        # Keep transitions newer than the oldest live result snapshot; earlier
-        # history cannot affect future validity checks for those results.
+        # A preservation entry describes whether a result survives the change
+        # at its revision. A cached result only needs entries after its snapshot.
+        # Find the oldest snapshot for each scope so history needed by any live
+        # result remains available.
         forest_floors = [
             revision[1]
             for revision in self.results_revision.values()
             if revision[0] is Level.FOREST
         ]
         tree_floors: dict[Tree, int] = {}
+        # Tree- and node-level results can depend on multiple trees; retain
+        # history from the oldest snapshot for each tree they depend on.
         for knowledge, _, trees in self.results_revision.values():
             if knowledge is Level.FOREST:
                 continue
             for tree, revision in trees:
                 tree_floors[tree] = min(tree_floors.get(tree, revision), revision)
 
+        # Drop histories with no cached results at that scope, and trim entries
+        # at or before the oldest snapshot: no live result needs those transitions.
         for scope, history in tuple(self.results_preservation.items()):
             if scope is None:
                 floor = min(forest_floors) if forest_floors else None
