@@ -9,13 +9,16 @@ import weakref
 from typing import (
     Callable,
     Iterable,
+    Any,
+    Hashable,
+    Mapping,
     MutableMapping,
 )
 
 import attrs
 
 from ._passe import PassInstance, PassPrototype, PassLike
-from ._model import Level, Tree, Forest, Element, Node
+from ._model import Level, Tree, Forest, Element, Node, PassKind
 
 class PassPattern:
     """
@@ -84,6 +87,14 @@ class PassPattern:
     ) -> None:
         # TODO: Not all parameters might be given,
         # but we should still validate the name of the predicates!!!
+        known_parameters = set(passe.params) | set(passe.optional_params)
+        unknown_parameters = predicate.keys() - known_parameters
+        if unknown_parameters:
+            # Fail at declaration time so a typo cannot silently preserve nothing.
+            unknown = sorted(unknown_parameters)[0]
+            raise ValueError(f"unknown pass parameter {unknown!r}")
+        if any(not callable(callback) for callback in predicate.values()):
+            raise TypeError("pass pattern predicates must be callable")
         self._match = predicate
         self._passe = passe
 
@@ -107,8 +118,10 @@ class PassPattern:
                 return False
         return True
 
-    __hash__ = None # This class is not hashable by nature.
-    __eq__ = matches
+    __hash__ = None  # type: ignore[assignment]
+
+    def __eq__(self, other: object) -> bool:
+        return self.matches(other)
 
     # Method to create a pattern from this pass.
     @classmethod
@@ -150,9 +163,14 @@ class PreservedAnalyses:
             self.__passes.add(pass_or_pattern)
         elif isinstance(pass_or_pattern, str):
             self.add(self.__get_passe(pass_or_pattern))
-        else:
+        elif isinstance(pass_or_pattern, PassPattern):
             proto = pass_or_pattern._passe
             self.__patterns.setdefault(proto, []).append(pass_or_pattern)
+        else:
+            raise TypeError(
+                f"expected a pass prototype, pass instance, alias, or pattern; "
+                f"got {type(pass_or_pattern).__name__}"
+            )
 
     # because the manner the pattern matching is implemented (with __eq__)
     # it's not possible to simply remove a pattern element from a list
@@ -174,9 +192,30 @@ class PreservedAnalyses:
 # of the tree it has been run onto. When a transformation preserves results, we store that
 # informations in another structure that says that result is still valid for that revision
 # eventho it has been ran in a older revision. 
-from ._passmanager import _PassRun, CompletedPass
+from ._passmanager import (
+    CompletedPass,
+    FailedPass,
+    IPluginRegistrar,
+    Trigger,
+    UnpreparedPass,
+    _HookedAll,
+    _PassRun,
+)
 
-# TODO (phase-one) Impement a Plugin for the cache. 
+
+def _passrun_key(passerun: _PassRun) -> Hashable:
+    passe, pointer, options = passerun
+    key_options = dict(options)
+    # This flag controls lookup behavior, not the analysis result itself.
+    key_options.pop("cache_only", None)
+    # frozenset keeps keyword order irrelevant and naturally rejects unhashable values.
+    return passe, pointer, frozenset(key_options.items())
+
+
+def _tree_for_pointer(pointer: tuple[Any, ...]) -> Tree | None:
+    if len(pointer) > 1 and isinstance(pointer[1], Tree):
+        return pointer[1]
+    return None
 
 @attrs.frozen(slots=True)
 class PassManagerCache:
@@ -185,16 +224,20 @@ class PassManagerCache:
     """
 
     tracker: RevisonTracker
-    results_store: dict[_PassRun, CompletedPass]
-    results_revision: dict[CompletedPass, Revision]
+    results_store: dict[Hashable, CompletedPass]
+    results_revision: dict[Hashable, RevisionSnapshot]
     results_preservation: dict[Tree | None, dict[int, PreservedAnalyses]]
 
     def purge(self) -> None:
         """
-        Erase all stale data from the cache.
+        Erase stale data and compact preservation histories.
+
+        This intentionally performs a full cache scan and is therefore an
+        explicit memory-management operation, not part of transformation hooks.
         """
-        for passerun in tuple(self.results_store):
-            self.get(passerun)
+        for key in tuple(self.results_store):
+            self._get(key)
+        self._purge_preservations()
 
     def clear(self) -> None:
         """
@@ -210,99 +253,291 @@ class PassManagerCache:
 
         If the cache contains the result but the result is stale, it will be cleared. 
         """
-        # check if we have the result in cache
-        result = self.results_store.get(passerun)
-        if not result:
-            # we don't have this pass run in the cache, so return early 
+        return self._get(_passrun_key(passerun))
+
+    def _evict(self, key: Hashable) -> None:
+        self.results_store.pop(key, None)
+        self.results_revision.pop(key, None)
+
+    def _get(self, key: Hashable) -> CompletedPass | None:
+        result = self.results_store.get(key)
+        if result is None:
             return None
 
-        passe_instance, pointer, _ = passerun
-        # ask for the revision of the element in the pass run. 
-        tree = pointer[1] if len(pointer)>1 else None
-        current_revision = self.tracker.rev(tree)
-        cached_revision = self.results_revision[result]
+        cached_revision = self.results_revision.get(key)
+        # Without a valid snapshot there is no evidence the result is current,
+        # so discard it rather than risk returning stale analysis data.
+        if cached_revision is None:
+            self._evict(key)
+            return None
 
-        # check if it matches the revision of the result we have in cache
-        matches_revision_in_cache = current_revision == cached_revision
+        try:
+            knowledge = Level(cached_revision[0])
+        except ValueError:
+            self._evict(key)
+            return None
 
-        if not matches_revision_in_cache:
-            # if it does not match, we need to have one matching preserve analysis
-            # for each revision in between the one we have in cache and the current one.
+        passe_instance = result.passe
+        scopes: tuple[tuple[Tree | None, int, int], ...]
+        # Forest analyses use the forest epoch; tree and node analyses compare
+        # every participating tree, including their target, at local epochs.
+        if knowledge is Level.FOREST:
+            current_forest_revision = self.tracker.rev(None)[0]
+            start = cached_revision[1]
+            end = current_forest_revision
+            scopes = ((None, start, end),)
+        else:
+            scopes = tuple(
+                (tree, revision, self.tracker.rev(tree)[1])
+                for tree, revision in cached_revision[2]
+            )
 
-            result_knowledge = Level(result.meta.knowledge) # If this line fails it means that the resutls has not
-                                    # been properly populated or the pass has not finished cleanly.
-                                    # Because the knowledge should only be a valid Level.
+        for scope, start, end in scopes:
+            if not self._preserved_across(
+                passe_instance,
+                self.results_preservation.get(scope, {}),
+                start,
+                end,
+            ):
+                self._evict(key)
+                return None
 
-            # If the result has a forest knowledge, use the forest revision
-            # otherwise use the tree revision
-            rev_index = 0 if result_knowledge is Level.FOREST else 1
-            check_revisions_preserved_to = current_revision[rev_index]
-            check_revisions_preserved_from = cached_revision[rev_index]
-            
-            preservations = self.results_preservation[tree]
-            for revision_to_check in range(check_revisions_preserved_from+1,
-                                           check_revisions_preserved_to+1):
-                if passe_instance not in preservations[revision_to_check]:
-                    # the revision we have in cache is not valid anymore, 
-                    # remove it we don't have to compute this again.
-                    del self.results_store[passerun]
-                    del self.results_revision[result]
-                    result = None
-                    break
-            else:
-                matches_revision_in_cache = True
-                # store the current revision as beeing valid for the result
-                # so we don't need to re-do this computing next time the result
-                # is requested. 
-                self.results_revision[result] = current_revision
-        
+        # Validating every intervening transition lets the entry advance to the
+        # current snapshot and avoids replaying the same history next time.
+        self.results_revision[key] = self._revision_snapshot(result)
         return result
-        
-    def set(self, result: CompletedPass):
-        """
-        Store the result in the cache.
-        """
-        passerun = (result.passe, result.pointer, result.run_options)
-        self.results_store[passerun] = result
-        tree = result.pointer[1] if len(result.pointer)>1 else None
-        self.results_revision[result] = self.tracker.rev(tree)
+
+    @staticmethod
+    def _preserved_across(
+        passe: PassInstance,
+        history: Mapping[int, PreservedAnalyses],
+        start: int,
+        end: int,
+    ) -> bool:
+        if end < start:
+            return False
+        # Every transition matters: a later preservation cannot repair a result
+        # invalidated by an earlier unpreserved change.
+        return all(
+            (preserved := history.get(revision)) is not None
+            and passe in preserved
+            for revision in range(start + 1, end + 1)
+        )
+
+    def _revision_snapshot(self, result: CompletedPass) -> RevisionSnapshot:
+        # Dependencies can raise a pass's actual knowledge beyond its declared
+        # scope, so snapshots follow the completed run's metadata.
+        knowledge = Level(result.meta.knowledge)
+        if knowledge is Level.FOREST:
+            return knowledge, self.tracker.rev(None)[0], ()
+        trees = {
+            tree
+            for path in result.meta.used_paths
+            for tree in path[1:2]
+            if isinstance(tree, Tree)
+        }
+        # Include the target tree even when it did not appear in used_paths.
+        target_tree = _tree_for_pointer(result.pointer)
+        if target_tree is not None:
+            trees.add(target_tree)
+        return knowledge, 0, tuple(
+            sorted(
+                ((tree, self.tracker.rev(tree)[1]) for tree in trees),
+                key=lambda item: (item[0].identifier, id(item[0])),
+            )
+        )
+
+    def _purge_preservations(self) -> None:
+        # Keep transitions newer than the oldest live result snapshot; earlier
+        # history cannot affect future validity checks for those results.
+        forest_floors = [
+            revision[1]
+            for revision in self.results_revision.values()
+            if revision[0] is Level.FOREST
+        ]
+        tree_floors: dict[Tree, int] = {}
+        for knowledge, _, trees in self.results_revision.values():
+            if knowledge is Level.FOREST:
+                continue
+            for tree, revision in trees:
+                tree_floors[tree] = min(tree_floors.get(tree, revision), revision)
+
+        for scope, history in tuple(self.results_preservation.items()):
+            if scope is None:
+                floor = min(forest_floors) if forest_floors else None
+            else:
+                floor = tree_floors.get(scope)
+            if floor is None:
+                del self.results_preservation[scope]
+                continue
+            self.results_preservation[scope] = {
+                revision: preserved
+                for revision, preserved in history.items()
+                if revision > floor
+            }
+
+    def set(self, result: CompletedPass) -> None:
+        """Store a completed pass result at the current target revision."""
+        key = _passrun_key((result.passe, result.pointer, result.run_options))
+        self.results_store[key] = result
+        self.results_revision[key] = self._revision_snapshot(result)
+
+    def preserve(
+        self,
+        tree: Tree | None,
+        revision: int,
+        analyses: Iterable[PassPattern | PassLike | str],
+        get_passe: Callable[[str], PassLike],
+    ) -> None:
+        """Record analyses preserved at a forest or tree revision."""
+        history = self.results_preservation.setdefault(tree, {})
+        history[revision] = PreservedAnalyses(get_passe, analyses)
+
+    def __len__(self) -> int:
+        return len(self.results_store)
+
 
 type Revision = tuple[int, int]
+# Snapshot slot 1 is the forest epoch for forest analyses; slot 2 stores local
+# tree epochs for tree/node analyses.
+type RevisionSnapshot = tuple[Level, int, tuple[tuple[Tree, int], ...]]
+
 
 class RevisonTracker:
-    def __init__(self):
-        self._forest_sentinel = object() # the forest object version
-        self._revisions: MutableMapping[Element, int] = weakref.WeakKeyDictionary()
+    def __init__(self) -> None:
+        self._forest_revision = 0
+        self._revisions: MutableMapping[Tree, int] = weakref.WeakKeyDictionary()
 
     def increment_rev(self, tree: Tree | None) -> None:
-        """
-        Signals that the given tree has been transformed 
-        and increment it's revision. 
-
-        If tree is None, it only increments the revision of the forest. 
-        Incrementing the revision of a tree will always increment the revision
-        of the forest as well. 
-        """
-        rev = self._revisions
-        elements = [self._forest_sentinel]
+        """Increment the forest revision and, when provided, the tree revision."""
+        self._forest_revision += 1
         if tree is not None:
-            elements.append(tree)
-        for e in elements:
-            rev.setdefault(e, 0)
-            rev[e] += 1
-    
-    def rev(self, tree: Tree | None) -> Revision:
-        """
-        Computes the revision of the tree. 
+            self._revisions[tree] = self._revisions.get(tree, 0) + 1
 
-        When no tree are given the revision of the whole 
-        forest will be returned.
-        """
-        rev = self._revisions
-        forest_rev = rev.get(self._forest_sentinel, 0)
+    def increment_forest_rev(self) -> None:
+        """Record a forest membership change without revising tree contents."""
+        self._forest_revision += 1
+
+    def increment_tree_rev(self, tree: Tree) -> None:
+        """Increment only a tree's local revision."""
+        self._revisions[tree] = self._revisions.get(tree, 0) + 1
+
+    def rev(self, tree: Tree | None) -> Revision:
+        """Return the forest and optional tree revisions."""
+        forest_revision = self._forest_revision
         if tree is None:
-            return forest_rev, 0
-        return forest_rev, rev.get(tree, 0)
+            return forest_revision, 0
+        return forest_revision, self._revisions.get(tree, 0)
+
+RevisionTracker = RevisonTracker
+
+
+@attrs.frozen(slots=True)
+class PassManagerCaching:
+    """Plugin that caches analysis results using forest and tree revisions."""
+
+    name: str = "cache"
+    cache: PassManagerCache = attrs.field(
+        factory=lambda: PassManagerCache(RevisonTracker(), {}, {}, {})
+    )
+    _passmanager: Any = attrs.field(default=None, repr=False, eq=False)
+
+    def register(self, registrar: IPluginRegistrar) -> Iterable[PassManagerCaching]:
+        object.__setattr__(self, "_passmanager", registrar)
+        registrar.hooks.install(
+            self._before_pass,
+            when=Trigger.UNPREPARED,
+            kind=_HookedAll.ALL,
+            level=_HookedAll.ALL,
+        )
+        registrar.hooks.install(
+            self._after_pass,
+            when=Trigger.COMPLETED,
+            kind=_HookedAll.ALL,
+            level=_HookedAll.ALL,
+            knowledge=_HookedAll.ALL,
+        )
+        yield self
+
+    def _before_pass(
+        self, unprepared: UnpreparedPass
+    ) -> CompletedPass | None:
+        options = dict(unprepared.run_options)
+        cache_only = bool(options.pop("cache_only", False))
+        if (
+            unprepared.passe.proto.kind is PassKind.TRANSFORMATION
+            and unprepared.passe.proto.runs_on is Level.FOREST
+            and unprepared.passe.proto.pass_options.get(
+                "_cache_membership_only"
+            )
+            is not True
+        ):
+            # Validate before preparation so unsupported transforms cannot mutate
+            # the forest, even when they would eventually report update=False.
+            raise TypeError(
+                "forest-wide transformations are unsupported unless "
+                "_cache_membership_only=True"
+            )
+        if unprepared.passe.proto.kind.name != "ANALYSIS":
+            # Transformations may change external state, so they always execute.
+            if cache_only:
+                raise CacheMissError(
+                    "transformations are not cached and cannot run with cache_only=True"
+                )
+            return None
+        key_options = options
+        result = self.cache.get(
+            (unprepared.passe, unprepared.pointer, key_options)
+        )
+        if result is None and cache_only:
+            raise CacheMissError(
+                f"no valid cached result for "
+                f"{unprepared.passe!r} at {unprepared.pointer!r}"
+            )
+        return result
+
+    def _after_pass(self, completed: CompletedPass) -> None:
+        if completed.passe.proto.kind.name == "ANALYSIS":
+            self.cache.set(completed)
+            return
+
+        if not completed.update:
+            return
+
+        level = completed.passe.proto.runs_on
+        tree = _tree_for_pointer(completed.pointer)
+        if level is Level.FOREST:
+            # Only marked membership transforms reach this hook; they revise
+            # the forest without walking or changing any individual tree.
+            self.cache.tracker.increment_forest_rev()
+        else:
+            # A tree edit also advances the forest epoch because forest analyses
+            # may depend on the edited tree.
+            self.cache.tracker.increment_rev(tree)
+        preserved = completed.attributes.get("preserved", ())
+        if not isinstance(preserved, Iterable) or isinstance(preserved, (str, bytes)):
+            raise TypeError("transformation 'preserved' must be an iterable")
+        try:
+            analyses = tuple(preserved)
+            preserved_set = PreservedAnalyses(
+                self._passmanager.get_passe, analyses
+            )
+        except (TypeError, ValueError, KeyError) as error:
+            raise TypeError(f"invalid preserved analyses declaration: {error}") from error
+
+        # Store history at each affected scope so lookups validate only the
+        # forest or trees relevant to the cached analysis.
+        forest_revision = self.cache.tracker.rev(None)[0]
+        self.cache.results_preservation.setdefault(None, {})[forest_revision] = preserved_set
+        if tree is not None:
+            tree_revision = self.cache.tracker.rev(tree)[1]
+            self.cache.results_preservation.setdefault(tree, {})[tree_revision] = preserved_set
+        # Do not purge here: transformation hooks must stay O(1) in tree count.
+        # Stale entries are evicted on lookup; callers explicitly purge to reclaim memory.
+
+
+class CacheMissError(LookupError):
+    """Raised when a cache-only pass request has no valid cached result."""
 
 # For a **phase-two** caching strategy 
 # TODO: The revision tracker should follow the import graph so we can preserve more

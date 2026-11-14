@@ -58,6 +58,7 @@ passed to the PassManager.run method:
     - and the run options
 """
 
+
 class PassRunMeta:
     """
     Encapsulate the data passed arround in between the context and the runner.
@@ -97,7 +98,12 @@ class PassContext:
     @contextmanager
     def _push_pass(self, passrun: _PassRun) -> Iterator[PassRunMeta]:
         passe, epath, options = passrun
-        passrun = (passe, epath, FrozenDict(options))
+        frozen_options = FrozenDict(options)
+        try:
+            hash(frozen_options)
+        except TypeError as error:
+            raise TypeError("pass run options must be hashable") from error
+        passrun = (passe, epath, frozen_options)
 
         if passrun in self._metadata_stack:
             # TODO (pahse-one): Use a exception subclass in order to potentially catch and
@@ -754,6 +760,7 @@ class PassManager:
             - Second element argument should be the node instance, 
               if both module and node elements are given, it will run the pass on 
               the specified node, which should live inside the specified module.
+        :param options: Run options passed to the pass. Each option value must be hashable.
         # :param cache_only: Forces the completed pass instance to be fetch from the cache.
         #     If the object is not found in the cache, it will raise an error.
         #     Currently only analyses end up in the cache, so make sure not to use this
@@ -771,9 +778,8 @@ class PassManager:
         # create the runner
         runner = self._get_runner(passe(), pointer, options)
 
-        # We do not validate the keywords because we might use the passmanager with unsupported
-        # keywords in test cases for instance. A plugin might be written to trigger warnings
-        # when issuing unsupported keywords.
+        # Option names are left unchecked because plugins may intentionally handle
+        # otherwise unsupported names, while PassContext validates option hashability.
         return runner.run()
 
     @overload
@@ -875,7 +881,9 @@ class PassManager:
 
 # Internal builtin passes
 
-@transformation(on=Forest)
+# These are currently the only forest-level transformations. They change
+# membership only, so the cache can advance the forest revision without walking trees.
+@transformation(on=Forest, _cache_membership_only=True)
 def _add_tree(_: Connector, forest: Forest, *, 
                tree: Tree) -> CastableToDict:
     """
@@ -888,7 +896,7 @@ def _add_tree(_: Connector, forest: Forest, *,
     yield "update", True
 
 
-@transformation(on=Forest)
+@transformation(on=Forest, _cache_membership_only=True)
 def _remove_tree(_: Connector, forest: Forest, *, 
                   tree: Tree | RootNode | str) -> CastableToDict:
     """

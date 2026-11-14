@@ -50,7 +50,8 @@ class Tree:
         root or attributes.
     """
 
-    __slots__ = "__root", "__identifier", "attributes"
+    # RevisionTracker uses weak keys so cached revision metadata won't keep trees alive.
+    __slots__ = "__root", "__identifier", "attributes", "__weakref__"
 
     # TODO: It would be best to provide a lazy loader for the parse tree, since
     # we'd always have to traverse the whole directory structure (because trees  

@@ -214,6 +214,21 @@ def test_manager_runs_forest_analysis_and_passes_run_options_to_hooks():
     assert received == [{'trigger': 'test'}]
 
 
+def test_manager_rejects_unhashable_run_options_before_running_pass():
+    """Verify that unhashable run options fail before the pass body executes."""
+    calls = []
+
+    @analysis(on=Forest)
+    def inspect_forest(connector, forest, *, selector):
+        calls.append(selector)
+        return {'result': None}
+
+    with pytest.raises(TypeError, match='pass run options must be hashable'):
+        PassManager().run(inspect_forest, selector=('a', ['b']))
+
+    assert calls == []
+
+
 def test_manager_runs_tree_analysis_by_identifier_root_and_tree():
     """Verify that tree analyses accept each documented way to identify a tree."""
 
