@@ -328,6 +328,136 @@ def test_cache_purge_removes_stale_results():
     assert cache.results_store == {}
 
 
+def test_cache_purge_keeps_only_forest_analyses_preserved_at_a_revision():
+    """Verify that purge retains preserved forest analyses and evicts other results."""
+    first = _completed(
+        analysis(on=Forest)(lambda connector, forest: {'result': 'first'})
+    )
+    second = _completed(
+        analysis(on=Forest)(lambda connector, forest: {'result': 'second'})
+    )
+    cache = _cache()
+    cache.set(first)
+    cache.set(second)
+    cache.tracker.increment_rev(None)
+    cache.preserve(
+        None, 1, [first.passe.proto], lambda name: first.passe.proto
+    )
+
+    cache.purge()
+
+    assert cache.get((first.passe, first.pointer, {})) is first
+    assert cache.get((second.passe, second.pointer, {})) is None
+    assert len(cache) == 1
+
+
+def test_cache_purge_keeps_forest_results_preserved_across_each_revision():
+    """Verify that preservation at every transition keeps an older forest result."""
+    first = _completed(
+        analysis(on=Forest)(lambda connector, forest: {'result': 'first'})
+    )
+    second = _completed(
+        analysis(on=Forest)(lambda connector, forest: {'result': 'second'})
+    )
+    cache = _cache()
+    cache.set(first)
+    cache.tracker.increment_rev(None)
+    cache.preserve(
+        None, 1, [first.passe.proto], lambda name: first.passe.proto
+    )
+    cache.set(second)
+    cache.tracker.increment_rev(None)
+    cache.preserve(
+        None, 2, [first.passe.proto], lambda name: first.passe.proto
+    )
+
+    cache.purge()
+
+    assert cache.get((first.passe, first.pointer, {})) is first
+    assert cache.get((second.passe, second.pointer, {})) is None
+    assert len(cache) == 1
+
+
+def test_cache_purge_keeps_tree_results_only_in_preserved_scopes():
+    """Verify that purge validates tree analyses against their own tree revisions."""
+    pm = PassManager()
+    first_tree = Tree(ast.parse('x = 1'), 'first')
+    second_tree = Tree(ast.parse('x = 2'), 'second')
+    pm.add(first_tree)
+    pm.add(second_tree)
+
+    @analysis(on=Tree)
+    def inspect_tree(connector, tree):
+        return {'result': tree.identifier}
+
+    first = pm.run(inspect_tree, first_tree)
+    second = pm.run(inspect_tree, second_tree)
+    cache = _cache()
+    cache.set(first)
+    cache.set(second)
+    cache.tracker.increment_tree_rev(first_tree)
+    cache.tracker.increment_tree_rev(second_tree)
+    cache.preserve(
+        first_tree, 1, [inspect_tree], lambda name: inspect_tree
+    )
+
+    cache.purge()
+
+    assert cache.get((first.passe, first.pointer, {})) is first
+    assert cache.get((second.passe, second.pointer, {})) is None
+    assert len(cache) == 1
+
+
+def test_cache_purge_requires_preservation_for_every_tree_dependency():
+    """Verify that a dependent tree result is evicted when one scope is not preserved."""
+    pm = PassManager()
+    first_tree = Tree(ast.parse('x = 1'), 'first')
+    second_tree = Tree(ast.parse('x = 2'), 'second')
+    pm.add(first_tree)
+    pm.add(second_tree)
+
+    @analysis(on=Tree)
+    def inspect_tree(connector, tree):
+        return {'result': tree.identifier}
+
+    @analysis(on=Tree)
+    def inspect_with_dependency(connector, tree):
+        if tree is first_tree:
+            connector.gather(inspect_tree, second_tree)
+        return {'result': tree.identifier}
+
+    local_result = pm.run(inspect_tree, first_tree)
+    dependent_result = pm.run(inspect_with_dependency, first_tree)
+    cache = _cache()
+    cache.set(local_result)
+    cache.set(dependent_result)
+    dependency_snapshot = cache._revision_snapshot(dependent_result)
+    assert {tree for tree, _ in dependency_snapshot[2]} == {
+        first_tree,
+        second_tree,
+    }
+
+    cache.tracker.increment_tree_rev(first_tree)
+    cache.tracker.increment_tree_rev(second_tree)
+    cache.preserve(
+        first_tree,
+        1,
+        [inspect_tree, inspect_with_dependency],
+        lambda name: inspect_tree,
+    )
+
+    cache.purge()
+
+    assert cache.get((local_result.passe, local_result.pointer, {})) is local_result
+    assert (
+        cache.get(
+            (dependent_result.passe, dependent_result.pointer, {})
+        )
+        is None
+    )
+    assert len(cache) == 1
+
+
 def test_cache_purge_checks_preservation_history_for_forest_results():
     """Verify that preservation-history cleanup accounts for cached forest results."""
     completed = _completed()
