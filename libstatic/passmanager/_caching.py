@@ -195,6 +195,7 @@ class PreservedAnalyses:
 from ._passmanager import (
     CompletedPass,
     FailedPass,
+    _ElementPath,
     IPluginRegistrar,
     Trigger,
     UnpreparedPass,
@@ -203,13 +204,17 @@ from ._passmanager import (
 )
 
 
-def _passrun_key(passerun: _PassRun) -> Hashable:
+type _PassRunKey = tuple[
+    PassInstance, _ElementPath, frozenset[tuple[str, Hashable]]
+]
+
+
+def _passrun_key(passerun: _PassRun) -> _PassRunKey:
     passe, pointer, options = passerun
-    key_options = dict(options)
-    # This flag controls lookup behavior, not the analysis result itself.
-    key_options.pop("cache_only", None)
+    # "cache_only" flag controls lookup behavior, not the analysis result itself.
     # frozenset keeps keyword order irrelevant and naturally rejects unhashable values.
-    return passe, pointer, frozenset(key_options.items())
+    return passe, pointer, frozenset(
+        {(k,v) for k, v in options.items() if k != "cache_only"})
 
 
 def _tree_for_pointer(pointer: tuple[Any, ...]) -> Tree | None:
@@ -224,8 +229,8 @@ class PassManagerCache:
     """
 
     tracker: RevisonTracker
-    results_store: dict[Hashable, CompletedPass]
-    results_revision: dict[Hashable, RevisionSnapshot]
+    results_store: dict[_PassRunKey, CompletedPass]
+    results_revision: dict[_PassRunKey, RevisionSnapshot]
     results_preservation: dict[Tree | None, dict[int, PreservedAnalyses]]
 
     def purge(self) -> None:
@@ -255,11 +260,11 @@ class PassManagerCache:
         """
         return self._get(_passrun_key(passerun))
 
-    def _evict(self, key: Hashable) -> None:
+    def _evict(self, key: _PassRunKey) -> None:
         self.results_store.pop(key, None)
         self.results_revision.pop(key, None)
 
-    def _get(self, key: Hashable) -> CompletedPass | None:
+    def _get(self, key: _PassRunKey) -> CompletedPass | None:
         result = self.results_store.get(key)
         if result is None:
             return None

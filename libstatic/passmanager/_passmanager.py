@@ -98,7 +98,7 @@ class PassContext:
     @contextmanager
     def _push_pass(self, passrun: _PassRun) -> Iterator[PassRunMeta]:
         passe, epath, options = passrun
-        frozen_options = FrozenDict(options)
+        frozen_options: FrozenDict[str, Any] = FrozenDict(options)
         try:
             hash(frozen_options)
         except TypeError as error:
