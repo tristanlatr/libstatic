@@ -27,7 +27,7 @@ from typing import (
 
 import attrs
 
-from libstatic._lib.structures import Indexer
+from libstatic._lib.structures import FrozenDict, Indexer
 
 from ._model import Forest, Tree, Node, Level, PassKind, Element, Node, RootNode
 from ._passe import PassInstance, PassKind, PassLike, transformation
@@ -96,13 +96,14 @@ class PassContext:
 
     @contextmanager
     def _push_pass(self, passrun: _PassRun) -> Iterator[PassRunMeta]:
+        passe, epath, options = passrun
+        passrun = (passe, epath, FrozenDict(options))
 
         if passrun in self._metadata_stack:
             # TODO (pahse-one): Use a exception subclass in order to potentially catch and
             # use another pass instead to break the cycle.
             raise RuntimeError(f"cycle detected with pass: {passrun}")
 
-        passe, epath, options = passrun
         self._metadata_stack[passrun] = (passe.proto.runs_on, set([epath]))
 
         # TODO (pahse-two) (Not clear): Might be interesting to optimize the transformations:
@@ -114,34 +115,38 @@ class PassContext:
         # tree identifier but the pass should never directly read the content of the Forest.
         meta = PassRunMeta()
 
-        # enter context managed code
-        yield meta
-
-        # This is just in case someone does something stupid
-        if __debug__:
-            e = next(reversed(self._metadata_stack))
-            if e is not passrun:
-                raise RuntimeError(f"pass context is confused: {e} is not {passrun}")
-            del e
-
-        # pop element from "stack" and record knowledge level in 'meta'.
-        pass_run_metadata = self._metadata_stack[passrun]
-        del self._metadata_stack[passrun]
-
-        meta.knowledge, meta.used_paths = pass_run_metadata[0], frozenset(pass_run_metadata[1])
-        # so at this point pass_run_metadata[0] contains the maximum 
-        # runs_on level of the "passe"
-        # and all it's **ran** dependencies.
-
-        if self._metadata_stack:
-            curr = self._current_passrun
-            # propagate the knowledge of the dependency
-            if self._metadata_stack[curr][0] < pass_run_metadata[0]:
-                self._metadata_stack[curr] = (pass_run_metadata[0], 
-                                              self._metadata_stack[curr][1])
+        try:
+            yield meta
+        finally:
+            # Without finally statement, if the pass raises, the code after yield never runs.
             
-            # propagate the used paths
-            self._metadata_stack[curr][1].update(pass_run_metadata[1])
+            # This is just in case someone does something stupid
+            if __debug__:
+                e = next(reversed(self._metadata_stack))
+                if e is not passrun:
+                    raise RuntimeError(f"pass context is confused: {e} is not {passrun}")
+                del e
+
+            # pop element from "stack" and record knowledge level in 'meta'.
+            pass_run_metadata = self._metadata_stack[passrun]
+            del self._metadata_stack[passrun]
+
+            meta.knowledge, meta.used_paths = pass_run_metadata[0], frozenset(pass_run_metadata[1])
+            # so at this point pass_run_metadata[0] contains the maximum
+            # runs_on level of the "passe"
+            # and all it's **ran** dependencies.
+
+            if self._metadata_stack:
+                curr = self._current_passrun
+                # propagate the knowledge of the dependency
+                if self._metadata_stack[curr][0] < pass_run_metadata[0]:
+                    self._metadata_stack[curr] = (
+                        pass_run_metadata[0],
+                        self._metadata_stack[curr][1],
+                    )
+
+                # propagate the used paths
+                self._metadata_stack[curr][1].update(pass_run_metadata[1])
 
 @attrs.frozen(slots=True)
 class UnpreparedPass:
@@ -545,13 +550,10 @@ class Runner(abc.ABC, Generic[_Trdict]):
             obj = h(obj) or obj
         return obj
 
-    def run(self, **options) -> CompletedPass:
-        """
-        # :param cache_only: Only use the cache. Do not actually run anything.
-        """
+    def run(self) -> CompletedPass:
         with self.push() as meta:
             unprepared = UnpreparedPass(self._passe, self._pointer, self._passmanager, 
-                                        run_options=options)
+                                        run_options=self._options)
             unprepared = self._apply_hooks(self._passmanager.hooks, 
                                            unprepared, when=Trigger.UNPREPARED, 
                                            knowledge=_HookedNotApplicable.NA)
@@ -1035,6 +1037,9 @@ class Hooks:
                 ) -> None:  
         """
         Add a hook to the system.
+
+        - If a hook is not COMPLETED, then knowledge must be NA.
+        - If it is COMPLETED, then knowledge must be a level (node, tree, forest, or ALL)
         """
         # TODO: Use a priority-based order to apply hooks like we do for pydoctor's post-processing.
         # indtroduce the parameter priority. 
@@ -1052,8 +1057,8 @@ class Hooks:
             raise TypeError
 
         # Some combinaison of level/knowledge makes no sens: 
-        # when the 'knowledge' is lower than the 'level'.
-        if knowledge < level: 
+        # when an applicable 'knowledge' is lower than the 'level'.
+        if knowledge != _HookedNotApplicable.NA and knowledge < level:
             raise ValueError
 
         kinds = list(PassKind) if kind == _HookedAll.ALL else [kind]
@@ -1077,5 +1082,5 @@ class Hooks:
 
     def uninstall(self, hook: Hook) -> None:
         hooks = self._hooks
-        for k in hooks.search(hook=hook):
+        for k in list(hooks.search(hook=hook)):
             hooks.discard(k)
