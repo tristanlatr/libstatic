@@ -178,6 +178,83 @@ def test_cache_snapshot_uses_dependencies_without_a_tree_target():
     assert snapshot[2] == ((completed.pointer[1], 0),)
 
 
+def test_cache_snapshot_uses_forest_scope_from_a_higher_scope_dependency():
+    """Verify that a tree analysis depending on a forest analysis snapshots forest state."""
+    pm = PassManager()
+    tree = Tree(ast.parse('x = 1'), 'mod')
+    pm.add(tree)
+
+    @analysis(on=Forest)
+    def inspect_forest(connector, forest):
+        return {'result': len(forest)}
+
+    @analysis(on=Tree)
+    def inspect_tree(connector, target):
+        connector.gather(inspect_forest)
+        return {'result': target.identifier}
+
+    completed = pm.run(inspect_tree, tree)
+    cache = _cache()
+
+    assert completed.meta.knowledge is Level.FOREST
+    assert cache._revision_snapshot(completed) == (Level.FOREST, 0, ())
+
+
+@pytest.mark.parametrize('runs_on', ['tree', 'node'])
+def test_cache_snapshot_tracks_other_trees_used_by_lower_scope_analysis(runs_on):
+    """Verify that edits to a non-target tree invalidate dependent tree and node results."""
+    pm = PassManager()
+    target_tree = Tree(ast.parse('x = 1'), 'target')
+    dependency_tree = Tree(ast.parse('y = 2'), 'dependency')
+    pm.add(target_tree)
+    pm.add(dependency_tree)
+
+    @analysis(on=Tree)
+    def inspect_identifier(connector, tree):
+        return {'result': tree.identifier}
+
+    if runs_on == 'tree':
+        @analysis(on=Tree)
+        def inspect_target(connector, tree):
+            connector.gather(inspect_identifier, 'dependency')
+            return {'result': tree.identifier}
+
+        target = target_tree
+    else:
+        @analysis(on=ast.Module)
+        def inspect_target(connector, node):
+            connector.gather(inspect_identifier, 'dependency')
+            return {'result': node}
+
+        target = target_tree
+
+    @analysis(on=Tree)
+    def inspect_target_tree(connector, tree):
+        return {'result': tree.identifier}
+
+    dependent_result = pm.run(inspect_target, target)
+    target_result = pm.run(inspect_target_tree, target_tree)
+    cache = _cache()
+    cache.set(dependent_result)
+    cache.set(target_result)
+
+    snapshot = cache._revision_snapshot(dependent_result)
+    assert snapshot[0] is Level.TREE
+    assert {tree for tree, _ in snapshot[2]} == {
+        target_tree,
+        dependency_tree,
+    }
+
+    cache.tracker.increment_tree_rev(dependency_tree)
+
+    assert cache.get(
+        (target_result.passe, target_result.pointer, {})
+    ) is target_result
+    assert cache.get(
+        (dependent_result.passe, dependent_result.pointer, {})
+    ) is None
+
+
 def test_cache_key_rejects_unhashable_run_options():
     """Verify that cache lookups reject run options that cannot form hashable keys."""
     passe = analysis(on=Forest)(lambda connector, forest: {'result': None})

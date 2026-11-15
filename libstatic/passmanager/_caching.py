@@ -1,7 +1,16 @@
 """
 Builtin caching plugin for the standard AST module. 
-Provides a simple and advanced stategies.
 """
+
+# TODOs: 
+# - Merge the plugin with the cache, so we don't need to call the urly .cache.cache.ge()...
+# - Remove the concept of knowledge from the caching system. The knowledge is represented by the meta.used_paths
+# - Rename "preserved" to "preserve" in the transformation result attributes. 
+# - When a new tree is added to the forest, it should invalidate the multi-tree analyses that are not complete.
+# - A transformation should not be able to get upper level analyses results if they are not cached already. 
+#   This is to avoid a transformation to trigger quadratic complexity by running analyses and then invalidating them again and again.
+# - Add integration tests for the caching system, i.e. tests where the cache is added and used transparently by default in the PassManager.
+
 from __future__ import annotations
 
 import weakref
@@ -85,8 +94,8 @@ class PassPattern:
     def __init__(
         self, passe: PassPrototype, **predicate: Callable[[object], bool]
     ) -> None:
-        # TODO: Not all parameters might be given,
-        # but we should still validate the name of the predicates!!!
+        # Not all parameters are required to be given, 
+        # but all the given parameters must be known by the pass prototype.
         known_parameters = set(passe.params) | set(passe.optional_params)
         unknown_parameters = predicate.keys() - known_parameters
         if unknown_parameters:
@@ -95,6 +104,7 @@ class PassPattern:
             raise ValueError(f"unknown pass parameter {unknown!r}")
         if any(not callable(callback) for callback in predicate.values()):
             raise TypeError("pass pattern predicates must be callable")
+        
         self._match = predicate
         self._passe = passe
 
@@ -183,10 +193,6 @@ class PreservedAnalyses:
                 (p:=other.proto) in self.__patterns 
                 and other in self.__patterns[p])
 
-# For a **phase one** caching strategy
-# TODO: Make a SimpleRevTracker that do not need to understand the node hierarchy,
-# simply incrementing the module revision anytime anything changes in that module. 
-
 # Revision based caching should still allow some transforamtions to PRESERVE other
 # results in cache. This is implemented by: for each result in cache, remembering the revision
 # of the tree it has been run onto. When a transformation preserves results, we store that
@@ -217,7 +223,7 @@ def _passrun_key(passerun: _PassRun) -> _PassRunKey:
         {(k,v) for k, v in options.items() if k != "cache_only"})
 
 
-def _tree_for_pointer(pointer: tuple[Any, ...]) -> Tree | None:
+def _tree_for_pointer(pointer: _ElementPath) -> Tree | None:
     if len(pointer) > 1 and isinstance(pointer[1], Tree):
         return pointer[1]
     return None
@@ -496,9 +502,8 @@ class PassManagerCaching:
                     "transformations are not cached and cannot run with cache_only=True"
                 )
             return None
-        key_options = options
         result = self.cache.get(
-            (unprepared.passe, unprepared.pointer, key_options)
+            (unprepared.passe, unprepared.pointer, options)
         )
         if result is None and cache_only:
             raise CacheMissError(
