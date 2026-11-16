@@ -850,22 +850,18 @@ class PassManager:
         if element:
             first_element = element[0]
             if not isinstance(first_element, Tree):
-                # If the first element is not a tree,
-                # try to fetch it from the forest,
-                # it can be either a identifier string
-                # or the root node of the tree.
-                # TODO: Attention: This SHOULD implicitely promotes the passe to the forest-wide
-                # level when used throught the connector and the first element is not the current
-                # tree . This is an intended behavior.
+                # If the first element is not a tree, try to fetch it from the forest,
+                # it can be either a identifier string or the root node of the tree.
                 module = self.trees[first_element]
                 element = (module,) + element[1:]
             elif first_element not in self.trees:
-                # the tree is not in the system, so add it now.
-                # not that this might be run from within a passe: 
-                # Which might be an analysis, in which case it's not permitted to 
-                # transform the forest. A check should be added in the connector. 
-                # TODO: Or maybe run raise an error ?
-                self.add(first_element)
+                # The given tree is not in the system, adding it now could produce inconsistencies
+                # when the said tree is added from within an analysis pass (because it should
+                # not be permitted to transform the forest from an analysis pass).
+                # Instead of trying to do something complex, we simply raise an error and 
+                # require the user add the tree before running the pass.
+                raise ValueError(f"the given tree {first_element!r} is not in the passmanager, "
+                                 "please add it first with PassManager.add()")
             if needs_to_append_root:
                 element += (element[0].root,) # type: ignore
 

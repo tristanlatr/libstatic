@@ -255,8 +255,8 @@ def test_manager_promotes_single_tree_argument_to_node_root():
     assert pm.gather(inspect_module, tree) is tree.root
 
 
-def test_manager_automatically_adds_an_unregistered_tree_argument():
-    """Verify that targeting an unregistered Tree adds it to the manager."""
+def test_manager_does_not_automatically_add_an_unregistered_tree_argument():
+    """Verify that targeting an unregistered Tree raises an error."""
 
     @analysis(on=Tree)
     def identify_tree(connector, tree):
@@ -265,8 +265,8 @@ def test_manager_automatically_adds_an_unregistered_tree_argument():
     pm = PassManager()
     tree = _tree('new_tree')
 
-    assert pm.gather(identify_tree, tree) == 'new_tree'
-    assert pm.trees['new_tree'] is tree
+    with pytest.raises(ValueError, match='not in the passmanager'):
+        pm.gather(identify_tree, tree)
 
 
 def test_manager_runs_node_analysis_on_a_specific_node():
