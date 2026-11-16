@@ -572,13 +572,6 @@ class Runner(abc.ABC, Generic[_Trdict]):
                 return unprepared
             assert isinstance(unprepared, UnpreparedPass), f'hook returned unsupported object type: {unprepared}'
             
-            # TODO (phase-one) Move this to caching.py inside an unprepared pass hook.
-            # if completed:=self.from_cache():
-            #     return completed
-            # elif cache_only:
-            #     raise ValueError(
-            #         f'result for {(self._passe, self._pointer)!r} not found in cache and cache_only=True')
-
             prepared: PreparedPass = self.prepare(unprepared)
             prepared = self._apply_hooks(self._passmanager.hooks, 
                                          prepared, when=Trigger.PREPARED, 
