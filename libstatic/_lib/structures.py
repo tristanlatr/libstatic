@@ -476,7 +476,15 @@ class Indexer(Generic[_SeriesOfKeysT]):
         if not all(invalid:=(k in self.__keys) and 
                    (invalid:=k not in self.__skipKeys) for k in key):
             raise TypeError(f'Unexpected keyword: {invalid}')
-        sets = (self.__store[label][value] for label, value in key.items())
+        sets = []
+        for label, value in key.items():
+            values = self.__store.get(label)
+            if values is None:
+                return set()
+            valueset = values.get(value)
+            if valueset is None:
+                return set()
+            sets.append(valueset)
         return reduce(operator.and_, sorted(sets, key=len))
 
     def kvalues(self, key: str) -> Collection[Hashable]:
