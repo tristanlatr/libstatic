@@ -243,7 +243,7 @@ class Arg(NameDef):
     >>> parameters = [a.to_parameter() for a in args]
     >>> sig = inspect.Signature(parameters)
     >>> str(sig)
-    '(a:...Name..., b:...Name...=...Constant..., *, key:...Name..., **kwargs)'
+    "(a: Name(id='int', ctx=Load()), b: Name(id='object', ctx=Load()) = Constant(value=None, kind=None), *, key: Name(id='str', ctx=Load()), **kwargs)"
 
     """
     __slots__ = (*Def.__slots__, 'default', 'kind')

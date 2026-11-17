@@ -23,8 +23,8 @@ from typing import (
 
 import attrs
 
-from ._passe import PassInstance, PassPrototype, PassLike
-from ._model import Level, Tree, Forest, Element, Node, PassKind
+from ._passe import PassInstance, PassPrototype, PassLike, analysis
+from ._model import Level, Tree, PassKind
 
 class PassPattern:
     """
@@ -40,13 +40,13 @@ class PassPattern:
     Let's declare a few testing patterns:
 
     >>> # this pattern will never match any pass instance
-    >>> like_none = count_objs.like(type=(lambda _: False)) 
+    >>> like_none = PassPattern.like(count_objs, type=(lambda _: False)) 
     >>> # this pattern will match any instances of the pass 'count_objs'
-    >>> like_any = count_objs.like(type=(lambda _: True))  
+    >>> like_any = PassPattern.like(count_objs, type=(lambda _: True))  
     >>> # this one idem 
-    >>> like_any2 = count_objs.like()                       
+    >>> like_any2 = PassPattern.like(count_objs)                       
     >>> # this one will match only if type=ast.ClassDef.
-    >>> like_cls = count_objs.like(type=(lambda v: v is ast.ClassDef))
+    >>> like_cls = PassPattern.like(count_objs, type=(lambda v: v is ast.ClassDef))
 
     The pass pattern implement C{__eq__} wich makes it suitable for
     checking whether a pass instance is C{in} a container with a pattern in it.
@@ -75,7 +75,7 @@ class PassPattern:
     >>> @analysis(on=ast.AST)
     ... def has_required_param(_, node, *, required):
     ...     yield 'result', 1
-    >>> param_like_none = has_required_param.like(required=(lambda _: False))
+    >>> param_like_none = PassPattern.like(has_required_param, required=(lambda _: False))
     >>> has_required_param() in [param_like_none]
     True
     >>> has_required_param('anything') in [param_like_none]
@@ -83,7 +83,7 @@ class PassPattern:
 
     The pattern can be generic by ommiting the argument.
 
-    >>> has_required_param('anything') in [has_required_param.like()]
+    >>> has_required_param('anything') in [PassPattern.like(has_required_param)]
     True
     """
     __slots__ = "_match", "_passe"

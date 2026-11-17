@@ -394,31 +394,35 @@ def _pass_decorator(**kwargs: Any) -> Callable[[Callable], PassPrototype]:
     so standard doctest discovery includes its docstring.
     """
 
-    def decorator(function: Callable) -> PassPrototype:
-        prototype = new_pass_prototype(function, **kwargs)
-        module_name = getattr(function, "__module__", None)
-        module = (
-            sys.modules.get(module_name)
-            if isinstance(module_name, str)
-            else None
-        )
-        if module is not None:
-            tests = getattr(module, "__test__", None)
-            if tests is None:
-                tests = {}
-                setattr(module, "__test__", tests)
-            assert isinstance(tests, dict)
-            if not any(test is function for test in tests.values()):
-                key = f"{function.__qualname__}"
-                suffix = 2
-                while key in tests:
-                    key = f"{key}#{suffix}"
-                    suffix += 1
-                tests[key] = function
-
+    def decorator(fn: Callable) -> PassPrototype:
+        prototype = new_pass_prototype(fn, **kwargs)
+        _register_function_docstring_to__test__(fn)
         return prototype
 
     return decorator
+
+def _register_function_docstring_to__test__(fn: Callable) -> None:
+    # Since the function is decorated, we need to register 
+    # the original function in the module's __test__ mapping
+    module_name = getattr(fn, "__module__", None)
+    module = (
+        sys.modules.get(module_name)
+        if isinstance(module_name, str)
+        else None
+    )
+    if module is not None:
+        tests = getattr(module, "__test__", None)
+        if tests is None:
+            tests = {}
+            setattr(module, "__test__", tests)
+        assert isinstance(tests, dict)
+        key = fn.__qualname__
+        suffix = 2
+        while key in tests:
+            key = f"{key}#{suffix}"
+            suffix += 1
+        tests[key] = fn
+
 
 
 transformation = partial(_pass_decorator, kind=PassKind.TRANSFORMATION)

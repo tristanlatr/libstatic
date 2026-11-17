@@ -135,14 +135,14 @@ class Forest(Collection[Tree]):
     >>> import ast
     >>> astmod = ast.parse('x = 1')
     >>> tree = Tree(astmod, 'mod1', filename='./mod1.py')
-    >>> pm = PassManager([tree])
-    >>> isinstance(pm.trees, Forest)
+    >>> trees = Forest([tree])
+    >>> isinstance(trees, Forest)
     True
-    >>> 'mod1' in pm.trees
+    >>> 'mod1' in trees
     True
-    >>> astmod in pm.trees
+    >>> astmod in trees
     True
-    >>> tree in pm.trees
+    >>> tree in trees
     True
 
     """

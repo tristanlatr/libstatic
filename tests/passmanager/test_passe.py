@@ -398,8 +398,8 @@ def test_decorated_pass_docstrings_are_registered_for_doctest():
     transformation_pass = documented_pass
 
     assert tests['existing_documentation'] == 'Existing module doctest entry.'
-    assert any(value is analysis_pass.__wrapped__ for value in tests.values())
-    assert any(value is transformation_pass.__wrapped__ for value in tests.values())
+    assert any(value is analysis_pass.__wrapped__ for value in tests.values()), tests
+    assert any(value is transformation_pass.__wrapped__ for value in tests.values()), tests
 
     discovered = [
         test for test in doctest.DocTestFinder().find(module)

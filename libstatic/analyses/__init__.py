@@ -16,7 +16,7 @@ def ancestors(_, node: passmanager.Tree):
     See L{beniget.Ancestors}.
 
     >>> pm = passmanager.PassManager()
-    >>> pm.add(passmanager.MTree(ast.parse('v = lambda x: x+1'), 'test'))
+    >>> pm.add(passmanager.Tree(ast.parse('v = lambda x: x+1'), 'test'))
     >>> r = pm.gather(ancestors, 'test')
     >>> isinstance(r, beniget.Ancestors)
     True
@@ -60,7 +60,7 @@ def node_ancestor(c: passmanager.Connector, node: ast.AST, *,
     First node ancestor of class C{klass}. 
 
     >>> pm = passmanager.PassManager()
-    >>> pm.add(passmanager.MTree(ast.parse('v = lambda x: x+1'), 'test'))
+    >>> pm.add(passmanager.Tree(ast.parse('v = lambda x: x+1'), 'test'))
     >>> lbody = pm.trees['test'].root.body[0].value.body
     >>> r = pm.gather(node_ancestor(ast.Assign), 'test', lbody)
     >>> r.__class__.__name__
@@ -104,7 +104,7 @@ def node_enclosing_scope(c: passmanager.Connector, node: ast.AST):
 
     >>> mod = ast.parse('v = lambda x: x+1')
     >>> pm = passmanager.PassManager()
-    >>> pm.add(passmanager.MTree(mod, 'test'))
+    >>> pm.add(passmanager.Tree(mod, 'test'))
     >>> lb = pm.gather(node_enclosing_scope, 'test', mod.body[0].value.body)
     >>> lb.__class__.__name__
     'Lambda'
@@ -137,7 +137,7 @@ def def_use_chains(_, node: passmanager.Tree):
     See L{beniget.DefUseChains}.
 
     >>> pm = passmanager.PassManager()
-    >>> pm.add(passmanager.MTree(ast.parse('v = 1; v += 2'), 'test'))
+    >>> pm.add(passmanager.Tree(ast.parse('v = 1; v += 2'), 'test'))
     >>> r = pm.gather(def_use_chains, 'test')
     >>> isinstance(r, beniget.DefUseChains)
     True
@@ -152,7 +152,7 @@ def use_def_chains(c: passmanager.Connector, _):
     See L{beniget.UseDefChains}.
 
     >>> pm = passmanager.PassManager()
-    >>> pm.add(passmanager.MTree(ast.parse('v = 1; v += 2'), 'test'))
+    >>> pm.add(passmanager.Tree(ast.parse('v = 1; v += 2'), 'test'))
     >>> r = pm.gather(use_def_chains, 'test')
     >>> isinstance(r, beniget.UseDefChains)
     True
