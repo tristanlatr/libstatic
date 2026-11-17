@@ -176,7 +176,7 @@ class PassInstance:
     values of the parameters in use (). If the prototype do not declare any parameters,
     then this representation is redundant.
 
-    A pass instance have no knowledge of the node it will run onto. the pass
+    A pass instance is independent of the node it will run onto. The pass
     instance describe the concrete behaviour of a pass, and can be run several
     times on several elements.
     """

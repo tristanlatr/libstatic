@@ -4,9 +4,7 @@ Builtin caching plugin for the standard AST module.
 
 # TODOs: 
 # - Merge the plugin with the cache, so we don't need to call the urly .cache.cache.ge()...
-# - Remove the concept of knowledge from the caching system. The knowledge is represented by the meta.used_paths
 # - Rename "preserved" to "preserve" in the transformation result attributes. 
-# - When a new tree is added to the forest, it should invalidate the multi-tree analyses that are not complete.
 # - A transformation should not be able to get upper level analyses results if they are not cached already. 
 #   This is to avoid a transformation to trigger quadratic complexity by running analyses and then invalidating them again and again.
 # - Add integration tests for the caching system, i.e. tests where the cache is added and used transparently by default in the PassManager.
@@ -283,25 +281,32 @@ class PassManagerCache:
             return None
 
         try:
-            knowledge = Level(cached_revision[0])
-        except ValueError:
+            forest_revision, tree_revisions = cached_revision
+        except (TypeError, ValueError):
+            self._evict(key)
+            return None
+
+        # TODO: Is it really necessarty to validate the revision validity there ?
+        invalid_forest_revision = forest_revision is not None and forest_revision < 0
+        invalid_tree_revisions = not isinstance(tree_revisions, tuple) or any(
+            item[1] < 0
+            for item in tree_revisions )
+        if invalid_forest_revision or invalid_tree_revisions:
             self._evict(key)
             return None
 
         passe_instance = result.passe
-        scopes: tuple[tuple[Tree | None, int, int], ...]
+        scopes: list[tuple[Tree | None, int, int]] = []
         # Forest analyses use the forest epoch; tree and node analyses compare
         # every participating tree, including their target, at local epochs.
-        if knowledge is Level.FOREST:
-            current_forest_revision = self.tracker.rev(None)[0]
-            start = cached_revision[1]
-            end = current_forest_revision
-            scopes = ((None, start, end),)
-        else:
-            scopes = tuple(
-                (tree, revision, self.tracker.rev(tree)[1])
-                for tree, revision in cached_revision[2]
+        if forest_revision is not None:
+            scopes.append(
+                (None, forest_revision, self.tracker.rev(None)[0])
             )
+        scopes.extend(
+            (tree, revision, self.tracker.rev(tree)[1])
+            for tree, revision in tree_revisions
+        )
 
         for scope, start, end in scopes:
             if not self._preserved_across(
@@ -336,11 +341,20 @@ class PassManagerCache:
         )
 
     def _revision_snapshot(self, result: CompletedPass) -> RevisionSnapshot:
-        # Dependencies can raise a pass's actual knowledge beyond its declared
+        
+        # The forest revision is only relevant for forest analyses or other analyses 
+        # that are not complete. If the result is complete, we can ignore the forest 
+        # revision and only track the tree revisions. This is an optimization to avoid 
+        # unnecessary invalidation of analyses when the forest changes.
+        forest_revision = (
+            self.tracker.rev(None)[0]
+            if result.attributes.get("complete") is False
+            or any(len(path) == 1 for path in result.meta.used_paths)
+            else None
+        )
+
+        # Dependencies can raise a pass's actual used paths beyond its declared
         # scope, so snapshots follow the completed run's metadata.
-        knowledge = Level(result.meta.knowledge)
-        if knowledge is Level.FOREST:
-            return knowledge, self.tracker.rev(None)[0], ()
         trees = {
             tree
             for path in result.meta.used_paths
@@ -351,7 +365,7 @@ class PassManagerCache:
         target_tree = _tree_for_pointer(result.pointer)
         if target_tree is not None:
             trees.add(target_tree)
-        return knowledge, 0, tuple(
+        return forest_revision, tuple(
             sorted(
                 ((tree, self.tracker.rev(tree)[1]) for tree in trees),
                 key=lambda item: (item[0].identifier, id(item[0])),
@@ -364,16 +378,13 @@ class PassManagerCache:
         # Find the oldest snapshot for each scope so history needed by any live
         # result remains available.
         forest_floors = [
-            revision[1]
-            for revision in self.results_revision.values()
-            if revision[0] is Level.FOREST
+            forest_revision
+            for forest_revision, _ in self.results_revision.values()
+            if forest_revision is not None
         ]
         tree_floors: dict[Tree, int] = {}
-        # Tree- and node-level results can depend on multiple trees; retain
-        # history from the oldest snapshot for each tree they depend on.
-        for knowledge, _, trees in self.results_revision.values():
-            if knowledge is Level.FOREST:
-                continue
+        # Retain history from the oldest snapshot for each used tree path.
+        for _, trees in self.results_revision.values():
             for tree, revision in trees:
                 tree_floors[tree] = min(tree_floors.get(tree, revision), revision)
 
@@ -415,9 +426,7 @@ class PassManagerCache:
 
 
 type Revision = tuple[int, int]
-# Snapshot slot 1 is the forest epoch for forest analyses; slot 2 stores local
-# tree epochs for tree/node analyses.
-type RevisionSnapshot = tuple[Level, int, tuple[tuple[Tree, int], ...]]
+type RevisionSnapshot = tuple[int | None, tuple[tuple[Tree, int], ...]]
 
 
 class RevisonTracker:
@@ -472,7 +481,6 @@ class PassManagerCaching:
             when=Trigger.COMPLETED,
             kind=_HookedAll.ALL,
             level=_HookedAll.ALL,
-            knowledge=_HookedAll.ALL,
         )
         yield self
 
@@ -557,10 +565,10 @@ class CacheMissError(LookupError):
 
 # For a **phase-two** caching strategy 
 # TODO: The revision tracker should follow the import graph so we can preserve more
-# forest-knowledge analyses. We can even automate this by using the used_paths combined 
+# forest-path analyses. We can even automate this by using the used_paths combined
 # with a regular import analysis in order to detect wether the analyses followed the
 # imports or not, and a flag can be added to the cache. This manner we can significantly
-# reduce the overhead introduced by the multiplication of forest-knowledge analyses
+# reduce the overhead introduced by the multiplication of forest-path analyses
 
 # NOTE the multi-dimentionnal strings vector approach might not be suited to the 
 # preserved analyses feature since we need to be able to determine all precedent 

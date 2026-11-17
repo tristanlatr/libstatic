@@ -174,12 +174,11 @@ def test_cache_snapshot_uses_dependencies_without_a_tree_target():
 
     snapshot = cache._revision_snapshot(result)
 
-    assert snapshot[0] is Level.TREE
-    assert snapshot[2] == ((completed.pointer[1], 0),)
+    assert snapshot == (None, ((completed.pointer[1], 0),))
 
 
-def test_cache_snapshot_uses_forest_scope_from_a_higher_scope_dependency():
-    """Verify that a tree analysis depending on a forest analysis snapshots forest state."""
+def test_cache_snapshot_tracks_forest_and_tree_paths_independently():
+    """Verify that a nested forest dependency retains its own membership path."""
     pm = PassManager()
     tree = Tree(ast.parse('x = 1'), 'mod')
     pm.add(tree)
@@ -196,8 +195,7 @@ def test_cache_snapshot_uses_forest_scope_from_a_higher_scope_dependency():
     completed = pm.run(inspect_tree, tree)
     cache = _cache()
 
-    assert completed.meta.knowledge is Level.FOREST
-    assert cache._revision_snapshot(completed) == (Level.FOREST, 0, ())
+    assert cache._revision_snapshot(completed) == (0, ((tree, 0),))
 
 
 @pytest.mark.parametrize('runs_on', ['tree', 'node'])
@@ -239,8 +237,8 @@ def test_cache_snapshot_tracks_other_trees_used_by_lower_scope_analysis(runs_on)
     cache.set(target_result)
 
     snapshot = cache._revision_snapshot(dependent_result)
-    assert snapshot[0] is Level.TREE
-    assert {tree for tree, _ in snapshot[2]} == {
+    assert snapshot[0] is None
+    assert {tree for tree, _ in snapshot[1]} == {
         target_tree,
         dependency_tree,
     }
@@ -312,13 +310,13 @@ def test_cache_evicts_entries_missing_revision_metadata():
     assert cache.results_store == {}
 
 
-def test_cache_evicts_entries_with_invalid_knowledge_metadata():
-    """Verify that a result with an invalid knowledge level is treated as stale."""
+def test_cache_evicts_entries_with_invalid_revision_metadata():
+    """Verify that a result with an invalid revision snapshot is treated as stale."""
     completed = _completed()
     cache = _cache()
     cache.set(completed)
     key = next(iter(cache.results_store))
-    cache.results_revision[key] = (99, 0, ())
+    cache.results_revision[key] = (-1, ())
 
     assert cache.get((completed.passe, completed.pointer, {})) is None
 
@@ -376,7 +374,7 @@ def test_cache_updates_preserved_result_revision_after_lookup():
     }
 
     assert cache.get((completed.passe, completed.pointer, {})) is completed
-    assert cache.results_revision[key] == (completed.meta.knowledge, 1, ())
+    assert cache.results_revision[key] == (1, ())
 
 
 def test_cache_evicts_result_when_one_of_multiple_revisions_is_not_preserved():
@@ -509,7 +507,7 @@ def test_cache_purge_requires_preservation_for_every_tree_dependency():
     cache.set(local_result)
     cache.set(dependent_result)
     dependency_snapshot = cache._revision_snapshot(dependent_result)
-    assert {tree for tree, _ in dependency_snapshot[2]} == {
+    assert {tree for tree, _ in dependency_snapshot[1]} == {
         first_tree,
         second_tree,
     }
@@ -1145,6 +1143,48 @@ def test_cache_plugin_keeps_tree_results_after_removing_another_tree():
     assert calls == ['first']
 
 
+@pytest.mark.parametrize('change', ['add', 'remove'])
+def test_cache_plugin_keeps_complete_multi_tree_result_across_unrelated_membership_change(
+    change,
+):
+    """Verify that independent tree paths survive unrelated forest membership changes."""
+    calls = []
+
+    @analysis(on=Tree)
+    def inspect_dependency(connector, tree):
+        calls.append(('dependency', tree.identifier))
+        return {'result': tree.identifier}
+
+    @analysis(on=Tree)
+    def inspect_target(connector, tree):
+        calls.append(('target', tree.identifier))
+        connector.gather(inspect_dependency, 'dependency')
+        return {'result': tree.identifier}
+
+    pm = PassManager([PassManagerCaching])
+    target = Tree(ast.parse('x = 1'), 'target')
+    dependency = Tree(ast.parse('y = 2'), 'dependency')
+    unrelated = Tree(ast.parse('z = 3'), 'unrelated')
+    pm.add(target)
+    pm.add(dependency)
+    if change == 'remove':
+        pm.add(unrelated)
+
+    completed = pm.run(inspect_target, target)
+    assert completed.attributes['complete'] is True
+    snapshot = pm.cache.cache._revision_snapshot(completed)
+    assert snapshot[0] is None
+    assert {tree for tree, _ in snapshot[1]} == {target, dependency}
+
+    if change == 'add':
+        pm.add(unrelated)
+    else:
+        pm.remove(unrelated)
+
+    assert pm.run(inspect_target, target) is completed
+    assert calls == [('target', 'target'), ('dependency', 'dependency')]
+
+
 def test_cache_plugin_invalidates_forest_analysis_after_adding_tree():
     """Verify that adding a tree invalidates cached forest-wide analyses."""
     calls = []
@@ -1161,6 +1201,68 @@ def test_cache_plugin_invalidates_forest_analysis_after_adding_tree():
     pm.add(Tree(ast.parse('y = 2'), 'second'))
 
     assert pm.gather(count_trees) == 2
+    assert calls == [None, None]
+
+
+def test_cache_plugin_invalidates_incomplete_forest_analysis_after_adding_tree():
+    """Verify that adding a tree invalidates an incomplete forest analysis."""
+    calls = []
+
+    @analysis(on=Forest)
+    def count_trees(connector, forest):
+        calls.append(None)
+        return {'result': len(forest), 'complete': False}
+
+    pm = PassManager([PassManagerCaching])
+    pm.add(Tree(ast.parse('x = 1'), 'first'))
+
+    assert pm.gather(count_trees) == 1
+    pm.add(Tree(ast.parse('y = 2'), 'second'))
+
+    assert pm.gather(count_trees) == 2
+    assert pm.gather(count_trees) == 2
+    assert calls == [None, None]
+
+
+def test_cache_plugin_invalidates_incomplete_tree_analysis_after_adding_tree():
+    """Verify that adding a tree invalidates an incomplete tree analysis."""
+    calls = []
+
+    @analysis(on=Tree)
+    def inspect_tree(connector, tree):
+        calls.append(tree.identifier)
+        return {'result': len(calls), 'complete': False}
+
+    pm = PassManager([PassManagerCaching])
+    target = Tree(ast.parse('x = 1'), 'target')
+    pm.add(target)
+
+    assert pm.gather(inspect_tree, target) == 1
+    pm.add(Tree(ast.parse('y = 2'), 'new'))
+
+    assert pm.gather(inspect_tree, target) == 2
+    assert pm.gather(inspect_tree, target) == 2
+    assert calls == ['target', 'target']
+
+
+def test_cache_plugin_invalidates_incomplete_node_analysis_after_adding_tree():
+    """Verify that adding a tree invalidates an incomplete node analysis."""
+    calls = []
+
+    @analysis(on=ast.Module)
+    def inspect_module(connector, module):
+        calls.append(None)
+        return {'result': len(calls), 'complete': False}
+
+    pm = PassManager([PassManagerCaching])
+    target = Tree(ast.parse('x = 1'), 'target')
+    pm.add(target)
+
+    assert pm.gather(inspect_module, target, target.root) == 1
+    pm.add(Tree(ast.parse('y = 2'), 'new'))
+
+    assert pm.gather(inspect_module, target, target.root) == 2
+    assert pm.gather(inspect_module, target, target.root) == 2
     assert calls == [None, None]
 
 

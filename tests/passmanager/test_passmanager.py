@@ -19,7 +19,6 @@ from libstatic.passmanager._passmanager import (
     Runner,
     Trigger,
     UnpreparedPass,
-    _HookedNotApplicable,
 )
 
 
@@ -57,8 +56,8 @@ def test_pass_context_detects_a_repeated_pass_run():
                 pass
 
 
-def test_pass_context_propagates_nested_knowledge_and_paths():
-    """Verify that nested runs raise parent knowledge and accumulate used paths."""
+def test_pass_context_accumulates_nested_used_paths():
+    """Verify that nested runs accumulate the paths used by a pass."""
 
     @analysis(on=Forest)
     def inspect_forest(connector, forest):
@@ -78,12 +77,11 @@ def test_pass_context_propagates_nested_knowledge_and_paths():
         with context._push_pass(nested):
             assert context._current_passrun == nested
 
-    assert metadata.knowledge is Level.FOREST
     assert metadata.used_paths == frozenset({outer[1], nested[1]})
 
 
-def test_pass_context_keeps_parent_knowledge_when_nested_run_is_narrower():
-    """Verify that nested lower-level runs add paths without lowering parent knowledge."""
+def test_pass_context_accumulates_paths_for_nested_runs_at_different_levels():
+    """Verify that nested runs at different levels contribute their paths."""
 
     @analysis(on=Forest)
     def inspect_forest(connector, forest):
@@ -103,7 +101,6 @@ def test_pass_context_keeps_parent_knowledge_when_nested_run_is_narrower():
         with context._push_pass(nested):
             pass
 
-    assert metadata.knowledge is Level.FOREST
     assert metadata.used_paths == frozenset({outer[1], nested[1]})
 
 
@@ -120,7 +117,7 @@ def test_pass_context_rejects_a_confused_debug_stack():
     context = PassContext()
     pushed = context._push_pass(first)
     pushed.__enter__()
-    context._metadata_stack[second] = (Level.NODE, {second[1]})
+    context._metadata_stack[second] = {second[1]}
 
     with pytest.raises(RuntimeError, match='pass context is confused'):
         pushed.__exit__(None, None, None)
@@ -914,13 +911,12 @@ def test_plugin_registration_rejects_existing_manager_attribute():
 
 def test_hooks_cast_enum_names_to_selectors():
     """Verify that hook selector names normalize to their declared enum values."""
-    selectors = Hooks._cast_string_values('COMPLETED', 'ANALYSIS', 'TREE', 'FOREST')
+    selectors = Hooks._cast_string_values('COMPLETED', 'ANALYSIS', 'TREE')
 
     assert selectors == (
         Trigger.COMPLETED,
         PassKind.ANALYSIS,
         Level.TREE,
-        Level.FOREST,
     )
 
 
@@ -930,24 +926,21 @@ def test_hooks_cast_enum_and_integer_selectors():
         Trigger.PREPARED,
         PassKind.TRANSFORMATION,
         Level.NODE,
-        _HookedNotApplicable.NA,
     )
 
     assert selectors == (
         Trigger.PREPARED,
         PassKind.TRANSFORMATION,
         Level.NODE,
-        _HookedNotApplicable.NA,
     )
 
 
 @pytest.mark.parametrize(
     'selectors',
     [
-        ('invalid', 'analysis', 'tree', 'tree'),
-        ('completed', 'invalid', 'tree', 'tree'),
-        ('completed', 'analysis', 'invalid', 'tree'),
-        ('completed', 'analysis', 'tree', 'invalid'),
+        ('invalid', 'analysis', 'tree'),
+        ('completed', 'invalid', 'tree'),
+        ('completed', 'analysis', 'invalid'),
     ],
 )
 def test_hooks_reject_unknown_selector_names(selectors):
@@ -956,43 +949,8 @@ def test_hooks_reject_unknown_selector_names(selectors):
         Hooks._cast_string_values(*selectors)
 
 
-def test_hooks_require_na_knowledge_before_pass_execution():
-    """Verify that pre-execution hooks cannot specify a knowledge level."""
-    with pytest.raises(TypeError):
-        Hooks().install(
-            lambda obj: None,
-            when='prepared',
-            kind='analysis',
-            level='node',
-            knowledge='node',
-        )
-
-
-def test_hooks_require_knowledge_for_completed_execution():
-    """Verify that completed hooks must declare a knowledge level."""
-    with pytest.raises(TypeError):
-        Hooks().install(
-            lambda obj: None,
-            when='completed',
-            kind='analysis',
-            level='node',
-        )
-
-
-def test_hooks_reject_knowledge_below_pass_level():
-    """Verify that a hook cannot request less knowledge than its pass level."""
-    with pytest.raises(ValueError):
-        Hooks().install(
-            lambda obj: None,
-            when='completed',
-            kind='analysis',
-            level='tree',
-            knowledge='node',
-        )
-
-
 def test_hooks_wildcards_register_all_selector_combinations():
-    """Verify that all wildcards expand across pass kinds, levels, and knowledge levels."""
+    """Verify that wildcards expand across pass kinds and execution levels."""
     hooks = Hooks()
     callback = lambda obj: None
 
@@ -1001,22 +959,20 @@ def test_hooks_wildcards_register_all_selector_combinations():
         when='completed',
         kind='all',
         level='all',
-        knowledge='all',
     )
 
     registered = [
         hook
         for kind in PassKind
         for level in Level
-        for knowledge in Level
-        for hook in hooks.get(Trigger.COMPLETED, kind, level, knowledge)
+        for hook in hooks.get(Trigger.COMPLETED, kind, level)
     ]
-    assert len(registered) == len(PassKind) * len(Level) * len(Level)
+    assert len(registered) == len(PassKind) * len(Level)
     assert all(hook is callback for hook in registered)
 
 
 def test_hooks_get_returns_hooks_for_exact_selectors():
-    """Verify that hook lookup matches the trigger, kind, level, and knowledge selectors."""
+    """Verify that hook lookup matches the trigger, kind, and execution level."""
     hooks = Hooks()
     callback = lambda obj: None
     hooks.install(
@@ -1024,7 +980,6 @@ def test_hooks_get_returns_hooks_for_exact_selectors():
         when=Trigger.COMPLETED,
         kind=PassKind.ANALYSIS,
         level=Level.TREE,
-        knowledge=Level.FOREST,
     )
 
     assert list(
@@ -1032,7 +987,6 @@ def test_hooks_get_returns_hooks_for_exact_selectors():
             Trigger.COMPLETED,
             PassKind.ANALYSIS,
             Level.TREE,
-            Level.FOREST,
         )
     ) == [callback]
 
@@ -1046,15 +1000,13 @@ def test_hooks_uninstall_removes_all_registrations_for_callback():
         when='completed',
         kind='all',
         level='tree',
-        knowledge='all',
     )
 
     hooks.uninstall(callback)
 
     assert all(
-        not list(hooks.get(Trigger.COMPLETED, kind, Level.TREE, knowledge))
+        not list(hooks.get(Trigger.COMPLETED, kind, Level.TREE))
         for kind in PassKind
-        for knowledge in Level
     )
 
 
@@ -1113,8 +1065,8 @@ def test_runner_hook_chain_uses_replacement_object():
     assert replacements
 
 
-def test_runner_completed_hook_receives_knowledge_from_metadata():
-    """Verify that completed hooks are selected using the run's accumulated knowledge."""
+def test_runner_completed_hook_receives_result_by_execution_level():
+    """Verify that completed hooks run for the pass's declared execution level."""
 
     @analysis(on=Forest)
     def inspect_forest(connector, forest):
@@ -1123,13 +1075,24 @@ def test_runner_completed_hook_receives_knowledge_from_metadata():
     pm = PassManager()
     seen = []
     pm.hooks.install(
-        lambda completed: seen.append(completed.meta.knowledge),
+        lambda completed: seen.append(completed.meta.used_paths),
         when='completed',
         kind='analysis',
         level='forest',
-        knowledge='forest',
     )
 
-    pm.run(inspect_forest)
+    completed = pm.run(inspect_forest)
 
-    assert seen == [Level.FOREST]
+    assert seen == [frozenset({completed.pointer})]
+
+
+def test_analysis_results_are_complete_by_default():
+    """Verify that analysis results remain complete unless changed by a future API."""
+
+    @analysis(on=Forest)
+    def inspect_forest(connector, forest):
+        return {'result': len(forest)}
+
+    completed = PassManager().run(inspect_forest)
+
+    assert completed.attributes['complete'] is True

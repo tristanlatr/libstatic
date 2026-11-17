@@ -44,10 +44,7 @@ module when it's declared as a pass dependency. A move that cannot be done with 
 Modules are the only thing we can be relatively sure they are what the AST says they are. But even there, with the beauty of Python, one can dynamically set `sys.modules['something']` to an arbitrary object. Like the [klein.resource](https://github.com/twisted/klein/blob/23.12.0/src/klein/resource.py) module which is implemented as an instance.
 
 
-- When a module is added to the system, the inter-modules analyses not marked as "complete" will be cleared from the cache. 
-  This optimization allows for an analysis result to return best-effort results when information is missing in the system and later get the complete result after the required module is added to the system. 
-
-- When a module is removed, all inter-modules analyses are cleared no matter their completeness. 
+- Analysis results are complete by default and record the forest and tree paths used by their execution and nested dependencies. Cache snapshots track a forest-only path's membership revision and each used tree's content revision independently. Adding or removing a tree invalidates results that used the forest path, but not results that depend only on specific unchanged trees. Incomplete results also track forest membership, so adding a tree invalidates them even when their execution used only a specific tree or node.
 
 
 (note)

@@ -4,7 +4,6 @@ Core of the machinery.
 from __future__ import annotations
 
 import abc
-from collections.abc import Set
 from contextlib import contextmanager
 from enum import IntEnum
 from functools import partial
@@ -17,8 +16,8 @@ from typing import (
     Iterable,
     Iterator,
     Any,
-    Literal,
     Mapping,
+    NotRequired,
     Protocol,
     TypeVar,
     TypedDict,
@@ -65,29 +64,24 @@ class PassRunMeta:
     Encapsulate the data passed arround in between the context and the runner.
     """
 
-    __slots__ = ("knowledge", "used_paths")
+    __slots__ = ("used_paths",)
 
     def __init__(self) -> None:
-        self.knowledge: Level | Literal[0] = 0
-        self.used_paths: Set[_ElementPath] = set()
+        self.used_paths: frozenset[_ElementPath] = frozenset()
 
 
 class PassContext:
     """
     Class that does the book-keeping of the chains of passes runs.
 
-    The context tracks which pass requires what "knowledge".
-    This concept is closely related to the "pass level" concept in the sens that
-    the knowledge can only be one of these three values: forest, tree or node.
+    The context tracks the paths used by each pass and its dependencies.
     """
 
     __slots__ = ("_metadata_stack",)
 
-    # maintains a "stack" of running passes and on which element
-    # the stack is implemented as dict because it stores the knowledge
-    # level of the pass run as well.
-    def __init__(self) -> None:                    # knownledge, used_paths
-        self._metadata_stack: dict[_PassRun, tuple[Level, set[_ElementPath]]] = {}
+    # Maintains a stack of running passes and the paths used by each pass.
+    def __init__(self) -> None:
+        self._metadata_stack: dict[_PassRun, set[_ElementPath]] = {}
 
     @property
     def _current_passrun(self) -> _PassRun:
@@ -111,15 +105,10 @@ class PassContext:
             # use another pass instead to break the cycle.
             raise RuntimeError(f"cycle detected with pass: {passrun}")
 
-        self._metadata_stack[passrun] = (passe.proto.runs_on, set([epath]))
+        self._metadata_stack[passrun] = {epath}
 
-        # TODO (pahse-two) (Not clear): Might be interesting to optimize the transformations:
-        # Yield a context tracker that is able to say which knowledge
-        # the pass accessed as well as the complete list of dependent trees
-        # in the case of a forest knowledge analysis.
-        # We can do this safely only if no direct access to the forest is done
-        # from within the pass. We can do this  by calling gather with a different 
-        # tree identifier but the pass should never directly read the content of the Forest.
+        # Nested runs contribute their used paths to this pass's metadata.
+        # Direct forest reads are represented by a forest-only path.
         meta = PassRunMeta()
 
         try:
@@ -134,26 +123,16 @@ class PassContext:
                     raise RuntimeError(f"pass context is confused: {e} is not {passrun}")
                 del e
 
-            # pop element from "stack" and record knowledge level in 'meta'.
-            pass_run_metadata = self._metadata_stack[passrun]
+            # Pop the pass and record all paths used by it and its dependencies.
+            used_paths = self._metadata_stack[passrun]
             del self._metadata_stack[passrun]
 
-            meta.knowledge, meta.used_paths = pass_run_metadata[0], frozenset(pass_run_metadata[1])
-            # so at this point pass_run_metadata[0] contains the maximum
-            # runs_on level of the "passe"
-            # and all it's **ran** dependencies.
+            meta.used_paths = frozenset(used_paths)
 
             if self._metadata_stack:
                 curr = self._current_passrun
-                # propagate the knowledge of the dependency
-                if self._metadata_stack[curr][0] < pass_run_metadata[0]:
-                    self._metadata_stack[curr] = (
-                        pass_run_metadata[0],
-                        self._metadata_stack[curr][1],
-                    )
-
                 # propagate the used paths
-                self._metadata_stack[curr][1].update(pass_run_metadata[1])
+                self._metadata_stack[curr].update(used_paths)
 
 @attrs.frozen(slots=True)
 class UnpreparedPass:
@@ -197,7 +176,7 @@ class CompletedPass:
     # Optionals
     attributes: Mapping[str, Any]
     """
-    Including completeness, preserved, etc...
+    Including complete status, preserved analyses, etc.
     """
 
 @attrs.frozen(slots=True)
@@ -275,6 +254,7 @@ class AnalysisReturnMap(TypedDict):
     returned from a B{analysis} function.
     """
     result: Any
+    complete: NotRequired[bool]
 
 class TransformationReturnMap(TypedDict):
     """
@@ -548,12 +528,11 @@ class Runner(abc.ABC, Generic[_Trdict]):
         hooks: Hooks, 
         obj: THookObj, 
         when: Trigger,
-        knowledge: Level | _HookedNotApplicable,
         ) -> THookObj:
         # TODO (phase-two): Like in requests.Request object, the Pass themselve might want to carry over some
         # hooks, so this method will need to adjust.
 
-        for h in hooks.get(when, obj.passe.proto.kind, obj.passe.proto.runs_on, knowledge):
+        for h in hooks.get(when, obj.passe.proto.kind, obj.passe.proto.runs_on):
             obj = h(obj) or obj
         return obj
 
@@ -562,8 +541,7 @@ class Runner(abc.ABC, Generic[_Trdict]):
             unprepared = UnpreparedPass(self._passe, self._pointer, self._passmanager, 
                                         run_options=self._options)
             unprepared = self._apply_hooks(self._passmanager.hooks, 
-                                           unprepared, when=Trigger.UNPREPARED, 
-                                           knowledge=_HookedNotApplicable.NA)
+                                           unprepared, when=Trigger.UNPREPARED)
             
             # UNPREPARED hooks can either return None, another UnpreparedPass instance or 
             # directly a CompletedPass instance, in which case the instance is returned as-is.
@@ -574,8 +552,7 @@ class Runner(abc.ABC, Generic[_Trdict]):
             
             prepared: PreparedPass = self.prepare(unprepared)
             prepared = self._apply_hooks(self._passmanager.hooks, 
-                                         prepared, when=Trigger.PREPARED, 
-                                         knowledge=_HookedNotApplicable.NA)
+                                         prepared, when=Trigger.PREPARED)
             
             try:
                 rdict = self.do_pass(prepared)
@@ -585,8 +562,7 @@ class Runner(abc.ABC, Generic[_Trdict]):
                                     run_options=prepared.run_options,
                                     failure=failure)
                 maybe_failed = self._apply_hooks(self._passmanager.hooks,
-                                                 failed, when=Trigger.FAILED,
-                    knowledge=_HookedNotApplicable.NA)
+                                                 failed, when=Trigger.FAILED)
                 # FAILED hooks can either return None, another FailedPass instance or 
                 # a CompletedPass instance, in which case the instance is returned as-is
                 # (skipping completed passes hooks!).
@@ -598,8 +574,7 @@ class Runner(abc.ABC, Generic[_Trdict]):
 
         result: CompletedPass = self.make_completed_pass(rdict, meta, prepared)
         result = self._apply_hooks(self._passmanager.hooks,
-                                   result, when=Trigger.COMPLETED, 
-                                   knowledge=Level(result.meta.knowledge))
+                                   result, when=Trigger.COMPLETED)
         # TODO (phase-one) Move this to caching.py inside an completed pass hook that 
         # increase the revision of the tree that transformation changed somthing if applicable.
         # self.maintain_cache(result)
@@ -617,11 +592,8 @@ class AnalysisRunner(Runner[AnalysisReturnMap]):
     def make_completed_pass(self, rdict: AnalysisReturnMap, 
                             meta: PassRunMeta, 
                             prepared: PreparedPass) -> CompletedPass:
-        # by default all forest knowledge analyses are incomplete and other are complete.
-        # TODO (phase-one): We currently do not validate if a tree or 
-        #   node analysis is ever marked as incomplete.
-        #   in which case that would be an error of the developers.
-        # 
+        # By default all analyses are complete. 
+        rdict.setdefault("complete", True)
         return CompletedPass(
             self._passe,
             self._pointer,
@@ -631,7 +603,7 @@ class AnalysisRunner(Runner[AnalysisReturnMap]):
             meta=meta,
             result=rdict.pop("result"), # type: ignore
             update=False,
-            attributes=rdict # the completeness is stored here
+            attributes=rdict
         )
 
 @attrs.frozen(slots=True)
@@ -733,7 +705,7 @@ class PassManager:
         return self.run(analysis, *element, **kwargs).result
 
     # One of the design priciples that governs the usage of the run() and friends methods
-    # is that for a given node, the passmanger has no direct knowledge of which tree
+    # is that for a given node, the passmanger cannot identify which tree
     # this node lives in. This is why in order to run a NODE analysis on anything else than the root
     # node of a tree, users of the library need to pass (at least) the tree identifer as 
     # the second argument AND the actual node instance as the third.
@@ -926,7 +898,6 @@ parameters are:
     - when: 'unprepared' or 'prepared' or 'completed'
     - kind: 'analysis' or 'transformation'
     - level:  'node', 'tree' or 'forest'
-    - knowledge: 'node',  'tree',  'forest' - only for 'completed' hooks.
 """
 
 class IPluginRegistrar(Protocol):
@@ -972,18 +943,10 @@ class Trigger(IntEnum):
 class _HookedAll(IntEnum):
     # for Hooks.install() method
     ALL = 99
-class _HookedNotApplicable(IntEnum):
-    # for Hooks.install() method
-    NA = 0
 
 
-def _upper_if_string(v: object):
-    if isinstance(v, str):
-        return v.upper()
-    return v
-
-def _hooks_indexer() -> Indexer[tuple[Hook[Any], int, int, int, int]]:
-    return Indexer(['hook', 'when', 'kind', 'level', 'knowledge'])
+def _hooks_indexer() -> Indexer[tuple[Hook[Any], int, int, int]]:
+    return Indexer(['hook', 'when', 'kind', 'level'])
 
 @attrs.frozen(slots=True)
 class Hooks:
@@ -993,28 +956,27 @@ class Hooks:
     
     >>> my_cb = lambda o: print(o)
     >>> h = Hooks()
-    >>> h.install(my_cb, when='after', kind='analysis', 
-    ... level='tree', knowledge='all')
-    >>> cbs = h.get(_AFTER, _ANALYSIS, _TREE, _TREE)
+    >>> h.install(my_cb, when='completed', kind='analysis', level='tree')
+    >>> cbs = list(h.get(Trigger.COMPLETED, PassKind.ANALYSIS, Level.TREE))
     >>> len(cbs)
     1
     >>> cbs[0](2)
     2
     """
 
-    _hooks: Indexer[tuple[Hook[Any], int, int, int, int]] = attrs.field(factory=_hooks_indexer)
+    _hooks: Indexer[tuple[Hook[Any], int, int, int]] = attrs.field(factory=_hooks_indexer)
 
     @staticmethod
-    def _cast_string_values(when: str | Trigger, 
-                kind: str | PassKind | _HookedAll, 
-                level: str | Level | _HookedAll, 
-                knowledge: str | Level | _HookedAll | _HookedNotApplicable) -> tuple[Trigger, 
-                                               PassKind|_HookedAll, 
-                                               Level|_HookedAll, 
-                                               Level|_HookedAll|_HookedNotApplicable]:
+    def _cast_string_values(
+        when: str | Trigger,
+        kind: str | PassKind | _HookedAll,
+        level: str | Level | _HookedAll,
+    ) -> tuple[Trigger, PassKind | _HookedAll, Level | _HookedAll]:
         # Cast everything to instances of integers.
 
         def _cast(v: str | int, maps: Iterable[type[IntEnum]]) -> Any:
+            if isinstance(v, str):
+                v = v.upper()
             if isinstance(v, int):
                 return v
             for m in maps:
@@ -1025,60 +987,39 @@ class Hooks:
         return (
             _cast(when, [Trigger]), 
             _cast(kind, [PassKind, _HookedAll]),
-            _cast(level, [Level, _HookedAll]), 
-            _cast(knowledge, [_HookedNotApplicable, Level, _HookedAll])
+            _cast(level, [Level, _HookedAll])
         )
         
     def install(self, hook: Hook[Any], *,
         when: str | Trigger,
         kind: str | PassKind | _HookedAll,
         level: str | Level | _HookedAll,
-        knowledge: str | Level | _HookedAll | _HookedNotApplicable = _HookedNotApplicable.NA, 
                 ) -> None:  
         """
         Add a hook to the system.
 
-        - If a hook is not COMPLETED, then knowledge must be NA.
-        - If it is COMPLETED, then knowledge must be a level (node, tree, forest, or ALL)
+        Hooks are selected by trigger, pass kind, and execution level.
         """
         # TODO: Use a priority-based order to apply hooks like we do for pydoctor's post-processing.
         # indtroduce the parameter priority. 
 
-        when, kind, level, knowledge = self._cast_string_values(
-            *map(_upper_if_string, [when, kind, level, knowledge]))
-
-        # NA must always be used when the hooks runs before the pass, so validate that
-        # the only trigger that run after the pass run is the COMPLETED.
-        # TODO: Write nice error messages.
-        if when != Trigger.COMPLETED: 
-            if knowledge != _HookedNotApplicable.NA: 
-                raise TypeError
-        elif knowledge == _HookedNotApplicable.NA: 
-            raise TypeError
-
-        # Some combinaison of level/knowledge makes no sens: 
-        # when an applicable 'knowledge' is lower than the 'level'.
-        if knowledge != _HookedNotApplicable.NA and knowledge < level:
-            raise ValueError
+        when, kind, level = self._cast_string_values(when, kind, level)
 
         kinds = list(PassKind) if kind == _HookedAll.ALL else [kind]
         levels = list(Level) if level == _HookedAll.ALL else [level]
-        knowledges = list(Level) if knowledge == _HookedAll.ALL else [knowledge]
         
-        for combo in product(kinds, levels, knowledges):
+        for combo in product(kinds, levels):
             self._hooks.add((hook, when, *combo))
 
     def get(self, 
         when: Trigger,
         kind: PassKind,
         level: Level,
-        knowledge: Level | _HookedNotApplicable = _HookedNotApplicable.NA, 
                 ) -> Iterable[Hook[Any]]:
         # This method doesn't support passing string values like install() for performance reason.
         return (k[0] for k in self._hooks.search(when=when, 
                                                  kind=kind, 
-                                                 level=level, 
-                                                 knowledge=knowledge))
+                                                 level=level))
 
     def uninstall(self, hook: Hook[Any]) -> None:
         hooks = self._hooks
