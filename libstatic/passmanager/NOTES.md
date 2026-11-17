@@ -25,13 +25,13 @@ Why particular design decisions were made.
   the dependant modules should also be adjusted with an applicable transformation until no other modules are affected. 
 
 - A transformation can mark an analysis as preserved and manually update the resulting datastructure so it doesn't have to be re-run. 
-  The built-in ``PassManagerCaching`` plugin caches analyses only; transformations always run because they may update other analysis data structures.
+  The built-in ``PassManagerCache`` plugin caches analyses only; transformations always run because they may update other analysis data structures.
   When a transformation reports ``update=True``, it advances the relevant revision and invalidates affected analyses unless they are declared preserved.
   Cache-only analysis requests raise ``CacheMissError`` when no current or preserved result is available.
   The only forest-level transformations currently provided are the built-in tree addition and removal operations.
   They change membership only, so they advance the forest revision without touching each tree's revision.
-  The cache rejects any other forest-wide transformation with ``TypeError`` unless its prototype explicitly sets ``_cache_membership_only=True``; this check happens before the transformation body runs.
-  Transformation hooks do not purge the cache; call ``PassManager.cache.cache.purge()`` explicitly when reclaiming stale entries is desired.
+  The cache rejects any other forest-wide transformation with ``TypeError`` unless its prototype explicitly sets ``_builtin_forest_transformation=True``; this check happens before the transformation body runs.
+  Transformation hooks do not purge the cache; call ``PassManager.cache.purge()`` explicitly when reclaiming stale entries is desired.
   
 - The pass manager implementation is not coupled to any particular tree type, meaning you can use the it with trees generated
   by the [parso](https://parso.readthedocs.io/en/latest/index.html) library; given the fact that the pass manager is provided with the compatible strategy. Nevertheless, implementation of included 

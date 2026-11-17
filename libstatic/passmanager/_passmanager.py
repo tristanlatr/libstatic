@@ -846,7 +846,7 @@ class PassManager:
 
 # These are currently the only forest-level transformations. They change
 # membership only, so the cache can advance the forest revision without walking trees.
-@transformation(on=Forest, _cache_membership_only=True)
+@transformation(on=Forest, _builtin_forest_transformation=True)
 def _add_tree(_: Connector, forest: Forest, *, 
                tree: Tree) -> Iterator[tuple[str, Any]]:
     """
@@ -859,7 +859,7 @@ def _add_tree(_: Connector, forest: Forest, *,
     yield "update", True
 
 
-@transformation(on=Forest, _cache_membership_only=True)
+@transformation(on=Forest, _builtin_forest_transformation=True)
 def _remove_tree(_: Connector, forest: Forest, *, 
                   tree: Tree | RootNode | str) -> Iterator[tuple[str, Any]]:
     """
@@ -903,6 +903,7 @@ parameters are:
 class IPluginRegistrar(Protocol):
     hooks: Hooks
     def configure(self, passe: PassLike, name: str) -> None: ...
+    def get_passe(self, name: str) -> PassLike: ...
 
 class IPluginFactory(Protocol):
     def __call__(self) -> IPlugin: ...

@@ -1,7 +1,7 @@
 from ._model import Tree, Forest
 from ._passmanager import PassManager, Connector
 from ._passe import analysis, transformation
-from ._caching import CacheMissError, PassManagerCaching, RevisionTracker
+from ._caching import CacheMissError, PassManagerCache
 
 __all__ = [
     'Tree',
@@ -11,5 +11,5 @@ __all__ = [
     'analysis',
     'transformation',
     'CacheMissError',
-    'PassManagerCaching'
+    'PassManagerCache'
     ]

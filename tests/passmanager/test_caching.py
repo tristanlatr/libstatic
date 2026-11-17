@@ -7,11 +7,10 @@ import pytest
 
 from libstatic.passmanager._caching import (
     CacheMissError,
-    PassManagerCaching,
     PassManagerCache,
     PassPattern,
     PreservedAnalyses,
-    RevisonTracker,
+    RevisionTracker,
 )
 from libstatic.passmanager._model import Forest, Level, Tree
 from libstatic.passmanager._passe import analysis, transformation
@@ -19,8 +18,7 @@ from libstatic.passmanager._passmanager import PassManager
 
 
 def _cache():
-    tracker = RevisonTracker()
-    return PassManagerCache(tracker, {}, {}, {})
+    return PassManagerCache()
 
 
 def _analysis_pass():
@@ -293,7 +291,7 @@ def test_cache_evicts_a_result_after_an_unpreserved_revision():
     completed = _completed()
     cache = _cache()
     cache.set(completed)
-    cache.tracker.increment_rev(None)
+    cache.tracker.increment_forest_rev()
 
     assert cache.get((completed.passe, completed.pointer, {})) is None
 
@@ -336,7 +334,7 @@ def test_cache_retains_a_result_preserved_across_forest_revision():
     completed = _completed()
     cache = _cache()
     cache.set(completed)
-    cache.tracker.increment_rev(None)
+    cache.tracker.increment_forest_rev()
     cache.results_preservation[None] = {
         1: PreservedAnalyses(lambda name: completed.passe.proto, [completed.passe])
     }
@@ -350,7 +348,7 @@ def test_cache_retains_a_tree_result_preserved_across_tree_revision():
     tree = completed.pointer[1]
     cache = _cache()
     cache.set(completed)
-    cache.tracker.increment_rev(tree)
+    cache.tracker.increment_tree_rev(tree)
     preserved = PreservedAnalyses(lambda name: completed.passe.proto, [completed.passe])
     cache.results_preservation[None] = {
         1: preserved,
@@ -368,7 +366,7 @@ def test_cache_updates_preserved_result_revision_after_lookup():
     cache = _cache()
     cache.set(completed)
     key = next(iter(cache.results_store))
-    cache.tracker.increment_rev(None)
+    cache.tracker.increment_forest_rev()
     cache.results_preservation[None] = {
         1: PreservedAnalyses(lambda name: completed.passe.proto, [completed.passe])
     }
@@ -382,8 +380,8 @@ def test_cache_evicts_result_when_one_of_multiple_revisions_is_not_preserved():
     completed = _completed()
     cache = _cache()
     cache.set(completed)
-    cache.tracker.increment_rev(None)
-    cache.tracker.increment_rev(None)
+    cache.tracker.increment_forest_rev()
+    cache.tracker.increment_forest_rev()
     cache.results_preservation[None] = {
         1: PreservedAnalyses(lambda name: completed.passe.proto, [completed.passe]),
     }
@@ -396,7 +394,7 @@ def test_cache_purge_removes_stale_results():
     completed = _completed()
     cache = _cache()
     cache.set(completed)
-    cache.tracker.increment_rev(None)
+    cache.tracker.increment_forest_rev()
 
     cache.purge()
 
@@ -414,7 +412,7 @@ def test_cache_purge_keeps_only_forest_analyses_preserved_at_a_revision():
     cache = _cache()
     cache.set(first)
     cache.set(second)
-    cache.tracker.increment_rev(None)
+    cache.tracker.increment_forest_rev()
     cache.preserve(
         None, 1, [first.passe.proto], lambda name: first.passe.proto
     )
@@ -436,12 +434,12 @@ def test_cache_purge_keeps_forest_results_preserved_across_each_revision():
     )
     cache = _cache()
     cache.set(first)
-    cache.tracker.increment_rev(None)
+    cache.tracker.increment_forest_rev()
     cache.preserve(
         None, 1, [first.passe.proto], lambda name: first.passe.proto
     )
     cache.set(second)
-    cache.tracker.increment_rev(None)
+    cache.tracker.increment_forest_rev()
     cache.preserve(
         None, 2, [first.passe.proto], lambda name: first.passe.proto
     )
@@ -599,31 +597,31 @@ def test_cache_length_reports_stored_results():
 
 def test_revision_tracker_starts_at_zero_and_increments_forest_revision():
     """Verify that forest revisions begin at zero and increment independently."""
-    tracker = RevisonTracker()
+    tracker = RevisionTracker()
 
     assert tracker.rev(None) == (0, 0)
-    tracker.increment_rev(None)
+    tracker.increment_forest_rev()
     assert tracker.rev(None) == (1, 0)
 
 
 def test_revision_tracker_increments_forest_and_tree_revisions():
     """Verify that changing a tree increments both its local and the forest revision."""
-    tracker = RevisonTracker()
+    tracker = RevisionTracker()
     tree = Tree(ast.parse('x = 1'), 'mod')
 
     assert tracker.rev(tree) == (0, 0)
-    tracker.increment_rev(tree)
+    tracker.increment_tree_rev(tree)
 
     assert tracker.rev(tree) == (1, 1)
 
 
 def test_revision_tracker_tracks_distinct_trees_independently():
     """Verify that a tree edit does not increment another tree's local revision."""
-    tracker = RevisonTracker()
+    tracker = RevisionTracker()
     first = Tree(ast.parse('x = 1'), 'first')
     second = Tree(ast.parse('y = 2'), 'second')
 
-    tracker.increment_rev(first)
+    tracker.increment_tree_rev(first)
 
     assert tracker.rev(first) == (1, 1)
     assert tracker.rev(second) == (1, 0)
@@ -640,7 +638,7 @@ def test_revision_tracker_accepts_weak_references_to_trees():
 
 def test_revision_tracker_can_increment_only_the_forest():
     """Verify that structural forest edits can advance without changing local tree revisions."""
-    tracker = RevisonTracker()
+    tracker = RevisionTracker()
     tree = Tree(ast.parse('x = 1'), 'mod')
 
     tracker.increment_forest_rev()
@@ -651,13 +649,13 @@ def test_revision_tracker_can_increment_only_the_forest():
 
 def test_revision_tracker_can_increment_only_a_tree():
     """Verify that a forest-wide revision can remain stable while one tree changes."""
-    tracker = RevisonTracker()
+    tracker = RevisionTracker()
     tree = Tree(ast.parse('x = 1'), 'mod')
 
     tracker.increment_tree_rev(tree)
 
-    assert tracker.rev(None) == (0, 0)
-    assert tracker.rev(tree) == (0, 1)
+    assert tracker.rev(None) == (1, 0)
+    assert tracker.rev(tree) == (1, 1)
 
 
 def test_revision_tracker_drops_collected_tree_revisions():
@@ -665,9 +663,9 @@ def test_revision_tracker_drops_collected_tree_revisions():
     import gc
     import weakref
 
-    tracker = RevisonTracker()
+    tracker = RevisionTracker()
     tree = Tree(ast.parse('x = 1'), 'mod')
-    tracker.increment_rev(tree)
+    tracker.increment_tree_rev(tree)
     reference = weakref.ref(tree)
     del tree
     gc.collect()
@@ -685,8 +683,11 @@ def test_cache_plugin_reuses_analysis_results():
         calls.append(None)
         return {'result': len(forest)}
 
-    pm = PassManager([PassManagerCaching])
+    pm = PassManager([PassManagerCache])
 
+    completed = pm.run(inspect_forest)
+
+    assert pm.cache.get((completed.passe, completed.pointer, {})) is completed
     assert pm.gather(inspect_forest) == 0
     assert pm.gather(inspect_forest) == 0
     assert calls == [None]
@@ -705,7 +706,7 @@ def test_cache_plugin_invalidates_forest_analysis_after_tree_edit():
     def change_tree(connector, tree):
         return {'update': True}
 
-    pm = PassManager([PassManagerCaching])
+    pm = PassManager([PassManagerCache])
     tree = Tree(ast.parse('x = 1'), 'mod')
     pm.add(tree)
 
@@ -729,7 +730,7 @@ def test_cache_plugin_keeps_analysis_after_noop_transformation():
     def noop(connector, tree):
         return {'update': False}
 
-    pm = PassManager([PassManagerCaching])
+    pm = PassManager([PassManagerCache])
     tree = Tree(ast.parse('x = 1'), 'mod')
     pm.add(tree)
 
@@ -749,7 +750,7 @@ def test_cache_plugin_invalidates_forest_analysis_after_tree_removal():
         calls.append(None)
         return {'result': len(forest)}
 
-    pm = PassManager([PassManagerCaching])
+    pm = PassManager([PassManagerCache])
     first = Tree(ast.parse('x = 1'), 'first')
     second = Tree(ast.parse('y = 2'), 'second')
     pm.add(first)
@@ -771,7 +772,7 @@ def test_cache_plugin_raises_on_cache_only_miss_without_running_analysis():
         calls.append(None)
         return {'result': 1}
 
-    pm = PassManager([PassManagerCaching])
+    pm = PassManager([PassManagerCache])
 
     with pytest.raises(CacheMissError, match='no valid cached result'):
         pm.gather(inspect_forest, cache_only=True)
@@ -788,7 +789,7 @@ def test_cache_plugin_serves_cache_only_hit():
         calls.append(None)
         return {'result': len(calls)}
 
-    pm = PassManager([PassManagerCaching])
+    pm = PassManager([PassManagerCache])
 
     assert pm.gather(inspect_forest) == 1
     assert pm.gather(inspect_forest, cache_only=True) == 1
@@ -804,7 +805,7 @@ def test_cache_plugin_does_not_cache_transformations():
         calls.append(None)
         return {'update': False}
 
-    pm = PassManager([PassManagerCaching])
+    pm = PassManager([PassManagerCache])
     tree = Tree(ast.parse('x = 1'), 'mod')
     pm.add(tree)
 
@@ -821,7 +822,7 @@ def test_cache_plugin_rejects_cache_only_transformations():
     def transform_tree(connector, tree):
         return {'update': False}
 
-    pm = PassManager([PassManagerCaching])
+    pm = PassManager([PassManagerCache])
     tree = Tree(ast.parse('x = 1'), 'mod')
     pm.add(tree)
 
@@ -837,7 +838,7 @@ def test_cache_plugin_rejects_non_iterable_preservation_declarations(preserved):
     def transform_tree(connector, tree):
         return {'update': True, 'preserved': preserved}
 
-    pm = PassManager([PassManagerCaching])
+    pm = PassManager([PassManagerCache])
     tree = Tree(ast.parse('x = 1'), 'mod')
     pm.add(tree)
 
@@ -852,37 +853,12 @@ def test_cache_plugin_reports_unknown_preserved_aliases():
     def transform_tree(connector, tree):
         return {'update': True, 'preserved': ('unknown-analysis',)}
 
-    pm = PassManager([PassManagerCaching])
+    pm = PassManager([PassManagerCache])
     tree = Tree(ast.parse('x = 1'), 'mod')
     pm.add(tree)
 
     with pytest.raises(TypeError, match='invalid preserved analyses declaration'):
         pm.apply(transform_tree, tree)
-
-
-def test_cache_plugin_handles_nonforest_transformation_without_tree_target():
-    """Verify that a missing tree target still advances the forest revision safely."""
-
-    @transformation(on=Tree)
-    def change_tree(connector, tree):
-        return {'update': True}
-
-    pm = PassManager([PassManagerCaching])
-    tree = Tree(ast.parse('x = 1'), 'mod')
-    pm.add(tree)
-    completed = pm.run(change_tree, tree)
-    pm.cache.cache.clear()
-    tree_revision = pm.cache.cache.tracker.rev(tree)[1]
-    without_tree = attrs.evolve(
-        completed,
-        pointer=(pm.trees,),
-        attributes={},
-    )
-
-    pm.cache._after_pass(without_tree)
-
-    assert pm.cache.cache.tracker.rev(tree)[1] == tree_revision
-    assert tree not in pm.cache.cache.results_preservation
 
 
 def test_cache_plugin_separates_results_by_run_options():
@@ -894,7 +870,7 @@ def test_cache_plugin_separates_results_by_run_options():
         calls.append(None)
         return {'result': len(calls)}
 
-    pm = PassManager([PassManagerCaching])
+    pm = PassManager([PassManagerCache])
 
     assert pm.gather(inspect_forest, selector=frozenset({1})) == 1
     assert pm.gather(inspect_forest, selector=frozenset({1})) == 1
@@ -911,7 +887,7 @@ def test_cache_plugin_does_not_share_tree_analysis_results_between_trees():
         calls.append(tree.identifier)
         return {'result': tree.identifier}
 
-    pm = PassManager([PassManagerCaching])
+    pm = PassManager([PassManagerCache])
     first = Tree(ast.parse('x = 1'), 'first')
     second = Tree(ast.parse('x = 2'), 'second')
     pm.add(first)
@@ -936,13 +912,13 @@ def test_cache_plugin_invalidates_analysis_after_tree_transformation():
     def change_tree(connector, tree):
         return {'update': True}
 
-    pm = PassManager([PassManagerCaching])
+    pm = PassManager([PassManagerCache])
     tree = Tree(ast.parse('x = 1'), 'mod')
     pm.add(tree)
 
     assert pm.gather(inspect_tree, tree) == 1
     assert pm.apply(change_tree, tree) is True
-    assert len(pm.cache.cache) == 1
+    assert len(pm.cache) == 1
     assert pm.gather(inspect_tree, tree) == 2
     assert calls == [None, None]
 
@@ -957,17 +933,17 @@ def test_cache_plugin_purges_stale_results_only_when_requested():
     def change_tree(connector, tree):
         return {'update': True}
 
-    pm = PassManager([PassManagerCaching])
+    pm = PassManager([PassManagerCache])
     tree = Tree(ast.parse('x = 1'), 'mod')
     pm.add(tree)
     pm.gather(inspect_tree, tree)
     pm.apply(change_tree, tree)
 
-    assert len(pm.cache.cache) == 1
+    assert len(pm.cache) == 1
 
-    pm.cache.cache.purge()
+    pm.cache.purge()
 
-    assert len(pm.cache.cache) == 0
+    assert len(pm.cache) == 0
 
 
 def test_cache_plugin_preserves_declared_tree_analyses():
@@ -983,7 +959,7 @@ def test_cache_plugin_preserves_declared_tree_analyses():
     def change_tree(connector, tree):
         return {'update': True, 'preserved': (inspect_tree,)}
 
-    pm = PassManager([PassManagerCaching])
+    pm = PassManager([PassManagerCache])
     tree = Tree(ast.parse('x = 1'), 'mod')
     pm.add(tree)
 
@@ -1010,7 +986,7 @@ def test_cache_plugin_keeps_unrelated_tree_analysis_after_local_edit():
     def change_tree(connector, tree):
         return {'update': True}
 
-    pm = PassManager([PassManagerCaching])
+    pm = PassManager([PassManagerCache])
     first = Tree(ast.parse('x = 1'), 'first')
     second = Tree(ast.parse('x = 2'), 'second')
     pm.add(first)
@@ -1026,7 +1002,7 @@ def test_cache_plugin_keeps_unrelated_tree_analysis_after_local_edit():
 
 @pytest.mark.parametrize(
     'pass_options',
-    [{}, {'_cache_membership_only': False}, {'_cache_membership_only': 1}],
+    [{}, {'_builtin_forest_transformation': False}, {'_builtin_forest_transformation': 1}],
 )
 def test_cache_plugin_rejects_unmarked_forest_transformations_before_execution(
     pass_options,
@@ -1039,19 +1015,17 @@ def test_cache_plugin_rejects_unmarked_forest_transformations_before_execution(
         calls.append(None)
         return {'update': False}
 
-    pm = PassManager([PassManagerCaching])
+    pm = PassManager([PassManagerCache])
 
     with pytest.raises(
         TypeError,
-        match='forest-wide transformations are unsupported unless '
-        '_cache_membership_only=True',
+        match='forest-wide transformations are unsupported',
     ):
         pm.apply(change_forest)
 
     with pytest.raises(
         TypeError,
-        match='forest-wide transformations are unsupported unless '
-        '_cache_membership_only=True',
+        match='forest-wide transformations are unsupported',
     ):
         pm.apply(change_forest, cache_only=True)
 
@@ -1067,7 +1041,7 @@ def test_cache_plugin_preserves_aliases_and_parameter_patterns():
         calls.append(optional)
         return {'result': len(calls)}
 
-    pm = PassManager([PassManagerCaching])
+    pm = PassManager([PassManagerCache])
     pm.configure(inspect_tree, 'inspect')
     configured_inspect = pm.get_passe('inspect')
 
@@ -1103,12 +1077,12 @@ def test_cache_plugin_keeps_tree_results_after_adding_tree(monkeypatch):
         calls.append(None)
         return {'result': len(calls)}
 
-    pm = PassManager([PassManagerCaching])
+    pm = PassManager([PassManagerCache])
     first = Tree(ast.parse('x = 1'), 'first')
     pm.add(first)
     tree_revision_calls = []
     monkeypatch.setattr(
-        pm.cache.cache.tracker,
+        pm.cache.tracker,
         'increment_tree_rev',
         lambda tree: tree_revision_calls.append(tree),
     )
@@ -1130,7 +1104,7 @@ def test_cache_plugin_keeps_tree_results_after_removing_another_tree():
         calls.append(tree.identifier)
         return {'result': tree.identifier}
 
-    pm = PassManager([PassManagerCaching])
+    pm = PassManager([PassManagerCache])
     first = Tree(ast.parse('x = 1'), 'first')
     second = Tree(ast.parse('y = 2'), 'second')
     pm.add(first)
@@ -1161,7 +1135,7 @@ def test_cache_plugin_keeps_complete_multi_tree_result_across_unrelated_membersh
         connector.gather(inspect_dependency, 'dependency')
         return {'result': tree.identifier}
 
-    pm = PassManager([PassManagerCaching])
+    pm = PassManager([PassManagerCache])
     target = Tree(ast.parse('x = 1'), 'target')
     dependency = Tree(ast.parse('y = 2'), 'dependency')
     unrelated = Tree(ast.parse('z = 3'), 'unrelated')
@@ -1172,7 +1146,7 @@ def test_cache_plugin_keeps_complete_multi_tree_result_across_unrelated_membersh
 
     completed = pm.run(inspect_target, target)
     assert completed.attributes['complete'] is True
-    snapshot = pm.cache.cache._revision_snapshot(completed)
+    snapshot = pm.cache._revision_snapshot(completed)
     assert snapshot[0] is None
     assert {tree for tree, _ in snapshot[1]} == {target, dependency}
 
@@ -1194,7 +1168,7 @@ def test_cache_plugin_invalidates_forest_analysis_after_adding_tree():
         calls.append(None)
         return {'result': len(forest)}
 
-    pm = PassManager([PassManagerCaching])
+    pm = PassManager([PassManagerCache])
     pm.add(Tree(ast.parse('x = 1'), 'first'))
 
     assert pm.gather(count_trees) == 1
@@ -1213,7 +1187,7 @@ def test_cache_plugin_invalidates_incomplete_forest_analysis_after_adding_tree()
         calls.append(None)
         return {'result': len(forest), 'complete': False}
 
-    pm = PassManager([PassManagerCaching])
+    pm = PassManager([PassManagerCache])
     pm.add(Tree(ast.parse('x = 1'), 'first'))
 
     assert pm.gather(count_trees) == 1
@@ -1233,7 +1207,7 @@ def test_cache_plugin_invalidates_incomplete_tree_analysis_after_adding_tree():
         calls.append(tree.identifier)
         return {'result': len(calls), 'complete': False}
 
-    pm = PassManager([PassManagerCaching])
+    pm = PassManager([PassManagerCache])
     target = Tree(ast.parse('x = 1'), 'target')
     pm.add(target)
 
@@ -1254,7 +1228,7 @@ def test_cache_plugin_invalidates_incomplete_node_analysis_after_adding_tree():
         calls.append(None)
         return {'result': len(calls), 'complete': False}
 
-    pm = PassManager([PassManagerCaching])
+    pm = PassManager([PassManagerCache])
     target = Tree(ast.parse('x = 1'), 'target')
     pm.add(target)
 
@@ -1275,7 +1249,7 @@ def test_cache_plugin_does_not_cache_failed_analyses():
         calls.append(None)
         raise RuntimeError('failure')
 
-    pm = PassManager([PassManagerCaching])
+    pm = PassManager([PassManagerCache])
     for _ in range(2):
         with pytest.raises(RuntimeError, match='failure'):
             pm.gather(fail_once)
