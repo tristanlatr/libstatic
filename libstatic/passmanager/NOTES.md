@@ -24,9 +24,11 @@ Why particular design decisions were made.
   more a design restriction and might be lifted in the future). If the transformation affects the API of a module (e.g by renaming a class), 
   the dependant modules should also be adjusted with an applicable transformation until no other modules are affected. 
 
-- A transformation can mark an analysis as preserved and manually update the resulting datastructure so it doesn't have to be re-run. 
+- A transformation can return a ``preserve`` iterable to mark analyses as preserved and manually update the resulting datastructure so it doesn't have to be re-run.
+  A pass prototype or configured alias preserves cached instances of that analysis; an explicit pass instance preserves only that instance. Results for different pass instances are still cached separately.
+  ``PassPattern.like`` can preserve selected parameterized instances with predicates, including patterns declared by a configured alias.
   The built-in ``PassManagerCache`` plugin caches analyses only; transformations always run because they may update other analysis data structures.
-  When a transformation reports ``update=True``, it advances the relevant revision and invalidates affected analyses unless they are declared preserved.
+  When a transformation reports ``update=True``, it advances the relevant revision and invalidates affected cached analyses unless they are declared preserved.
   Cache-only analysis requests raise ``CacheMissError`` when no current or preserved result is available.
   The only forest-level transformations currently provided are the built-in tree addition and removal operations.
   They change membership only, so they advance the forest revision without touching each tree's revision.

@@ -108,6 +108,31 @@ def test_pattern_rejects_non_callable_predicates():
         PassPattern.like(passe, required=True)
 
 
+def test_pattern_accepts_a_pass_prototype():
+    """Verify that a pattern created from an instance matches its prototype's derivations."""
+    passe = _analysis_pass()
+    pattern = PassPattern.like(
+        passe(required='first').proto,
+        required=lambda value: value == 'second',
+    )
+
+    assert pattern.matches(passe(required='second'))
+
+
+def test_pattern_rejects_an_unsupported_pass_reference():
+    """Verify that pattern references must be prototypes, instances, or aliases."""
+    with pytest.raises(TypeError, match='expected a pass prototype or alias'):
+        PassPattern.like(object())
+
+
+def test_pattern_alias_must_be_resolved_before_matching():
+    """Verify that alias-based patterns are resolved by the pass manager before use."""
+    pattern = PassPattern.like('inspect')
+
+    with pytest.raises(ValueError, match='aliases must be resolved'):
+        pattern.matches(_analysis_pass()())
+
+
 def test_pattern_matches_declared_optional_default_values():
     """Verify that predicates are evaluated against defaults when optional arguments are absent."""
     passe = _analysis_pass()
@@ -317,6 +342,18 @@ def test_cache_evicts_entries_with_invalid_revision_metadata():
     cache.results_revision[key] = (-1, ())
 
     assert cache.get((completed.passe, completed.pointer, {})) is None
+
+
+def test_cache_evicts_entries_with_malformed_revision_metadata():
+    """Verify that a snapshot with the wrong shape is discarded safely."""
+    completed = _completed()
+    cache = _cache()
+    cache.set(completed)
+    key = next(iter(cache.results_store))
+    cache.results_revision[key] = ()
+
+    assert cache._get(key) is None
+    assert key not in cache.results_store
 
 
 def test_cache_evicts_result_when_current_revision_precedes_cached_revision():
@@ -830,19 +867,19 @@ def test_cache_plugin_rejects_cache_only_transformations():
         pm.apply(transform_tree, tree, cache_only=True)
 
 
-@pytest.mark.parametrize('preserved', [5, 'analysis', b'analysis'])
-def test_cache_plugin_rejects_non_iterable_preservation_declarations(preserved):
+@pytest.mark.parametrize('preserve', [5, 'analysis', b'analysis'])
+def test_cache_plugin_rejects_non_iterable_preservation_declarations(preserve):
     """Verify that transformations must declare preserved analyses as an iterable."""
 
     @transformation(on=Tree)
     def transform_tree(connector, tree):
-        return {'update': True, 'preserved': preserved}
+        return {'update': True, 'preserve': preserve}
 
     pm = PassManager([PassManagerCache])
     tree = Tree(ast.parse('x = 1'), 'mod')
     pm.add(tree)
 
-    with pytest.raises(TypeError, match="transformation 'preserved' must be an iterable"):
+    with pytest.raises(TypeError, match="transformation 'preserve' must be an iterable"):
         pm.apply(transform_tree, tree)
 
 
@@ -851,13 +888,13 @@ def test_cache_plugin_reports_unknown_preserved_aliases():
 
     @transformation(on=Tree)
     def transform_tree(connector, tree):
-        return {'update': True, 'preserved': ('unknown-analysis',)}
+        return {'update': True, 'preserve': ('unknown-analysis',)}
 
     pm = PassManager([PassManagerCache])
     tree = Tree(ast.parse('x = 1'), 'mod')
     pm.add(tree)
 
-    with pytest.raises(TypeError, match='invalid preserved analyses declaration'):
+    with pytest.raises(TypeError, match="invalid transformation 'preserve' declaration"):
         pm.apply(transform_tree, tree)
 
 
@@ -957,7 +994,7 @@ def test_cache_plugin_preserves_declared_tree_analyses():
 
     @transformation(on=Tree)
     def change_tree(connector, tree):
-        return {'update': True, 'preserved': (inspect_tree,)}
+        return {'update': True, 'preserve': (inspect_tree,)}
 
     pm = PassManager([PassManagerCache])
     tree = Tree(ast.parse('x = 1'), 'mod')
@@ -1032,8 +1069,42 @@ def test_cache_plugin_rejects_unmarked_forest_transformations_before_execution(
     assert calls == []
 
 
+def test_cache_plugin_preserves_and_parameter_patterns():
+    """Verify that transformation 'preserve' match their configured analysis instances."""
+    calls = []
+
+    @analysis(on=Tree)
+    def inspect_tree(connector, tree, *, optional=0):
+        calls.append(optional)
+        return {'result': len(calls)}
+
+    pm = PassManager([PassManagerCache])
+
+    @transformation(on=Tree)
+    def preserve_even(connector, tree):
+        return {
+            'update': True,
+            'preserve': (
+                PassPattern.like(
+                    inspect_tree,
+                    optional=lambda value: value % 2 == 0,
+                ),
+            ),
+        }
+
+    tree = Tree(ast.parse('x = 1'), 'mod')
+    pm.add(tree)
+
+    configured_instance = inspect_tree(optional=2)
+    assert pm.gather(configured_instance, tree) == 1
+    assert pm.apply(preserve_even, tree) is True
+    assert pm.gather(configured_instance, tree) == 1
+    assert pm.apply(preserve_even, tree) is True
+    assert pm.gather(inspect_tree(optional=3), tree) == 2
+
+
 def test_cache_plugin_preserves_aliases_and_parameter_patterns():
-    """Verify that preserved aliases and patterns match their configured analysis instances."""
+    """Verify that transformation 'preserve' match their configured analysis instances through string aliases."""
     calls = []
 
     @analysis(on=Tree)
@@ -1049,10 +1120,9 @@ def test_cache_plugin_preserves_aliases_and_parameter_patterns():
     def preserve_even(connector, tree):
         return {
             'update': True,
-            'preserved': (
-                'inspect',
+            'preserve': (
                 PassPattern.like(
-                    configured_inspect,
+                    'inspect',
                     optional=lambda value: value % 2 == 0,
                 ),
             ),
@@ -1065,8 +1135,66 @@ def test_cache_plugin_preserves_aliases_and_parameter_patterns():
     assert pm.gather(configured_instance, tree) == 1
     assert pm.apply(preserve_even, tree) is True
     assert pm.gather(configured_instance, tree) == 1
+    assert pm.apply(preserve_even, tree) is True
     assert pm.gather(configured_inspect(optional=3), tree) == 2
 
+def test_cache_plugin_preserves():
+    """Verify that transformation 'preserve' analysis instances."""
+    calls = []
+
+    @analysis(on=Tree)
+    def inspect_tree(connector, tree, *, optional=0):
+        calls.append(optional)
+        return {'result': len(calls)}
+
+    pm = PassManager([PassManagerCache])
+
+    @transformation(on=Tree)
+    def preserve_inspect(connector, tree):
+        return {
+            'update': True,
+            'preserve': (inspect_tree,)
+        }
+
+    tree = Tree(ast.parse('x = 1'), 'mod')
+    pm.add(tree)
+
+    configured_instance = inspect_tree(optional=2)
+    assert pm.gather(configured_instance, tree) == 1
+    assert pm.apply(preserve_inspect, tree) is True
+    assert pm.gather(configured_instance, tree) == 1
+    assert pm.apply(preserve_inspect, tree) is True
+    assert pm.gather(inspect_tree(optional=3), tree) == 2
+
+def test_cache_plugin_preserves_aliases():
+    """Verify that transformation 'preserve' analysis instances through string aliases."""
+    calls = []
+
+    @analysis(on=Tree)
+    def inspect_tree(connector, tree, *, optional=0):
+        calls.append(optional)
+        return {'result': len(calls)}
+
+    pm = PassManager([PassManagerCache])
+    pm.configure(inspect_tree, 'inspect')
+    configured_inspect = pm.get_passe('inspect')
+
+    @transformation(on=Tree)
+    def preserve_inspect(connector, tree):
+        return {
+            'update': True,
+            'preserve': ('inspect',)
+        }
+
+    tree = Tree(ast.parse('x = 1'), 'mod')
+    pm.add(tree)
+
+    configured_instance = configured_inspect(optional=2)
+    assert pm.gather(configured_instance, tree) == 1
+    assert pm.apply(preserve_inspect, tree) is True
+    assert pm.gather(configured_instance, tree) == 1
+    assert pm.apply(preserve_inspect, tree) is True
+    assert pm.gather(configured_inspect(optional=3), tree) == 2
 
 def test_cache_plugin_keeps_tree_results_after_adding_tree(monkeypatch):
     """Verify that adding a tree preserves existing tree analyses without tree-wide work."""

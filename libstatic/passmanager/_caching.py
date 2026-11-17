@@ -89,26 +89,47 @@ class PassPattern:
     __slots__ = "_match", "_passe"
 
     def __init__(
-        self, passe: PassPrototype, **predicate: Callable[[object], bool]
+        self,
+        passe: PassPrototype | str,
+        **predicate: Callable[[object], bool],
     ) -> None:
-        # Not all parameters are required to be given, 
-        # but all the given parameters must be known by the pass prototype.
+        if any(not callable(callback) for callback in predicate.values()):
+            raise TypeError("pass pattern predicates must be callable")
+        if isinstance(passe, PassPrototype):
+            self._validate_parameters(passe, predicate)
+        elif not isinstance(passe, str):
+            raise TypeError(
+                f"expected a pass prototype or alias; "
+                f"got {type(passe).__name__}"
+            )
+
+        self._match = predicate
+        self._passe = passe
+
+    @staticmethod
+    def _validate_parameters(
+        passe: PassPrototype, predicate: Mapping[str, Callable[[object], bool]]
+    ) -> None:
+        # Not all parameters are required to be given, but all predicates must
+        # name a parameter declared by the pass prototype.
         known_parameters = set(passe.params) | set(passe.optional_params)
         unknown_parameters = predicate.keys() - known_parameters
         if unknown_parameters:
-            # Fail at declaration time so a typo cannot silently preserve nothing.
             unknown = sorted(unknown_parameters)[0]
             raise ValueError(f"unknown pass parameter {unknown!r}")
-        if any(not callable(callback) for callback in predicate.values()):
-            raise TypeError("pass pattern predicates must be callable")
-        
-        self._match = predicate
-        self._passe = passe
+
+    def _resolve(self, get_passe: Callable[[str], PassLike]) -> PassPattern:
+        if isinstance(self._passe, str):
+            passe = get_passe(self._passe)
+            return PassPattern(passe.proto, **self._match)
+        return self
 
     def matches(self, other: object) -> bool:
         """
         Whether the given pass instance matches the pattern.
         """
+        if isinstance(self._passe, str):
+            raise ValueError("pass pattern aliases must be resolved before matching")
         if not isinstance(other, PassInstance):
             return False
         proto = other.proto
@@ -132,7 +153,11 @@ class PassPattern:
 
     # Method to create a pattern from this pass.
     @classmethod
-    def like(cls, passe: PassPrototype,  **predicate: Callable[[object], bool]) -> PassPattern:
+    def like(
+        cls,
+        passe: PassPrototype | str,
+        **predicate: Callable[[object], bool],
+    ) -> PassPattern:
         """
         Create a pattern representing several possible derivations of
         the pass to be matched against other passes.
@@ -153,7 +178,7 @@ class PreservedAnalyses:
 
     def __init__(self, get_passe: Callable[[str], PassLike], 
                  analyses: Iterable[PassPattern | PassLike | str] = ()):
-        self.__passes: set[PassInstance] = set()
+        self.__passes: set[PassLike] = set()
 
         # In order to to avoid linear time complexity based on the whole list
         # of patterns, we index the patterns based on the "pass prototype"
@@ -165,14 +190,16 @@ class PreservedAnalyses:
     
     def add(self, pass_or_pattern: PassLike | PassPattern | str) -> None:
         if isinstance(pass_or_pattern, PassPrototype):
-            self.__passes.add(pass_or_pattern())
+            self.__passes.add(pass_or_pattern)
         elif isinstance(pass_or_pattern, PassInstance):
             self.__passes.add(pass_or_pattern)
         elif isinstance(pass_or_pattern, str):
             self.add(self.__get_passe(pass_or_pattern))
         elif isinstance(pass_or_pattern, PassPattern):
-            proto = pass_or_pattern._passe
-            self.__patterns.setdefault(proto, []).append(pass_or_pattern)
+            pattern = pass_or_pattern._resolve(self.__get_passe)
+            proto = pattern._passe
+            assert isinstance(proto, PassPrototype)
+            self.__patterns.setdefault(proto, []).append(pattern)
         else:
             raise TypeError(
                 f"expected a pass prototype, pass instance, alias, or pattern; "
@@ -186,7 +213,10 @@ class PreservedAnalyses:
     # for someting without any usage at the moment.
     
     def __contains__(self, other: PassInstance) -> bool:
-        return (other in self.__passes) or (
+        return (
+            other in self.__passes
+            or other.proto in self.__passes
+        ) or (
                 (p:=other.proto) in self.__patterns 
                 and other in self.__patterns[p])
 
@@ -512,16 +542,16 @@ class PassManagerCache:
             # may depend on the edited tree.
             assert tree is not None, "unsupported transformation"
             self.tracker.increment_tree_rev(tree)
-        preserved = completed.attributes.get("preserved", ())
+        preserved = completed.attributes.get("preserve", ())
         if not isinstance(preserved, Iterable) or isinstance(preserved, (str, bytes)):
-            raise TypeError("transformation 'preserved' must be an iterable")
+            raise TypeError("transformation 'preserve' must be an iterable")
         try:
             analyses = tuple(preserved)
             preserved_set = PreservedAnalyses(
                 self._get_passe, analyses
             )
         except (TypeError, ValueError, KeyError) as error:
-            raise TypeError(f"invalid preserved analyses declaration: {error}") from error
+            raise TypeError(f"invalid transformation 'preserve' declaration: {error}") from error
 
         # Store history at each affected scope so lookups validate only the
         # forest or trees relevant to the cached analysis.
