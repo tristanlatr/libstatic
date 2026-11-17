@@ -3,6 +3,7 @@ Declares the passe objects and related tools.
 """
 from __future__ import annotations
 
+import sys
 from functools import partial
 from inspect import signature, Parameter
 from itertools import chain
@@ -388,10 +389,34 @@ def new_pass_prototype(
 def _pass_decorator(**kwargs: Any) -> Callable[[Callable], PassPrototype]:
     """
     Wraps L{new_pass_prototype} to be used as a decorator.
+
+    The original function is registered in its module's ``__test__`` mapping
+    so standard doctest discovery includes its docstring.
     """
 
     def decorator(function: Callable) -> PassPrototype:
-        return new_pass_prototype(function, **kwargs)
+        prototype = new_pass_prototype(function, **kwargs)
+        module_name = getattr(function, "__module__", None)
+        module = (
+            sys.modules.get(module_name)
+            if isinstance(module_name, str)
+            else None
+        )
+        if module is not None:
+            tests = getattr(module, "__test__", None)
+            if tests is None:
+                tests = {}
+                setattr(module, "__test__", tests)
+            assert isinstance(tests, dict)
+            if not any(test is function for test in tests.values()):
+                key = f"{function.__qualname__}"
+                suffix = 2
+                while key in tests:
+                    key = f"{key}#{suffix}"
+                    suffix += 1
+                tests[key] = function
+
+        return prototype
 
     return decorator
 

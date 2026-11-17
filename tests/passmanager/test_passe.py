@@ -1,6 +1,8 @@
 """Tests for the pass declaration and instance helpers."""
 
 import ast
+import doctest
+import sys
 
 import pytest
 from attr.exceptions import FrozenInstanceError
@@ -362,3 +364,47 @@ def test_prototype_call_creates_configured_pass_instance():
     assert isinstance(instance, PassInstance)
     assert instance.args == {'required': 'value'}
     assert instance.missing_param() is None
+
+
+def test_decorated_pass_docstrings_are_registered_for_doctest():
+    """Verify that both pass decorators expose their function docstrings to doctest."""
+    module = sys.modules[__name__]
+    tests = getattr(module, '__test__', None)
+    if tests is None:
+        tests = {}
+        module.__test__ = tests
+    tests['existing_documentation'] = 'Existing module doctest entry.'
+
+    @analysis(on=ast.Module)
+    def documented_pass(connector, node):
+        """A documented analysis.
+
+        >>> 1 + 1
+        2
+        """
+        return {'result': None}
+
+    analysis_pass = documented_pass
+
+    @transformation(on=ast.Module)
+    def documented_pass(connector, node):
+        """A documented transformation.
+
+        >>> 2 + 2
+        4
+        """
+        return {'update': False}
+
+    transformation_pass = documented_pass
+
+    assert tests['existing_documentation'] == 'Existing module doctest entry.'
+    assert any(value is analysis_pass.__wrapped__ for value in tests.values())
+    assert any(value is transformation_pass.__wrapped__ for value in tests.values())
+
+    discovered = [
+        test for test in doctest.DocTestFinder().find(module)
+        if test.name.endswith('.documented_pass')
+        or '.documented_pass#' in test.name
+    ]
+    assert len(discovered) == 2
+    assert all(doctest.DocTestRunner().run(test).failed == 0 for test in discovered)
