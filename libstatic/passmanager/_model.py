@@ -130,7 +130,7 @@ class Forest(Collection[Tree]):
 
     Mutation methods (add/remove) are private since these action should only
     be performed through the passmanager L{add}/L{remove} methods or by 
-    the approriate forest-wide transformations: L{add_tree} or L{remove_tree}.
+    the approriate builtin transformations: L{add_tree} or L{remove_tree}.
 
     >>> import ast
     >>> astmod = ast.parse('x = 1')

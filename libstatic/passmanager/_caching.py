@@ -269,27 +269,28 @@ class RevisionTracker:
         """Increment the forest revision."""
         self._forest_revision += 1
 
-    def rev(self, tree: Tree | None) -> Revision:
-        """Return the forest and optional tree revisions."""
-        forest_revision = self._forest_revision
-        if tree is None:
-            return forest_revision, 0
-        return forest_revision, self._revisions.get(tree, 0)
+    def tree_rev(self, tree: Tree) -> int:
+        """Return the current revision for the given tree."""
+        return self._revisions.get(tree, 0)
 
-@attrs.frozen(slots=True)
+    def forest_rev(self) -> int:
+        """Return the current forest revision."""
+        return self._forest_revision
+
 class PassManagerCache:
     """
     Plugin that caches analysis results using forest and tree revisions.
     """
 
     name: str = "cache"
-    tracker: RevisionTracker = attrs.field(factory=RevisionTracker, init=False, repr=False)
-    results_store: dict[_PassRunKey, CompletedPass] = attrs.field(factory=dict, init=False)
-    results_revision: dict[_PassRunKey, RevisionSnapshot] = attrs.field(factory=dict, init=False)
-    results_preservation: dict[Tree | None, dict[int, PreservedAnalyses]] = attrs.field(
-        factory=dict, init=False)
-    _get_passe: Any = attrs.field(default=None, repr=False, eq=False)
 
+    def __init__(self) -> None:
+        self.tracker = RevisionTracker()
+        self.results_store: dict[_PassRunKey, CompletedPass] = {}
+        self.results_revision: dict[_PassRunKey, RevisionSnapshot] = {}
+        self.results_preservation: dict[Tree | None, dict[int, PreservedAnalyses]] = {}
+        self._get_passe: Callable[[str], PassLike] | None = None
+    
     def purge(self) -> None:
         """
         Erase stale data and compact preservation histories.
@@ -349,19 +350,19 @@ class PassManagerCache:
             return None
 
         passe_instance = result.passe
-        scopes: list[tuple[Tree | None, int, int]] = []
-        # Forest analyses use the forest epoch; tree and node analyses compare
-        # every participating tree, including their target, at local epochs.
+        steps: list[tuple[Tree | None, int, int]] = []
+        # Forest analyses use the forest revision; tree and node analyses compare
+        # every participating tree, including their target, at local revisions.
         if forest_revision is not None:
-            scopes.append(
-                (None, forest_revision, self.tracker.rev(None)[0])
+            steps.append(
+                (None, forest_revision, self.tracker.forest_rev())
             )
-        scopes.extend(
-            (tree, revision, self.tracker.rev(tree)[1])
+        steps.extend(
+            (tree, revision, self.tracker.tree_rev(tree))
             for tree, revision in tree_revisions
         )
 
-        for scope, start, end in scopes:
+        for scope, start, end in steps:
             if not self._preserved_across(
                 passe_instance,
                 self.results_preservation.get(scope, {}),
@@ -400,7 +401,7 @@ class PassManagerCache:
         # revision and only track the tree revisions. This is an optimization to avoid 
         # unnecessary invalidation of analyses when the forest changes.
         forest_revision = (
-            self.tracker.rev(None)[0]
+            self.tracker.forest_rev()
             if result.attributes.get("complete") is False
             or any(len(path) == 1 for path in result.meta.used_paths)
             else None
@@ -408,22 +409,14 @@ class PassManagerCache:
 
         # Dependencies can raise a pass's actual used paths beyond its declared
         # scope, so snapshots follow the completed run's metadata.
-        trees = {
-            tree
+        trees = (
+            _tree_for_pointer(path)
             for path in result.meta.used_paths
-            for tree in path[1:2]
-            if isinstance(tree, Tree)
-        }
-        # Include the target tree even when it did not appear in used_paths.
-        target_tree = _tree_for_pointer(result.pointer)
-        if target_tree is not None:
-            trees.add(target_tree)
-        return forest_revision, tuple(
-            sorted(
-                ((tree, self.tracker.rev(tree)[1]) for tree in trees),
-                key=lambda item: (item[0].identifier, id(item[0])),
-            )
         )
+        return forest_revision, tuple(
+            (tree, self.tracker.tree_rev(tree)) 
+            for tree in filter(None, trees)
+            )
 
     def _purge_preservations(self) -> None:
         # A preservation entry describes whether a result survives the change
@@ -462,17 +455,6 @@ class PassManagerCache:
         key = _passrun_key((result.passe, result.pointer, result.run_options))
         self.results_store[key] = result
         self.results_revision[key] = self._revision_snapshot(result)
-
-    def preserve(
-        self,
-        tree: Tree | None,
-        revision: int,
-        analyses: Iterable[PassPattern | PassLike | str],
-        get_passe: Callable[[str], PassLike],
-    ) -> None:
-        """Record analyses preserved at a forest or tree revision."""
-        history = self.results_preservation.setdefault(tree, {})
-        history[revision] = PreservedAnalyses(get_passe, analyses)
 
     def register(self, registrar: IPluginRegistrar) -> Iterable[PassManagerCache]:
         object.__setattr__(self, "_get_passe", registrar.get_passe)
@@ -531,37 +513,58 @@ class PassManagerCache:
         if not completed.update:
             return
 
-        level = completed.passe.proto.runs_on
         tree = _tree_for_pointer(completed.pointer)
-        if level is Level.FOREST:
+
+        # Increment relevant revision(s)
+        if completed.passe.proto.runs_on is Level.FOREST:
             # Should only builtin forest transformations reach this block: in order to add/remove Trees to the forest
-            # they should modify the forest without walking or changing any individual tree.
+            # they should modify the forest without walking or changing any other tree.
             self.tracker.increment_forest_rev()
         else:
-            # A tree edit also advances the forest epoch because forest analyses
+            # A tree edit advances the forest revision because forest analyses
             # may depend on the edited tree.
             assert tree is not None, "unsupported transformation"
             self.tracker.increment_tree_rev(tree)
+        
         preserved = completed.attributes.get("preserve", ())
+        # Validate transformation 'preserve'
         if not isinstance(preserved, Iterable) or isinstance(preserved, (str, bytes)):
             raise TypeError("transformation 'preserve' must be an iterable")
+        
+        self.preserve(tree, preserved)
+
+    def preserve(self, 
+                 tree: Tree | None, 
+                 preserved: Iterable[PassLike | PassPattern | str],
+                 # _get_passe is only used for testing purposes!
+                 _get_passe: Callable[[str], PassLike] | None = None):
+        """
+        Declare that the given analyses are preserved after a transformation.
+        The preservation applies from the last revision to the current revision, 
+        at forest scope as well as the given tree's (if any). 
+        """
+        get_passe = _get_passe or self._get_passe
+        assert get_passe is not None
+        
+        analyses = tuple(preserved)
+        if not analyses:
+            return
         try:
-            analyses = tuple(preserved)
             preserved_set = PreservedAnalyses(
-                self._get_passe, analyses
+                get_passe, analyses
             )
         except (TypeError, ValueError, KeyError) as error:
             raise TypeError(f"invalid transformation 'preserve' declaration: {error}") from error
 
         # Store history at each affected scope so lookups validate only the
         # forest or trees relevant to the cached analysis.
-        forest_revision = self.tracker.rev(None)[0]
+        forest_revision = self.tracker.forest_rev()
         self.results_preservation.setdefault(None, {})[forest_revision] = preserved_set
         if tree is not None:
-            tree_revision = self.tracker.rev(tree)[1]
+            tree_revision = self.tracker.tree_rev(tree)
             self.results_preservation.setdefault(tree, {})[tree_revision] = preserved_set
-        # Do not purge here: transformation hooks must stay O(1) in tree count.
-        # Stale entries are evicted on lookup; callers explicitly purge to reclaim memory.
+        # Do not purge here: transformation hooks must stay O(1).
+        # Stale entries are evicted on lookup; callers explicitly purge() to reclaim memory.
 
     def __len__(self) -> int:
         return len(self.results_store)

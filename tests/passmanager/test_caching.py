@@ -451,7 +451,7 @@ def test_cache_purge_keeps_only_forest_analyses_preserved_at_a_revision():
     cache.set(second)
     cache.tracker.increment_forest_rev()
     cache.preserve(
-        None, 1, [first.passe.proto], lambda name: first.passe.proto
+        None, [first.passe.proto], lambda _: first.passe.proto
     )
 
     cache.purge()
@@ -473,12 +473,12 @@ def test_cache_purge_keeps_forest_results_preserved_across_each_revision():
     cache.set(first)
     cache.tracker.increment_forest_rev()
     cache.preserve(
-        None, 1, [first.passe.proto], lambda name: first.passe.proto
+        None, [first.passe.proto], lambda _: first.passe.proto
     )
     cache.set(second)
     cache.tracker.increment_forest_rev()
     cache.preserve(
-        None, 2, [first.passe.proto], lambda name: first.passe.proto
+        None, [first.passe.proto], lambda _: first.passe.proto
     )
 
     cache.purge()
@@ -508,7 +508,7 @@ def test_cache_purge_keeps_tree_results_only_in_preserved_scopes():
     cache.tracker.increment_tree_rev(first_tree)
     cache.tracker.increment_tree_rev(second_tree)
     cache.preserve(
-        first_tree, 1, [inspect_tree], lambda name: inspect_tree
+        first_tree, [inspect_tree], lambda _: inspect_tree
     )
 
     cache.purge()
@@ -551,9 +551,8 @@ def test_cache_purge_requires_preservation_for_every_tree_dependency():
     cache.tracker.increment_tree_rev(second_tree)
     cache.preserve(
         first_tree,
-        1,
         [inspect_tree, inspect_with_dependency],
-        lambda name: inspect_tree,
+        lambda _: inspect_tree,
     )
 
     cache.purge()
@@ -616,8 +615,9 @@ def test_cache_records_preservation_history():
     """Verify that preservation declarations can be added to a revision history."""
     cache = _cache()
     passe = _analysis_pass()
-
-    cache.preserve(None, 2, [passe], lambda name: passe)
+    cache.tracker.increment_forest_rev()
+    cache.tracker.increment_forest_rev()
+    cache.preserve(None, [passe], lambda _: passe)
 
     assert passe() in cache.results_preservation[None][2]
 
@@ -636,9 +636,9 @@ def test_revision_tracker_starts_at_zero_and_increments_forest_revision():
     """Verify that forest revisions begin at zero and increment independently."""
     tracker = RevisionTracker()
 
-    assert tracker.rev(None) == (0, 0)
+    assert tracker.forest_rev() == 0
     tracker.increment_forest_rev()
-    assert tracker.rev(None) == (1, 0)
+    assert tracker.forest_rev() == 1
 
 
 def test_revision_tracker_increments_forest_and_tree_revisions():
@@ -646,10 +646,11 @@ def test_revision_tracker_increments_forest_and_tree_revisions():
     tracker = RevisionTracker()
     tree = Tree(ast.parse('x = 1'), 'mod')
 
-    assert tracker.rev(tree) == (0, 0)
+    assert tracker.forest_rev() == 0
+    assert tracker.tree_rev(tree) == 0
     tracker.increment_tree_rev(tree)
-
-    assert tracker.rev(tree) == (1, 1)
+    assert tracker.forest_rev() == 1
+    assert tracker.tree_rev(tree) == 1
 
 
 def test_revision_tracker_tracks_distinct_trees_independently():
@@ -660,8 +661,9 @@ def test_revision_tracker_tracks_distinct_trees_independently():
 
     tracker.increment_tree_rev(first)
 
-    assert tracker.rev(first) == (1, 1)
-    assert tracker.rev(second) == (1, 0)
+    assert tracker.tree_rev(first) == 1
+    assert tracker.tree_rev(second) == 0
+    assert tracker.forest_rev() == 1
 
 
 def test_revision_tracker_accepts_weak_references_to_trees():
@@ -680,19 +682,9 @@ def test_revision_tracker_can_increment_only_the_forest():
 
     tracker.increment_forest_rev()
 
-    assert tracker.rev(None) == (1, 0)
-    assert tracker.rev(tree) == (1, 0)
+    assert tracker.forest_rev() == 1
+    assert tracker.tree_rev(tree) == 0
 
-
-def test_revision_tracker_can_increment_only_a_tree():
-    """Verify that a forest-wide revision can remain stable while one tree changes."""
-    tracker = RevisionTracker()
-    tree = Tree(ast.parse('x = 1'), 'mod')
-
-    tracker.increment_tree_rev(tree)
-
-    assert tracker.rev(None) == (1, 0)
-    assert tracker.rev(tree) == (1, 1)
 
 
 def test_revision_tracker_drops_collected_tree_revisions():

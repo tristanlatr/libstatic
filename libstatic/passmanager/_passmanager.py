@@ -648,6 +648,8 @@ class PassManager:
         self._install_plugins(plugins)
 
     def _install_plugins(self, plugins: Iterable[IPluginFactory]) -> None:
+        # This method should only be called once at initialization time, 
+        # and not after the PassManager has been used.
         # NOTE: The cache is just a plugin like others.
         for i in map(lambda _: _(), plugins):
             for plugin in i.register(self):
@@ -952,9 +954,36 @@ def _hooks_indexer() -> Indexer[tuple[Hook[Any], int, int, int]]:
 @attrs.frozen(slots=True)
 class Hooks:
     """
-    Container for the customization hooks. 
-    The hooks are a manner to customize the process of running a pass.
-    
+    Container for hooks that customize the pass execution lifecycle.
+
+    Hooks are selected by trigger, pass kind, and execution level. ``install()``
+    accepts enum values or case-insensitive names; ``kind='all'`` and
+    ``level='all'`` register the hook for every corresponding selector. No
+    priority or relative ordering is guaranteed, so hooks should not depend on
+    another hook running before or after them.
+
+    At each stage, a hook receives the current pass state. Returning ``None``
+    leaves it unchanged; returning a replacement passes that object to the
+    next hook. A replacement should be the same state type as the input.
+    ``UNPREPARED`` and ``FAILED`` hooks may instead return a ``CompletedPass``
+    to short-circuit the run (for example, to serve a cached result or recover
+    from a failure). Remaining hooks at that stage still run; a completed
+    result returned from either stage skips subsequent execution stages.
+    A recovered ``CompletedPass`` from ``FAILED`` bypasses ``COMPLETED`` hooks.
+
+    The pass context records the original run pointer, and the runner is chosen
+    from the original pass kind. Hooks should therefore preserve the pass and
+    pointer when replacing a state; changing them can make the runner, recorded
+    ``used_paths``, result, and cache identity inconsistent. In particular,
+    tree and node runs rely on their target pointer being present in
+    ``used_paths``.
+
+    Hook states are frozen objects: replace a state by returning a new object
+    rather than mutating it. Exceptions raised by hooks propagate; only an
+    exception from the pass body is routed through ``FAILED`` hooks. On a
+    cache hit, the unprepared stage returns the cached result and later stages
+    are skipped.
+
     >>> my_cb = lambda o: print(o)
     >>> h = Hooks()
     >>> h.install(my_cb, when='completed', kind='analysis', level='tree')
