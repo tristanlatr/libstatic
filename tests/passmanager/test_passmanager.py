@@ -9,8 +9,8 @@ from libstatic.passmanager._model import Forest, Level, PassKind, Tree
 from libstatic.passmanager._passe import analysis, transformation
 from libstatic.passmanager._passmanager import (
     AnalysisRunner,
+    PassCycleError,
     TransformationRunner,
-    CompletedPass,
     FailedPass,
     Hooks,
     PassContext,
@@ -53,9 +53,134 @@ def test_pass_context_detects_a_repeated_pass_run():
     context = PassContext()
 
     with context._push_pass(passrun):
-        with pytest.raises(RuntimeError, match='cycle detected'):
+        with pytest.raises(PassCycleError, match='cycle detected') as exc_info:
             with context._push_pass(passrun):
                 pass
+
+    assert exc_info.value.passrun[0] is passrun[0]
+    assert exc_info.value.passrun[1] == passrun[1]
+    assert exc_info.value.passrun[2] == passrun[2]
+    assert isinstance(exc_info.value, RuntimeError)
+    assert str(exc_info.value).startswith('cycle detected with pass:')
+
+
+def test_runner_repeated_pass_run_is_catchable_as_cycle_error():
+    """Verify that a recursive pass run raises the public cycle exception."""
+
+    @analysis(on=Forest)
+    def recursive_pass(connector, forest):
+        return {'result': connector.gather(recursive_pass)}
+
+    with pytest.raises(PassCycleError, match='cycle detected'):
+        PassManager().run(recursive_pass)
+
+
+def test_runner_detects_cycle_across_three_passes():
+    """Verify that a cycle spanning three distinct passes is detected."""
+
+    @analysis(on=Forest)
+    def first_pass(connector, forest):
+        return {'result': connector.gather(second_pass)}
+
+    @analysis(on=Forest)
+    def second_pass(connector, forest):
+        return {'result': connector.gather(third_pass)}
+
+    @analysis(on=Forest)
+    def third_pass(connector, forest):
+        return {'result': connector.gather(first_pass)}
+
+    with pytest.raises(PassCycleError, match='cycle detected') as exc_info:
+        PassManager().run(first_pass)
+
+    assert exc_info.value.passrun[0].proto is first_pass.proto
+
+
+def test_runner_cycle_across_three_passes_can_use_fallback():
+    """Verify that a FAILED hook can recover a multi-pass cycle."""
+
+    @analysis(on=Forest)
+    def first_pass(connector, forest):
+        return {'result': connector.gather(second_pass)}
+
+    @analysis(on=Forest)
+    def second_pass(connector, forest):
+        return {'result': connector.gather(third_pass)}
+
+    @analysis(on=Forest)
+    def third_pass(connector, forest):
+        return {'result': connector.gather(first_pass)}
+
+    @analysis(on=Forest)
+    def fallback_pass(connector, forest):
+        return {'result': 'fallback'}
+
+    cycle_failures = []
+
+    def recover_cycle(failed):
+        if isinstance(failed.failure, PassCycleError):
+            cycle_failures.append(failed.failure)
+            return failed.connector.run(fallback_pass)
+        return None
+
+    pm = PassManager()
+    pm.hooks.install(
+        recover_cycle, when='failed', kind='analysis', level='forest'
+    )
+
+    completed = pm.run(first_pass)
+
+    assert completed.result == 'fallback'
+    assert len(cycle_failures) == 1
+    assert cycle_failures[0].passrun[0].proto is first_pass.proto
+    assert pm._ctx._metadata_stack == {}
+
+
+def test_runner_cycle_failure_hook_can_run_a_fallback_pass():
+    """Verify that a failed hook can recover a cycle by returning a fallback pass."""
+
+    @analysis(on=Forest)
+    def recursive_pass(connector, forest):
+        return {'result': connector.gather(recursive_pass)}
+
+    fallback_calls = []
+
+    @analysis(on=Forest)
+    def fallback_pass(connector, forest):
+        fallback_calls.append(forest)
+        return {'result': 'fallback'}
+
+    cycle_failures = []
+
+    def recover_cycle(failed):
+        if isinstance(failed.failure, PassCycleError):
+            cycle_failures.append(failed.failure)
+            return failed.connector.run(fallback_pass)
+        return None
+
+    pm = PassManager()
+    pm.hooks.install(
+        recover_cycle, when='failed', kind='analysis', level='forest'
+    )
+
+    completed = pm.run(recursive_pass)
+
+    assert completed.result == 'fallback'
+    assert completed.passe.proto is fallback_pass.proto
+    assert len(cycle_failures) == 1
+    assert cycle_failures[0].passrun[0].proto is recursive_pass.proto
+    assert len(fallback_calls) == 1
+    assert pm._ctx._metadata_stack == {}
+
+    @analysis(on=Forest)
+    def failing_pass(connector, forest):
+        raise ValueError('not a cycle')
+
+    with pytest.raises(ValueError, match='not a cycle'):
+        pm.run(failing_pass)
+
+    assert len(fallback_calls) == 1
+    assert pm._ctx._metadata_stack == {}
 
 
 def test_pass_context_accumulates_nested_used_paths():

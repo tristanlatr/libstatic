@@ -19,6 +19,7 @@ from typing import (
     Mapping,
     NotRequired,
     Protocol,
+    TYPE_CHECKING,
     TypeVar,
     TypedDict,
     cast,
@@ -59,6 +60,20 @@ passed to the PassManager.run method:
     - the element path,
     - and the run options
 """
+
+
+class PassCycleError(RuntimeError):
+    """
+    Raised when a pass run is requested recursively without a different pass run.
+
+    ``passrun`` is the repeated pass instance, element path, and run options
+    tuple.  It is exposed so callers can catch the exception and select a
+    different pass or run strategy.
+    """
+
+    def __init__(self, passrun: _PassRun) -> None:
+        self.passrun = passrun
+        super().__init__(f"cycle detected with pass: {passrun}")
 
 
 class PassRunMeta:
@@ -103,9 +118,7 @@ class PassContext:
         passrun = (passe, epath, frozen_options)
 
         if passrun in self._metadata_stack:
-            # TODO (pahse-one): Use a exception subclass in order to potentially catch and
-            # use another pass instead to break the cycle.
-            raise RuntimeError(f"cycle detected with pass: {passrun}")
+            raise PassCycleError(passrun)
 
         self._metadata_stack[passrun] = {epath}
 
