@@ -3,10 +3,10 @@ Builtin caching plugin for the standard AST module.
 """
 
 # TODOs: 
-# - Rename "preserved" to "preserve" in the transformation result attributes. 
 # - A transformation should not be able to get upper level analyses results if they are not cached already. 
 #   This is to avoid a transformation to trigger quadratic complexity by running analyses and then invalidating them again and again.
 # - Add integration tests for the caching system, i.e. tests where the cache is added and used transparently by default in the PassManager.
+# - Cache no-op transformations, i.e. transformations that don't change the tree, should be able to preserve all analyses results. 
 
 from __future__ import annotations
 
@@ -545,7 +545,7 @@ class PassManagerCache:
         """
         get_passe = _get_passe or self._get_passe
         assert get_passe is not None
-        
+
         analyses = tuple(preserved)
         if not analyses:
             return

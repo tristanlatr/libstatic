@@ -19,6 +19,8 @@ from libstatic.passmanager._passmanager import (
     Runner,
     Trigger,
     UnpreparedPass,
+    _add_tree,
+    _remove_tree,
 )
 
 
@@ -562,6 +564,70 @@ def test_runner_applies_transformation_dependencies(monkeypatch):
 
     assert len(calls) == 1
     assert calls[0][0][0] is dependency
+
+
+@pytest.mark.parametrize('operation', ['add', 'remove'])
+@pytest.mark.parametrize(
+    ('kind', 'level', 'on', 'allowed'),
+    [
+        ('analysis', 'node', ast.Name, True),
+        ('analysis', 'tree', Tree, True),
+        ('analysis', 'forest', Forest, True),
+        ('transformation', 'node', ast.Name, False),
+        ('transformation', 'tree', Tree, False),
+        ('transformation', 'forest', Forest, True),
+    ],
+)
+def test_builtin_forest_transformations_can_be_dependencies(
+    operation, kind, level, on, allowed
+):
+    """Verify builtin forest changes as dependencies across pass kinds and levels."""
+    pm = PassManager()
+    target = _tree('target')
+    member = _tree('member')
+    pm.add(target)
+    if operation == 'remove':
+        pm.add(member)
+
+    dependency = (
+        _add_tree(tree=member)
+        if operation == 'add'
+        else _remove_tree(tree=member)
+    )
+    observed = []
+    if kind == 'analysis':
+        @analysis(on=on, dependencies=(dependency,))
+        def dependent(connector, element):
+            observed.append(member in pm.trees)
+            return {'result': member in pm.trees}
+    else:
+        @transformation(on=on, dependencies=(dependency,))
+        def dependent(connector, element):
+            observed.append(member in pm.trees)
+            return {'update': False}
+
+    run_args = {
+        'node': (target, target.root.body[0].targets[0]),
+        'tree': (target,),
+        'forest': (),
+    }[level]
+    run = pm.gather if kind == 'analysis' else pm.apply
+
+    if not allowed:
+        with pytest.raises(TypeError, match='cannot depend on enclosing level'):
+            run(dependent, *run_args)
+        assert observed == []
+        assert (member in pm.trees) is (operation == 'remove')
+        return
+
+    result = run(dependent, *run_args)
+
+    assert observed == [operation == 'add']
+    if kind == 'analysis':
+        assert result is (operation == 'add')
+    else:
+        assert result is False
+    assert (member in pm.trees) is (operation == 'add')
 
 
 def test_runner_promotes_node_transformation_dependency_to_tree_target(monkeypatch):
