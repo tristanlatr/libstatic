@@ -389,7 +389,16 @@ class Runner(abc.ABC, Generic[_Trdict]):
 
             if t_proto.kind != PassKind.TRANSFORMATION:
                 continue
-
+            
+            # Analyses Should be allowed to run transformations at all. 
+            # We should be able to assume that analyses won't change the analyzed code!
+            # At the same time, we should still be able to list transformation as dependencies
+            # of analyses, BUT, these transformations dependencies serves only to validate 
+            # that they already have been applied to the analyzed code (and a follow-up application
+            # would not change the analysed code). This restriction will likely 
+            # means that a analysis can only "depend" on a single transformation since once transforantion
+            # will invalidate the cached result of any other transformation applied earlier, except if it's 
+            # explicitely marked as preserved. This is an OK compromise if it's well documented.
             if passe_proto_kind == PassKind.ANALYSIS:
                 raise TypeError(
                     f"{p} is an analysis and cannot depend on transformation {_t}"
