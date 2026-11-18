@@ -668,8 +668,8 @@ def test_runner_gathers_analysis_dependencies_eagerly_for_transformations(monkey
     assert prepared.connector.deps.dependency == 1
 
 
-def test_runner_rejects_transformation_dependencies_from_analyses(monkeypatch):
-    """Verify that analyses cannot declare transformation dependencies."""
+def test_runner_requests_transformation_dependencies_from_analyses_cache_only(monkeypatch):
+    """Verify that analysis transformation dependencies are requested cache-only."""
 
     @transformation(on=ast.Module)
     def dependency(connector, node):
@@ -683,12 +683,11 @@ def test_runner_rejects_transformation_dependencies_from_analyses(monkeypatch):
     calls = []
     monkeypatch.setattr(pm, 'apply', lambda *args, **kwargs: calls.append((args, kwargs)))
 
-    with pytest.raises(TypeError, match='analysis and cannot depend on transformation'):
-        Runner.prepare(
-            UnpreparedPass(inspect_module(), (pm.trees, tree, tree.root), pm, {})
-        )
+    Runner.prepare(
+        UnpreparedPass(inspect_module(), (pm.trees, tree, tree.root), pm, {})
+    )
 
-    assert calls == []
+    assert calls == [((dependency, tree, tree.root), {'cache_only': True})]
 
 
 @pytest.mark.parametrize('operation', ['add', 'remove'])
@@ -703,7 +702,7 @@ def test_runner_rejects_transformation_dependencies_from_analyses(monkeypatch):
 def test_builtin_forest_transformations_cannot_be_analysis_dependencies(
     operation, level, on
 ):
-    """Verify builtin forest changes are rejected as dependencies of analyses."""
+    """Verify builtin forest changes cannot run as uncached analysis dependencies."""
     pm = PassManager()
     target = _tree('target')
     member = _tree('member')
@@ -727,7 +726,7 @@ def test_builtin_forest_transformations_cannot_be_analysis_dependencies(
         'tree': (target,),
         'forest': (),
     }[level]
-    with pytest.raises(TypeError, match='analysis and cannot depend on transformation'):
+    with pytest.raises(TypeError, match='analysis cannot depend on transformation if you are not using the cache plugin'):
         pm.gather(dependent, *run_args)
 
     assert observed == []
@@ -785,8 +784,8 @@ def test_builtin_forest_transformations_can_be_transformation_dependencies(
     assert (member in pm.trees) is (operation == 'add')
 
 
-def test_runner_rejects_node_transformation_dependency_from_tree_analysis(monkeypatch):
-    """Verify that a tree analysis cannot depend on a node transformation."""
+def test_runner_uses_cache_only_for_node_transformation_dependency_from_tree_analysis(monkeypatch):
+    """Verify that a tree analysis requests node transformation dependencies cache-only."""
 
     @transformation(on=ast.Module)
     def transform_module(connector, node):
@@ -798,16 +797,15 @@ def test_runner_rejects_node_transformation_dependency_from_tree_analysis(monkey
 
     pm, tree = _manager_with_tree()
     calls = []
-    monkeypatch.setattr(pm, 'apply', lambda *args, **kwargs: calls.append(args))
+    monkeypatch.setattr(pm, 'apply', lambda *args, **kwargs: calls.append((args, kwargs)))
 
-    with pytest.raises(TypeError, match='analysis and cannot depend on transformation'):
-        Runner.prepare(UnpreparedPass(inspect_tree(), (pm.trees, tree), pm, {}))
+    Runner.prepare(UnpreparedPass(inspect_tree(), (pm.trees, tree), pm, {}))
 
-    assert calls == []
+    assert calls == [((transform_module, tree), {'cache_only': True})]
 
 
-def test_runner_rejects_enclosing_transformation_dependency_from_analysis(monkeypatch):
-    """Verify that a node analysis cannot depend on an enclosing forest transformation."""
+def test_runner_uses_cache_only_for_enclosing_transformation_dependency_from_analysis(monkeypatch):
+    """Verify node analyses request enclosing transformation dependencies cache-only."""
 
     @transformation(on=Forest)
     def transform_forest(connector, forest):
@@ -819,14 +817,13 @@ def test_runner_rejects_enclosing_transformation_dependency_from_analysis(monkey
 
     pm, tree = _manager_with_tree()
     calls = []
-    monkeypatch.setattr(pm, 'apply', lambda *args, **kwargs: calls.append(args))
+    monkeypatch.setattr(pm, 'apply', lambda *args, **kwargs: calls.append((args, kwargs)))
 
-    with pytest.raises(TypeError, match='analysis and cannot depend on transformation'):
-        Runner.prepare(
-            UnpreparedPass(inspect_module(), (pm.trees, tree, tree.root), pm, {})
-        )
+    Runner.prepare(
+        UnpreparedPass(inspect_module(), (pm.trees, tree, tree.root), pm, {})
+    )
 
-    assert calls == []
+    assert calls == [((transform_forest,), {'cache_only': True})]
 
 
 def test_runner_rejects_lower_level_transformation_dependency_from_forest():
@@ -842,12 +839,12 @@ def test_runner_rejects_lower_level_transformation_dependency_from_forest():
 
     pm = PassManager()
 
-    with pytest.raises(TypeError, match='analysis and cannot depend on transformation'):
+    with pytest.raises(TypeError, match='compatible or enclosing level'):
         Runner.prepare(UnpreparedPass(inspect_forest(), (pm.trees,), pm, {}))
 
 
-def test_runner_rejects_transitive_transformation_dependency_from_analysis():
-    """Verify that analyses cannot depend transitively on transformations."""
+def test_runner_requires_cached_transitive_transformation_dependency_from_analysis():
+    """Verify that transitive transformations of an analysis must already be cached."""
 
     @transformation(on=ast.Module)
     def base_transform(connector, node):
@@ -863,7 +860,7 @@ def test_runner_rejects_transitive_transformation_dependency_from_analysis():
 
     pm, tree = _manager_with_tree()
 
-    with pytest.raises(TypeError, match='analysis and cannot depend on transformation'):
+    with pytest.raises(TypeError, match='analysis cannot depend on transformation if you are not using the cache plugin'):
         pm.gather(inspect_module, tree)
 
 

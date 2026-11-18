@@ -390,19 +390,6 @@ class Runner(abc.ABC, Generic[_Trdict]):
             if t_proto.kind != PassKind.TRANSFORMATION:
                 continue
             
-            # Analyses Should be allowed to run transformations at all. 
-            # We should be able to assume that analyses won't change the analyzed code!
-            # At the same time, we should still be able to list transformation as dependencies
-            # of analyses, BUT, these transformations dependencies serves only to validate 
-            # that they already have been applied to the analyzed code (and a follow-up application
-            # would not change the analysed code). This restriction will likely 
-            # means that a analysis can only "depend" on a single transformation since once transforantion
-            # will invalidate the cached result of any other transformation applied earlier, except if it's 
-            # explicitely marked as preserved. This is an OK compromise if it's well documented.
-            if passe_proto_kind == PassKind.ANALYSIS:
-                raise TypeError(
-                    f"{p} is an analysis and cannot depend on transformation {_t}"
-                )
             
             if (t_runs_on := t_proto.runs_on) < (p_runs_on := passe_proto.runs_on):
                 # We might be able to check the config to see if pass can be run
@@ -441,7 +428,19 @@ class Runner(abc.ABC, Generic[_Trdict]):
                 # same level
                 apply_on_element = element
 
-            pm.apply(_t, *apply_on_element)
+            if passe_proto_kind == PassKind.ANALYSIS:
+                # Analyses should not be allowed to run transformations at all. 
+                # We should be able to assume that analyses won't change the analyzed code!
+                # At the same time, we should still be able to list transformation as dependencies
+                # of analyses, BUT, these transformations dependencies serves only to validate 
+                # that they already have been applied to the analyzed code (and a follow-up application
+                # would not change the analysed code). This restriction will likely means that an analysis 
+                # can only "depend" on a single transformation since once transforantion
+                # will invalidate the cached result of any other transformation applied earlier, except if it's 
+                # explicitely marked as preserved. This is an OK compromise if it's well documented.
+                pm.apply(_t, *apply_on_element, cache_only=True)
+            else:
+                pm.apply(_t, *apply_on_element)
 
         # create the analysis dependencies namespace.
         deps = Dependencies()
@@ -763,7 +762,12 @@ class PassManager:
             passe.proto.kind is PassKind.TRANSFORMATION
             and self._ctx.current_pass_kind is PassKind.ANALYSIS
         ):
-            raise TypeError("analyses cannot run transformations")
+            if not options.get("cache_only"):
+                raise TypeError("analyses cannot run transformations")
+            elif not hasattr(self, "cache"):
+                raise TypeError(
+                    "analysis cannot depend on transformation if you are not using the cache plugin"
+                )
         
         # create the pointer
         element = self._prepare_element(element, passe.proto.runs_on)

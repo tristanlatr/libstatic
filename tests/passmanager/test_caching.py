@@ -877,6 +877,76 @@ def test_cache_plugin_serves_cache_only_hit_for_noop_transformations():
     assert calls == [None]
 
 
+def test_analysis_transformation_dependency_requires_cached_noop():
+    """Verify an analysis dependency cannot execute an uncached transformation."""
+    calls = []
+
+    @transformation(on=Tree)
+    def transform_tree(connector, tree):
+        calls.append(None)
+        return {'update': False}
+
+    @analysis(on=Tree, dependencies=(transform_tree,))
+    def inspect_tree(connector, tree):
+        return {'result': tree.identifier}
+
+    pm = PassManager([PassManagerCache])
+    tree = Tree(ast.parse('x = 1'), 'mod')
+    pm.add(tree)
+
+    with pytest.raises(CacheMissError, match='no valid cached result'):
+        pm.gather(inspect_tree, tree)
+
+    assert calls == []
+
+
+def test_analysis_can_depend_on_a_cached_noop_transformation():
+    """Verify a cached no-op transformation is reused by an analysis dependency."""
+    calls = []
+
+    @transformation(on=Tree)
+    def transform_tree(connector, tree):
+        calls.append(None)
+        return {'update': False}
+
+    @analysis(on=Tree, dependencies=(transform_tree,))
+    def inspect_tree(connector, tree):
+        return {'result': tree.identifier}
+
+    pm = PassManager([PassManagerCache])
+    tree = Tree(ast.parse('x = 1'), 'mod')
+    pm.add(tree)
+
+    assert pm.apply(transform_tree, tree) is False
+    assert pm.gather(inspect_tree, tree) == 'mod'
+    assert calls == [None]
+
+
+def test_analysis_cannot_depend_on_an_updated_transformation():
+    """Verify an updated transformation is not available as an analysis dependency."""
+    calls = []
+
+    @transformation(on=Tree)
+    def transform_tree(connector, tree):
+        calls.append(None)
+        return {'update': True}
+
+    @analysis(on=Tree, dependencies=(transform_tree,))
+    def inspect_tree(connector, tree):
+        return {'result': tree.identifier}
+
+    pm = PassManager([PassManagerCache])
+    tree = Tree(ast.parse('x = 1'), 'mod')
+    pm.add(tree)
+
+    assert pm.apply(transform_tree, tree) is True
+
+    with pytest.raises(CacheMissError, match='no valid cached result'):
+        pm.gather(inspect_tree, tree)
+
+    assert calls == [None]
+
+
 def test_cache_plugin_invalidates_noop_transformation_after_tree_edit():
     """Verify that an edit invalidates a cached no-op transformation at the same target."""
     calls = []

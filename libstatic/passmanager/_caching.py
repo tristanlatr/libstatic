@@ -6,7 +6,6 @@ Builtin caching plugin for the standard AST module.
 # - A transformation should not be able to get upper level analyses results if they are not cached already. 
 #   This is to avoid a transformation to trigger quadratic complexity by running analyses and then invalidating them again and again.
 # - Add integration tests for the caching system, i.e. tests where the cache is added and used transparently by default in the PassManager.
-# - Allow analysis to depend on no-op transformation ONLY
 
 from __future__ import annotations
 
@@ -494,6 +493,15 @@ class PassManagerCache:
                 f"no valid cached result for "
                 f"{unprepared.passe!r} at {unprepared.pointer!r}"
             )
+            # if (
+            #     and unprepared.passe.proto.kind is PassKind.TRANSFORMATION
+            #     and result is not None
+            #     and result.update
+            # ):
+            #     raise CacheMissError(
+            #         f"cached transformation result is not a no-op for "
+            #         f"{unprepared.passe!r} at {unprepared.pointer!r}"
+            #     )
         return result
 
     def _after_pass(self, completed: CompletedPass) -> None:
