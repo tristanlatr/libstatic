@@ -449,6 +449,11 @@ class PassManagerCache:
 
     def set(self, result: CompletedPass) -> None:
         """Store a completed pass result at the current target revision."""
+        if result.update:
+            raise TypeError(
+                f"cannot store a transformation result that updated content: {result!r}"
+            )
+
         key = _passrun_key((result.passe, result.pointer, result.run_options))
         self.results_store[key] = result
         self.results_revision[key] = self._revision_snapshot(result)
@@ -493,15 +498,6 @@ class PassManagerCache:
                 f"no valid cached result for "
                 f"{unprepared.passe!r} at {unprepared.pointer!r}"
             )
-            # if (
-            #     and unprepared.passe.proto.kind is PassKind.TRANSFORMATION
-            #     and result is not None
-            #     and result.update
-            # ):
-            #     raise CacheMissError(
-            #         f"cached transformation result is not a no-op for "
-            #         f"{unprepared.passe!r} at {unprepared.pointer!r}"
-            #     )
         return result
 
     def _after_pass(self, completed: CompletedPass) -> None:

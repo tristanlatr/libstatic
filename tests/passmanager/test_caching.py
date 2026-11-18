@@ -877,6 +877,34 @@ def test_cache_plugin_serves_cache_only_hit_for_noop_transformations():
     assert calls == [None]
 
 
+def test_cache_plugin_rejects_cached_updating_transformation_in_cache_only_mode():
+    """Verify cache-only mode does not treat an updating transformation as a no-op."""
+    calls = []
+    should_update = True
+    
+    @transformation(on=Tree)
+    def transform_tree(connector, tree):
+        calls.append(None)
+        return {'update': should_update}
+
+    pm = PassManager([PassManagerCache])
+    tree = Tree(ast.parse('x = 1'), 'mod')
+    pm.add(tree)
+
+    completed = pm.run(transform_tree, tree)
+
+    with pytest.raises(TypeError, match='cannot store a transformation result that updated content'):
+        pm.cache.set(completed)
+
+    with pytest.raises(CacheMissError,):
+        pm.apply(transform_tree, tree, cache_only=True)
+
+    should_update = False
+    pm.apply(transform_tree, tree)
+    pm.apply(transform_tree, tree)
+    assert calls == [None, None]
+
+
 def test_analysis_transformation_dependency_requires_cached_noop():
     """Verify an analysis dependency cannot execute an uncached transformation."""
     calls = []
