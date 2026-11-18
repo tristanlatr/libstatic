@@ -107,6 +107,13 @@ class PassContext:
         except StopIteration:
             raise RuntimeError("no pass is currently running")
 
+    @property
+    def current_pass_kind(self) -> PassKind | None:
+        if not self._metadata_stack:
+            return None
+        passe, _, _ = self._current_passrun
+        return passe.proto.kind
+
     @contextmanager
     def _push_pass(self, passrun: _PassRun) -> Iterator[PassRunMeta]:
         passe, epath, options = passrun
@@ -383,19 +390,10 @@ class Runner(abc.ABC, Generic[_Trdict]):
             if t_proto.kind != PassKind.TRANSFORMATION:
                 continue
 
-            # TODO (phase-one): Should analyses be allowed to depend on transformations at all? NO!
-            # We should be able to assume that analyses won't change the analyzed code!
-            # At the same time, we should still be able to list transformation as dependencies
-            # of analyses, BUT, these transformations dependencies serves only to validate 
-            # that they already have been applied to the analyzed code (and a follow-up application
-            # would not change the analysed code). If implemented, this restriction will likely 
-            # mean that a analysis can only "depend" on a single transformation since once transforantion
-            # will invalidate the cached result of any other transformation applied earlier, if not 
-            # explicitely marked as preserved. This is an OK compromise if it's well documented.
-            # (phase-one) Implementing this.
-            # Since the cache is just a plugin/series of hooks, we need to put that logic inside 
-            # an unrpepared pass hook that will validate that all trasitively depending transformations
-            # are cached as "no-op if run again".
+            if passe_proto_kind == PassKind.ANALYSIS:
+                raise TypeError(
+                    f"{p} is an analysis and cannot depend on transformation {_t}"
+                )
             
             if (t_runs_on := t_proto.runs_on) < (p_runs_on := passe_proto.runs_on):
                 # We might be able to check the config to see if pass can be run
@@ -752,6 +750,11 @@ class PassManager:
             raise TypeError("this method takes at most 3 positional arguments")
         if isinstance(passe, str):
             passe = self.get_passe(passe)
+        if (
+            passe.proto.kind is PassKind.TRANSFORMATION
+            and self._ctx.current_pass_kind is PassKind.ANALYSIS
+        ):
+            raise TypeError("analyses cannot run transformations")
         
         # create the pointer
         element = self._prepare_element(element, passe.proto.runs_on)

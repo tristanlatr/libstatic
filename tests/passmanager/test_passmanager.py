@@ -668,8 +668,8 @@ def test_runner_gathers_analysis_dependencies_eagerly_for_transformations(monkey
     assert prepared.connector.deps.dependency == 1
 
 
-def test_runner_applies_transformation_dependencies(monkeypatch):
-    """Verify that dependent transformations run on compatible targets during preparation."""
+def test_runner_rejects_transformation_dependencies_from_analyses(monkeypatch):
+    """Verify that analyses cannot declare transformation dependencies."""
 
     @transformation(on=ast.Module)
     def dependency(connector, node):
@@ -683,12 +683,12 @@ def test_runner_applies_transformation_dependencies(monkeypatch):
     calls = []
     monkeypatch.setattr(pm, 'apply', lambda *args, **kwargs: calls.append((args, kwargs)))
 
-    Runner.prepare(
-        UnpreparedPass(inspect_module(), (pm.trees, tree, tree.root), pm, {})
-    )
+    with pytest.raises(TypeError, match='analysis and cannot depend on transformation'):
+        Runner.prepare(
+            UnpreparedPass(inspect_module(), (pm.trees, tree, tree.root), pm, {})
+        )
 
-    assert len(calls) == 1
-    assert calls[0][0][0] is dependency
+    assert calls == []
 
 
 @pytest.mark.parametrize('operation', ['add', 'remove'])
@@ -700,10 +700,10 @@ def test_runner_applies_transformation_dependencies(monkeypatch):
         ('forest', Forest),
     ],
 )
-def test_builtin_forest_transformations_can_be_analysis_dependencies(
+def test_builtin_forest_transformations_cannot_be_analysis_dependencies(
     operation, level, on
 ):
-    """Verify builtin forest changes as dependencies of analyses across levels."""
+    """Verify builtin forest changes are rejected as dependencies of analyses."""
     pm = PassManager()
     target = _tree('target')
     member = _tree('member')
@@ -727,11 +727,11 @@ def test_builtin_forest_transformations_can_be_analysis_dependencies(
         'tree': (target,),
         'forest': (),
     }[level]
-    result = pm.gather(dependent, *run_args)
+    with pytest.raises(TypeError, match='analysis and cannot depend on transformation'):
+        pm.gather(dependent, *run_args)
 
-    assert observed == [operation == 'add']
-    assert result is (operation == 'add')
-    assert (member in pm.trees) is (operation == 'add')
+    assert observed == []
+    assert (member in pm.trees) is (operation == 'remove')
 
 
 @pytest.mark.parametrize('operation', ['add', 'remove'])
@@ -785,8 +785,8 @@ def test_builtin_forest_transformations_can_be_transformation_dependencies(
     assert (member in pm.trees) is (operation == 'add')
 
 
-def test_runner_promotes_node_transformation_dependency_to_tree_target(monkeypatch):
-    """Verify that a node transformation dependency of a tree pass receives the tree target."""
+def test_runner_rejects_node_transformation_dependency_from_tree_analysis(monkeypatch):
+    """Verify that a tree analysis cannot depend on a node transformation."""
 
     @transformation(on=ast.Module)
     def transform_module(connector, node):
@@ -800,13 +800,14 @@ def test_runner_promotes_node_transformation_dependency_to_tree_target(monkeypat
     calls = []
     monkeypatch.setattr(pm, 'apply', lambda *args, **kwargs: calls.append(args))
 
-    Runner.prepare(UnpreparedPass(inspect_tree(), (pm.trees, tree), pm, {}))
+    with pytest.raises(TypeError, match='analysis and cannot depend on transformation'):
+        Runner.prepare(UnpreparedPass(inspect_tree(), (pm.trees, tree), pm, {}))
 
-    assert calls == [(transform_module, tree)]
+    assert calls == []
 
 
-def test_runner_trims_target_for_enclosing_transformation_dependency(monkeypatch):
-    """Verify that a node analysis applies an enclosing forest transformation to the forest."""
+def test_runner_rejects_enclosing_transformation_dependency_from_analysis(monkeypatch):
+    """Verify that a node analysis cannot depend on an enclosing forest transformation."""
 
     @transformation(on=Forest)
     def transform_forest(connector, forest):
@@ -820,11 +821,12 @@ def test_runner_trims_target_for_enclosing_transformation_dependency(monkeypatch
     calls = []
     monkeypatch.setattr(pm, 'apply', lambda *args, **kwargs: calls.append(args))
 
-    Runner.prepare(
-        UnpreparedPass(inspect_module(), (pm.trees, tree, tree.root), pm, {})
-    )
+    with pytest.raises(TypeError, match='analysis and cannot depend on transformation'):
+        Runner.prepare(
+            UnpreparedPass(inspect_module(), (pm.trees, tree, tree.root), pm, {})
+        )
 
-    assert calls == [(transform_forest,)]
+    assert calls == []
 
 
 def test_runner_rejects_lower_level_transformation_dependency_from_forest():
@@ -840,8 +842,67 @@ def test_runner_rejects_lower_level_transformation_dependency_from_forest():
 
     pm = PassManager()
 
-    with pytest.raises(TypeError, match='compatible or enclosing level'):
+    with pytest.raises(TypeError, match='analysis and cannot depend on transformation'):
         Runner.prepare(UnpreparedPass(inspect_forest(), (pm.trees,), pm, {}))
+
+
+def test_runner_rejects_transitive_transformation_dependency_from_analysis():
+    """Verify that analyses cannot depend transitively on transformations."""
+
+    @transformation(on=ast.Module)
+    def base_transform(connector, node):
+        return {'update': False}
+
+    @transformation(on=ast.Module, dependencies=(base_transform,))
+    def outer_transform(connector, node):
+        return {'update': False}
+
+    @analysis(on=ast.Module, dependencies=(outer_transform,))
+    def inspect_module(connector, node):
+        return {'result': None}
+
+    pm, tree = _manager_with_tree()
+
+    with pytest.raises(TypeError, match='analysis and cannot depend on transformation'):
+        pm.gather(inspect_module, tree)
+
+
+@pytest.mark.parametrize('method', ['apply', 'run'])
+def test_analysis_connector_cannot_run_transformations(method):
+    """Verify that connector apply and run reject transformations from analyses."""
+
+    @transformation(on=Tree)
+    def transform_tree(connector, tree):
+        return {'update': True}
+
+    @analysis(on=Tree)
+    def inspect_tree(connector, tree):
+        getattr(connector, method)(transform_tree, tree)
+        return {'result': None}
+
+    pm, tree = _manager_with_tree()
+
+    with pytest.raises(TypeError, match='analyses cannot run transformations'):
+        pm.gather(inspect_tree, tree)
+
+
+@pytest.mark.parametrize('method', ['apply', 'run'])
+def test_analysis_cannot_call_pass_manager_transform_methods(method):
+    """Verify that direct pass-manager apply and run calls reject transformations."""
+
+    @transformation(on=Tree)
+    def transform_tree(connector, tree):
+        return {'update': True}
+
+    pm, tree = _manager_with_tree()
+
+    @analysis(on=Tree)
+    def inspect_tree(connector, target):
+        getattr(pm, method)(transform_tree, target)
+        return {'result': None}
+
+    with pytest.raises(TypeError, match='analyses cannot run transformations'):
+        pm.gather(inspect_tree, tree)
 
 
 def test_runner_promotes_node_analysis_dependency_to_tree_target(monkeypatch):
