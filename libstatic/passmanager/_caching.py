@@ -6,7 +6,8 @@ Builtin caching plugin for the standard AST module.
 # - A transformation should not be able to get upper level analyses results if they are not cached already. 
 #   This is to avoid a transformation to trigger quadratic complexity by running analyses and then invalidating them again and again.
 # - Add integration tests for the caching system, i.e. tests where the cache is added and used transparently by default in the PassManager.
-# - Cache no-op transformations, i.e. transformations that don't change the tree, should be able to preserve all analyses results. 
+# - Cache no-op transformations, i.e. transformations that don't change the tree. 
+# - Allow analysis to depend on no-op transformation ONLY
 
 from __future__ import annotations
 
@@ -20,8 +21,6 @@ from typing import (
     Mapping,
     MutableMapping,
 )
-
-import attrs
 
 from ._passe import PassInstance, PassPrototype, PassLike, analysis
 from ._model import Level, Tree, PassKind

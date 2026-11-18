@@ -32,6 +32,8 @@ from libstatic._lib.structures import FrozenDict, Indexer
 from ._model import Forest, Tree, Node, Level, PassKind, Element, Node, RootNode
 from ._passe import PassInstance, PassKind, PassLike, transformation
 
+if TYPE_CHECKING:
+    from libstatic.passmanager._caching import PassPattern
 
 type _ElementPath = (
     tuple[Forest,] | tuple[Forest, Tree] | tuple[Forest, Tree, Node]
@@ -240,11 +242,9 @@ class Connector:
 # TODO (phase-one): Create a hook that patches or replace the connector to enabled
 # a restrictive - testing mode. This will improve performance by not restict anything 
 # outside of the tests for isntance: 
-    # - Verify that the trees passed to run-gather-apply is the current one, othwerwise
-    # make this pass forest-wide. 
-    # - Disallow transformations from analyses
-    # - Disallow outer level transformations from transformations (because of the quadratic nature of the operation)
-    # - Disallow implicitely adding a new tree from within a non-forest-wide-transfortmation.
+# - Disallow transformations from analyses
+# - Disallow outer level transformations from transformations (because of the quadratic nature of the operation)
+# - Disallow implicitely adding a new (DONE)
 
 type CastableToDict = Iterable[tuple[str, Any]] | dict[str, Any]
 
@@ -262,6 +262,7 @@ class TransformationReturnMap(TypedDict):
     returned from a B{transformation} function.
     """
     update: bool
+    preserve: NotRequired[Iterable[PassLike | PassPattern | str]]
 
 
 _Trdict = TypeVar("_Trdict", TransformationReturnMap, AnalysisReturnMap)
