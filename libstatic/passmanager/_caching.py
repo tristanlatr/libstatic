@@ -6,7 +6,6 @@ Builtin caching plugin for the standard AST module.
 # - A transformation should not be able to get upper level analyses results if they are not cached already. 
 #   This is to avoid a transformation to trigger quadratic complexity by running analyses and then invalidating them again and again.
 # - Add integration tests for the caching system, i.e. tests where the cache is added and used transparently by default in the PassManager.
-# - Cache no-op transformations, i.e. transformations that don't change the tree. 
 # - Allow analysis to depend on no-op transformation ONLY
 
 from __future__ import annotations
@@ -489,13 +488,6 @@ class PassManagerCache:
             raise TypeError(
                 "forest-wide transformations are unsupported"
             )
-        if unprepared.passe.proto.kind.name != "ANALYSIS":
-            # Transformations may change external state, so they always execute.
-            if cache_only:
-                raise CacheMissError(
-                    "transformations are not cached and cannot run with cache_only=True"
-                )
-            return None
         result = self.get((unprepared.passe, unprepared.pointer, options))
         if result is None and cache_only:
             raise CacheMissError(
@@ -510,7 +502,14 @@ class PassManagerCache:
             return
 
         if not completed.update:
+            self.set(completed)
             return
+
+        self._evict(_passrun_key((
+            completed.passe,
+            completed.pointer,
+            completed.run_options,
+        )))
 
         tree = _tree_for_pointer(completed.pointer)
 

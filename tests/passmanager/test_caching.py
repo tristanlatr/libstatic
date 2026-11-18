@@ -825,8 +825,8 @@ def test_cache_plugin_serves_cache_only_hit():
     assert calls == [None]
 
 
-def test_cache_plugin_does_not_cache_transformations():
-    """Verify that transformations always execute, including no-op transformations."""
+def test_cache_plugin_caches_noop_transformations():
+    """Verify that repeated no-op transformations return the cached result."""
     calls = []
 
     @transformation(on=Tree)
@@ -841,11 +841,11 @@ def test_cache_plugin_does_not_cache_transformations():
     assert pm.apply(transform_tree, tree) is False
     assert pm.apply(transform_tree, tree) is False
 
-    assert calls == [None, None]
+    assert calls == [None]
 
 
-def test_cache_plugin_rejects_cache_only_transformations():
-    """Verify that cache-only mode cannot silently run a transformation."""
+def test_cache_plugin_rejects_cache_only_miss_for_transformations():
+    """Verify that cache-only mode raises when no no-op transformation result is cached."""
 
     @transformation(on=Tree)
     def transform_tree(connector, tree):
@@ -855,8 +855,98 @@ def test_cache_plugin_rejects_cache_only_transformations():
     tree = Tree(ast.parse('x = 1'), 'mod')
     pm.add(tree)
 
-    with pytest.raises(CacheMissError, match='transformations are not cached'):
+    with pytest.raises(CacheMissError, match='no valid cached result'):
         pm.apply(transform_tree, tree, cache_only=True)
+
+
+def test_cache_plugin_serves_cache_only_hit_for_noop_transformations():
+    """Verify that cache-only mode returns an existing no-op transformation result."""
+    calls = []
+
+    @transformation(on=Tree)
+    def transform_tree(connector, tree):
+        calls.append(None)
+        return {'update': False}
+
+    pm = PassManager([PassManagerCache])
+    tree = Tree(ast.parse('x = 1'), 'mod')
+    pm.add(tree)
+
+    assert pm.apply(transform_tree, tree) is False
+    assert pm.apply(transform_tree, tree, cache_only=True) is False
+    assert calls == [None]
+
+
+def test_cache_plugin_invalidates_noop_transformation_after_tree_edit():
+    """Verify that an edit invalidates a cached no-op transformation at the same target."""
+    calls = []
+
+    @transformation(on=Tree)
+    def change_tree(connector, tree):
+        return {'update': True}
+
+    @transformation(on=Tree)
+    def noop(connector, tree):
+        calls.append(None)
+        return {'update': False}
+
+    pm = PassManager([PassManagerCache])
+    tree = Tree(ast.parse('x = 1'), 'mod')
+    pm.add(tree)
+
+    assert pm.apply(noop, tree) is False
+    pm.apply(change_tree, tree)
+
+    assert pm.apply(noop, tree) is False
+    assert calls == [None, None]
+
+
+def test_cache_plugin_separates_noop_transformations_by_run_options():
+    """Verify that distinct options do not share cached no-op transformation results."""
+    calls = []
+
+    @transformation(on=Tree)
+    def transform_tree(connector, tree, *, mode):
+        calls.append(mode)
+        return {'update': False}
+
+    pm = PassManager([PassManagerCache])
+    tree = Tree(ast.parse('x = 1'), 'mod')
+    pm.add(tree)
+
+    assert pm.apply(transform_tree(mode='first'), tree) is False
+    assert pm.apply(transform_tree(mode='second'), tree) is False
+    assert pm.apply(transform_tree(mode='first'), tree) is False
+    assert calls == ['first', 'second']
+
+
+def test_cache_plugin_evicts_noop_when_transformation_updates():
+    """Verify that changing to update=True removes the cached no-op fact."""
+    calls = []
+    should_update = {'value': False}
+
+    @transformation(on=Tree)
+    def transform_tree(connector, tree):
+        calls.append(None)
+        return {'update': should_update['value']}
+
+    @transformation(on=Tree)
+    def change_tree(connector, tree):
+        return {'update': True}
+
+    pm = PassManager([PassManagerCache])
+    tree = Tree(ast.parse('x = 1'), 'mod')
+    pm.add(tree)
+
+    assert pm.apply(transform_tree, tree) is False
+    pm.apply(change_tree, tree)
+    should_update['value'] = True
+    assert pm.apply(transform_tree, tree) is True
+
+    should_update['value'] = False
+    assert pm.apply(transform_tree, tree) is False
+    assert pm.apply(transform_tree, tree) is False
+    assert calls == [None, None, None]
 
 
 @pytest.mark.parametrize('preserve', [5, 'analysis', b'analysis'])
